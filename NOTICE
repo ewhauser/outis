@@ -1,0 +1,17 @@
+Clinical Deidentifier
+Copyright 2026
+
+This project uses OpenAI Privacy Filter, Copyright OpenAI, licensed under the
+Apache License, Version 2.0. The official implementation is pinned to commit
+f7f00ca7fb869683eb732c010299d901457f19c3 and the Hugging Face weights to
+7ffa9a043d54d1be65afb281eddf0ffbe629385b.
+Sources: https://github.com/openai/privacy-filter
+         https://huggingface.co/openai/privacy-filter
+
+PyTorch, Hugging Face Transformers, FastAPI, Uvicorn, tiktoken and other
+dependencies retain their respective licenses. No externally sourced clinical
+training dataset is included or downloaded.
+
+Project-authored synthetic corpus text and annotations are dedicated to the
+public domain under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/

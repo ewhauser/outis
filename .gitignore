@@ -1,0 +1,19 @@
+.venv/
+.cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+data/*.jsonl
+models/**/model.safetensors
+models/**/pytorch_model.bin
+models/**/*.pt
+# Rebuilt from the pinned upstream checkpoint by scripts/bootstrap.py.
+models/privacy-filter-base/*
+!models/privacy-filter-base/provenance.json
+vendor/
+*.egg-info/
+logs/

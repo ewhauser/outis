@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clinical-deid"
+version = "0.1.0"
+description = "Local clinical PHI NER, redaction and consistent synthetic replacement"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["torch>=2.6", "transformers>=5.6", "safetensors>=0.5", "huggingface-hub>=0.35", "fastapi>=0.115", "uvicorn>=0.30", "pydantic>=2.10", "python-dateutil>=2.9", "tiktoken>=0.9", "numpy>=2.0", "opf @ https://github.com/openai/privacy-filter/archive/f7f00ca7fb869683eb732c010299d901457f19c3.tar.gz"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.28", "ruff>=0.11", "psutil>=6"]
+
+[project.scripts]
+clinical-deid = "clinical_deid.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
