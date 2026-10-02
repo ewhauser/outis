@@ -7,6 +7,7 @@ before loading a detector and separates model-only from hybrid results.
 from __future__ import annotations
 
 import argparse
+import ast
 from collections import Counter
 import hashlib
 import json
@@ -212,9 +213,23 @@ def model_manifest(path: str | Path) -> dict[str, str]:
 
 
 def detector_source_manifest() -> dict[str, str]:
+    """Pin transitive package-local detector helpers as well as entry points."""
     directory = Path(__file__).parent
-    return {name: hashlib.sha256((directory / name).read_bytes()).hexdigest()
-            for name in ("model.py", "rules.py", "clinical_context.py", "types.py") if (directory / name).exists()}
+    pending = [directory / name for name in ("model.py", "rules.py", "types.py")]
+    result = {}
+    while pending:
+        path = pending.pop()
+        name = str(path.relative_to(directory))
+        if name in result:
+            continue
+        payload = path.read_bytes()
+        result[name] = hashlib.sha256(payload).hexdigest()
+        for node in ast.walk(ast.parse(payload.decode("utf-8"))):
+            if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module:
+                dependency = directory / (node.module.replace(".", "/") + ".py")
+                if dependency.is_file():
+                    pending.append(dependency)
+    return dict(sorted(result.items()))
 
 
 def main() -> None:

@@ -54,6 +54,54 @@ def test_python_redaction_and_http_response_schema(service):
         assert response.headers["cache-control"] == "no-store"
 
 
+@pytest.mark.parametrize("phone", ["206-555-0184 extension 197", "+44 20 7946 0184 ext 197"])
+@pytest.mark.parametrize("email", ["quinn.river@example.org", "ali\u0301ce@dept.example.xn--p1ai"])
+@pytest.mark.parametrize("mode", ["redact", "synthetic"])
+@pytest.mark.parametrize("separator", ["\t", "\u00a0\t\u2009", "\u2009\t\u00a0"])
+@pytest.mark.parametrize("endpoint", ["whole_email", "first_char", "after_at"])
+def test_http_contact_primitives_survive_ner_extension_overlap(phone, email, mode, separator, endpoint):
+    from clinical_deid.rules import augment
+
+    text = f"Telecare details\n{phone}{separator}{email}\nGlucose 109 mg/dL; metformin 500 mg."
+    phone_start = text.index(phone)
+    email_start = text.index(email)
+    email_stop = email_start + len(email)
+    if endpoint == "first_char":
+        email_stop = email_start + 1
+    elif endpoint == "after_at":
+        email_stop = text.index("@", email_start) + 1
+
+    class ContactDetector:
+        def detect_batch(self, texts):
+            assert texts == [text]
+            # Reproduce an actual failure: NER places the phone extension
+            # inside EMAIL and detects only the beginning of the telephone.
+            native = [
+                Span(phone_start, phone_start + 12, "PHONE", .9, "encoder"),
+                Span(text.index("197"), email_stop, "EMAIL", .9, "encoder"),
+            ]
+            return [augment(text, native)]
+
+    service = Deidentifier(detector=ContactDetector(), secret=SECRET)
+    request = {"text": text, "mode": mode}
+    if mode == "synthetic":
+        request["patient_id"] = "contact-boundary-test-patient"
+    with TestClient(create_app(service)) as client:
+        response = client.post("/v1/deidentify", json=request)
+    assert response.status_code == 200
+    result = response.json()
+    assert result["entity_count"] == 2
+    assert [(entity["start"], entity["end"], entity["label"]) for entity in result["entities"]] == [
+        (phone_start, phone_start + len(phone), "PHONE"),
+        (email_start, email_start + len(email), "EMAIL"),
+    ]
+    assert phone not in result["text"] and email not in result["text"]
+    assert "Glucose 109 mg/dL; metformin 500 mg." in result["text"]
+    assert "contact-boundary-test-patient" not in response.text
+    if mode == "redact":
+        assert result["text"] == f"Telecare details\n[PHONE]{separator}[EMAIL]\nGlucose 109 mg/dL; metformin 500 mg."
+
+
 def test_synthetic_mode_preserves_date_intervals_and_same_anchor(service):
     request = {"text": TEXT, "mode": "synthetic", "patient_id": "private-patient-anchor", "date_shift_days": 14}
     first = service.deidentify(**request)

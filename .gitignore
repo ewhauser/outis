@@ -8,6 +8,7 @@ __pycache__/
 .env.*
 !.env.example
 data/*.jsonl
+data/*.sealed
 models/**/model.safetensors
 models/**/pytorch_model.bin
 models/**/*.pt

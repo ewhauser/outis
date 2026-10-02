@@ -104,6 +104,35 @@ def main():
     assert all(phrase in default_first["text"] for phrase in clinical)
     assert default_first["preservation"]["date_intervals_preserved"]
     assert default_followup["preservation"]["date_intervals_preserved"]
+    clinical_negatives = [
+        "Creatinine 1.2 mg/dL and potassium 4.1 mmol/L. Continue 25 mg twice daily for 14 days.",
+        "The infant is aged 100 days. Follow up after 120 hours.",
+        "The child is aged 120 months. Continue observation for 100 minutes.",
+        "Patient transport to ED for evaluation.",
+        "Patient transport to ER for evaluation.",
+        "Patient transport to OR for evaluation.",
+        "Patient transport to NICU for evaluation.",
+        "Patient transport to Ultrasound for evaluation.",
+        "Patient transport to Operating Room for evaluation.",
+        "Patient transport to MRI for imaging.",
+        "Community support is available in Nephrology.",
+        "Home care is provided in Rheumatology.",
+        "Community support is available in COPD management.",
+        "Home care is provided in Palliative Care.",
+        "The household is in Isolation after exposure.",
+        "The household is in Quarantine after exposure.",
+        "The patient lives in Assisted Living.",
+        "The patient moved from CPAP to BiPAP.",
+        "The patient returned to Sinus Rhythm.",
+        "Patient name is Unknown; continue clinical assessment.",
+        "Patient name is The patient declined to provide a name.",
+    ]
+    for start in range(0, len(clinical_negatives), 16):
+        texts = clinical_negatives[start:start + 16]
+        results = request("/v1/batch", {"items": [{"text": value, "mode": "redact"} for value in texts]})
+        assert len(results) == len(texts)
+        for original, result in zip(texts, results):
+            assert result["entities"] == [] and result["text"] == original, original
     schema = request("/openapi.json")
     assert {"/v1/deidentify", "/v1/batch", "/health", "/ready"} <= set(schema["paths"])
     output = Path(args.output)
@@ -118,6 +147,7 @@ def main():
             "all exact dates shift 31 days and preserve a 3-day admission interval",
             "separate notes for the same patient use consistent default date and name replacements",
             "clinical measurements, doses and relative durations remain intact",
+            "21 clinical negatives retain their exact text and have no PHI detections",
             "batch endpoint, readiness, OpenAPI and no-store headers work",
         ],
         "ready": ready,
@@ -125,6 +155,7 @@ def main():
         "synthetic": synthetic,
         "default_synthetic": default_first,
         "default_followup": default_followup,
+        "clinical_negative_count": len(clinical_negatives),
     }
     output.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps({"passed": True, "model_version": ready["model_version"], "output": str(output)}))

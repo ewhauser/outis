@@ -1,5 +1,6 @@
 import json
 import re
+import unicodedata
 from datetime import date
 from types import SimpleNamespace
 
@@ -23,7 +24,25 @@ def spans_for(text, values):
 
 
 def synthetic(text, spans, **kwargs):
-    return replace(text, spans, mode="synthetic", patient_id="patient-a", secret=SECRET, **kwargs)
+    return replace(
+        text, spans, mode="synthetic", patient_id="patient-a", secret=SECRET, **kwargs
+    )
+
+
+@pytest.mark.parametrize(
+    "value,kind",
+    [
+        ("Exampleford Hospice House", "Hospice House"),
+        ("Exampleford Care Lodge", "Care Residence"),
+        ("Exampleford Nursing Home", "Nursing Home"),
+        ("Exampleford Infirmary", "Infirmary"),
+        ("Exampleford Infusion Pavilion", "Infusion Pavilion"),
+    ],
+)
+def test_compound_facility_replacement_preserves_public_care_kind(value, kind):
+    result = synthetic(value, spans_for(value, [(value, "FACILITY")]))
+    assert result["text"].startswith("Synthetic " + kind + " ")
+    assert "Exampleford" not in result["text"]
 
 
 def test_redaction_preserves_clinical_data_and_returns_only_input_offsets():
@@ -32,8 +51,12 @@ def test_redaction_preserves_clinical_data_and_returns_only_input_offsets():
     result = replace(text, list(reversed(spans)))
     assert result["text"] == "🩺 [NAME] has HbA1c 9.2%, BP 122/80. Call [PHONE]."
     assert result["entities"][1] == {
-        "start": spans[1].start, "end": spans[1].end, "label": "PHONE",
-        "replacement": "[PHONE]", "score": 0.97, "source": "test",
+        "start": spans[1].start,
+        "end": spans[1].end,
+        "label": "PHONE",
+        "replacement": "[PHONE]",
+        "score": 0.97,
+        "source": "test",
     }
     encoded = json.dumps(result)
     assert "Jane Doe" not in encoded
@@ -44,12 +67,19 @@ def test_redaction_preserves_clinical_data_and_returns_only_input_offsets():
 
 def test_dates_preserve_interval_across_leap_day_and_year_boundary():
     text = "Admitted 2024-02-28, discharged 2024-03-01. Prior 2023-12-31."
-    spans = spans_for(text, [("2024-02-28", "DATE"), ("2024-03-01", "DATE"), ("2023-12-31", "DATE")])
+    spans = spans_for(
+        text, [("2024-02-28", "DATE"), ("2024-03-01", "DATE"), ("2023-12-31", "DATE")]
+    )
     result = synthetic(text, spans, date_shift_days=2)
-    assert result["text"] == "Admitted 2024-03-01, discharged 2024-03-03. Prior 2024-01-02."
-    before = [date.fromisoformat(text[s.start:s.end]) for s in spans]
+    assert (
+        result["text"]
+        == "Admitted 2024-03-01, discharged 2024-03-03. Prior 2024-01-02."
+    )
+    before = [date.fromisoformat(text[s.start : s.end]) for s in spans]
     after = [date.fromisoformat(entity["replacement"]) for entity in result["entities"]]
-    assert [(d - before[0]).days for d in before] == [(d - after[0]).days for d in after]
+    assert [(d - before[0]).days for d in before] == [
+        (d - after[0]).days for d in after
+    ]
     assert result["preservation"]["date_intervals_preserved"] is True
     assert result["preservation"]["exact_dates_shifted"] == 3
     assert all("shift_days" not in field for field in result["preservation"])
@@ -98,7 +128,18 @@ def test_dotted_dates_share_one_shift_and_preserve_intervals():
     assert result["preservation"]["date_intervals_preserved"]
 
 
-@pytest.mark.parametrize("value", ["2024", "February 2024", "02/29", "2024-02", "2024-02-30", "02/29/2023", "yesterday"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2024",
+        "February 2024",
+        "02/29",
+        "2024-02",
+        "2024-02-30",
+        "02/29/2023",
+        "yesterday",
+    ],
+)
 def test_incomplete_unsupported_or_invalid_dates_fail_closed(value):
     result = synthetic(value, [Span(0, len(value), "DATE")], date_shift_days=10)
     assert result["text"] == "[DATE]"
@@ -121,7 +162,9 @@ def test_default_shift_is_nonzero_patient_consistent_and_bounded():
     delta = (date.fromisoformat(first["text"]) - date.fromisoformat(original)).days
     assert 1 <= abs(delta) <= 365
     changes = {
-        replace(original, spans, mode="synthetic", secret=SECRET, patient_id=f"patient-{i}")["text"]
+        replace(
+            original, spans, mode="synthetic", secret=SECRET, patient_id=f"patient-{i}"
+        )["text"]
         for i in range(8)
     }
     assert len(changes) > 1
@@ -129,7 +172,16 @@ def test_default_shift_is_nonzero_patient_consistent_and_bounded():
 
 def test_names_repeated_casefolded_title_and_partial_mentions():
     text = "Dr. Jane Smith saw JANE   SMITH. Jane called Smith. Smith, Jane returned."
-    spans = spans_for(text, [("Dr. Jane Smith", "NAME"), ("JANE   SMITH", "NAME"), ("Jane", "NAME"), ("Smith", "NAME"), ("Smith, Jane", "NAME")])
+    spans = spans_for(
+        text,
+        [
+            ("Dr. Jane Smith", "NAME"),
+            ("JANE   SMITH", "NAME"),
+            ("Jane", "NAME"),
+            ("Smith", "NAME"),
+            ("Smith, Jane", "NAME"),
+        ],
+    )
     result = synthetic(text, spans)
     values = [entity["replacement"] for entity in result["entities"]]
     assert values[0] == "Dr. " + values[1]
@@ -142,9 +194,337 @@ def test_names_repeated_casefolded_title_and_partial_mentions():
 
 def test_ambiguous_partial_names_do_not_link_two_people():
     text = "Jane Smith met Jane Brown. Jane called."
-    spans = spans_for(text, [("Jane Smith", "NAME"), ("Jane Brown", "NAME"), ("Jane", "NAME")])
+    spans = spans_for(
+        text, [("Jane Smith", "NAME"), ("Jane Brown", "NAME"), ("Jane", "NAME")]
+    )
     result = synthetic(text, spans)
     assert len(result["entities"][2]["replacement"].split()) == 2
+
+
+def test_unicode_given_and_particle_family_aliases_share_one_full_identity():
+    values = ["Åsa de Valen", "Åsa", "de Valen", "Dr. Åsa", "de Valen, Åsa"]
+    text = " | ".join(values)
+    result = synthetic(text, spans_for(text, [(value, "NAME") for value in values]))
+    full, first, family, titled, reversed_full = [
+        entity["replacement"] for entity in result["entities"]
+    ]
+    assert first == full.split()[0]
+    assert family == full.split()[-1]
+    assert titled == "Dr. " + first
+    assert reversed_full == full
+    assert all(value not in json.dumps(result, ensure_ascii=False) for value in values)
+
+
+@pytest.mark.parametrize(
+    "full,first,family",
+    [
+        ("Éva É. O’Neri-Rios Jr.", "Éva", "O’Neri-Rios"),
+        ("Åsa de Valen", "Åsa", "de Valen"),
+        ("médico van pélier", "médico", "van pélier"),
+        ("Σοφία Παππά", "Σοφία", "Παππά"),
+    ],
+)
+def test_nfc_nfd_equivalence_uses_original_offsets_for_full_and_reduced_names(
+    full, first, family
+):
+    nfd_first = unicodedata.normalize("NFD", first)
+    nfd_family = unicodedata.normalize("NFD", family)
+    values = [full, nfd_first, nfd_family]
+    text = "🙂 Clinical note: " + " | ".join(values) + " | Na 139 mmol/L; pain 3/10."
+    spans = spans_for(text, [(value, "NAME") for value in values])
+    result = synthetic(text, spans)
+    replacements = [entity["replacement"] for entity in result["entities"]]
+    assert replacements[1] == replacements[0].split()[0]
+    assert replacements[2] == replacements[0].split()[-1]
+    assert (
+        result["text"]
+        == "🙂 Clinical note: "
+        + " | ".join(replacements)
+        + " | Na 139 mmol/L; pain 3/10."
+    )
+    assert [(entity["start"], entity["end"]) for entity in result["entities"]] == [
+        (span.start, span.end) for span in spans
+    ]
+    assert (
+        synthetic(full, [Span(0, len(full), "NAME")])["text"]
+        == synthetic(
+            unicodedata.normalize("NFD", full),
+            [Span(0, len(unicodedata.normalize("NFD", full)), "NAME")],
+        )["text"]
+    )
+    assert full not in json.dumps(result, ensure_ascii=False)
+    assert nfd_first not in json.dumps(result, ensure_ascii=False)
+
+
+@pytest.mark.parametrize("suffix", ["Jr.", "Sr.", "II", "III"])
+def test_generational_suffix_full_name_orders_link_without_suffix_alias(suffix):
+    values = [
+        f"Elian Vale {suffix}",
+        f"Elian Vale, {suffix}",
+        f"Vale {suffix}, Elian",
+        f"Vale, Elian {suffix}",
+        "Elian",
+        "Vale",
+        "Dr. Elian",
+    ]
+    text = " | ".join(values)
+    result = synthetic(text, spans_for(text, [(value, "NAME") for value in values]))
+    replacements = [entity["replacement"] for entity in result["entities"]]
+    assert len(set(replacements[:4])) == 1
+    assert replacements[4] == replacements[0].split()[0]
+    assert replacements[5] == replacements[0].split()[-1]
+    assert replacements[6] == "Dr. " + replacements[4]
+    assert all(value not in json.dumps(result) for value in values)
+
+
+def test_generationally_distinct_people_do_not_share_reduced_alias_mapping():
+    values = ["Elian Vale Jr.", "Elian Vale Sr.", "Elian", "Vale"]
+    text = " | ".join(values)
+    result = synthetic(text, spans_for(text, [(value, "NAME") for value in values]))
+    replacements = [entity["replacement"] for entity in result["entities"]]
+    assert replacements[0] != replacements[1]
+    assert len(replacements[2].split()) == len(replacements[3].split()) == 2
+
+
+@pytest.mark.parametrize("suffix", ["Jr", "Sr", "II", "III", "IV", "V", "VI"])
+def test_optional_suffix_period_does_not_create_competing_alias_owners(suffix):
+    values = [
+        f"Elian Vale {suffix}",
+        f"Elian Vale {suffix}.",
+        f"Elian Vale, {suffix}",
+        f"Vale {suffix}., Elian",
+        f"Vale, Elian {suffix}.",
+        "Elian",
+        "Vale",
+    ]
+    text = " | ".join(values)
+    result = synthetic(text, spans_for(text, [(value, "NAME") for value in values]))
+    replacements = [entity["replacement"] for entity in result["entities"]]
+    assert len(set(replacements[:5])) == 1
+    assert replacements[5] == replacements[0].split()[0]
+    assert replacements[6] == replacements[0].split()[-1]
+    # Full identities also remain consistent without a note-local alias map.
+    assert (
+        len(
+            {
+                synthetic(value, [Span(0, len(value), "NAME")])["text"]
+                for value in values[:5]
+            }
+        )
+        == 1
+    )
+
+
+def test_optional_period_normalization_keeps_distinct_generations_ambiguous():
+    values = [
+        "Elian Vale Jr",
+        "Elian Vale Jr.",
+        "Elian Vale Sr",
+        "Elian Vale Sr.",
+        "Vale",
+    ]
+    text = " | ".join(values)
+    result = synthetic(text, spans_for(text, [(value, "NAME") for value in values]))
+    replacements = [entity["replacement"] for entity in result["entities"]]
+    assert replacements[0] == replacements[1]
+    assert replacements[2] == replacements[3]
+    assert replacements[0] != replacements[2]
+    assert len(replacements[4].split()) == 2
+
+
+@pytest.mark.parametrize("apostrophe", ["'", "’"])
+@pytest.mark.parametrize("hyphen", ["-", "‐", "‑"])
+def test_unicode_name_punctuation_variants_share_full_and_reduced_identity(
+    apostrophe, hyphen
+):
+    variant = f"O{apostrophe}Neri{hyphen}Rios"
+    values = [
+        "Åsa O'Neri-Rios",
+        f"Åsa {variant}",
+        f"{variant}, Åsa",
+        unicodedata.normalize("NFD", f"Åsa {variant}"),
+        variant,
+        "O'Neri-Rios",
+        "Dr. Åsa",
+    ]
+    text = "🙂 Review: " + " | ".join(values) + " | K 4.1 mmol/L; pain 3/10."
+    spans = spans_for(text, [(value, "NAME") for value in values])
+    result = synthetic(text, spans)
+    replacements = [entity["replacement"] for entity in result["entities"]]
+    assert len(set(replacements[:4])) == 1
+    assert replacements[4] == replacements[5] == replacements[0].split()[-1]
+    assert replacements[6] == "Dr. " + replacements[0].split()[0]
+    assert (
+        result["text"]
+        == "🙂 Review: " + " | ".join(replacements) + " | K 4.1 mmol/L; pain 3/10."
+    )
+    assert [(entity["start"], entity["end"]) for entity in result["entities"]] == [
+        (span.start, span.end) for span in spans
+    ]
+    assert (
+        len(
+            {
+                synthetic(value, [Span(0, len(value), "NAME")])["text"]
+                for value in values[:4]
+            }
+        )
+        == 1
+    )
+    assert all(value not in json.dumps(result, ensure_ascii=False) for value in values)
+
+
+@pytest.mark.parametrize(
+    "original,expected",
+    [
+        ("Elian Vale Jr.", "Parker Orchard"),
+        ("Elian Vale Sr.", "Emery Meadow"),
+        ("Elian Vale III", "Drew Meadow"),
+        ("Asa O'Neri-Rios", "Quinn Juniper"),
+    ],
+)
+def test_conventional_ascii_suffix_and_punctuation_hmac_outputs_stay_exact(
+    original, expected
+):
+    # Pinned before spelling normalization, using the existing test secret.
+    assert synthetic(original, [Span(0, len(original), "NAME")])["text"] == expected
+
+
+def test_name_key_normalization_does_not_change_identifier_or_patient_anchor(
+    monkeypatch,
+):
+    import clinical_deid.replacement as module
+
+    calls = []
+    original_digest = module._digest
+    patient = "Åsa O’Neri‐Rios Jr"
+    values = ["O’Neri‐Rios Jr", "O'Neri-Rios Jr."]
+
+    def recording(secret, patient, label, value, salt=0):
+        calls.append((patient, label, value))
+        return original_digest(secret, patient, label, value, salt)
+
+    monkeypatch.setattr(module, "_digest", recording)
+    text = " | ".join(values)
+    result = replace(
+        text,
+        spans_for(text, [(value, "ID") for value in values]),
+        mode="synthetic",
+        patient_id=patient,
+        secret=SECRET,
+    )
+    assert {value for _, label, value in calls if label == "ID"} == {
+        "o’neri‐rios jr",
+        "o'neri-rios jr.",
+    }
+    assert all(anchor == patient for anchor, _, _ in calls)
+    assert values[0] not in json.dumps(result, ensure_ascii=False)
+    assert values[1] not in json.dumps(result, ensure_ascii=False)
+
+
+@pytest.mark.parametrize(
+    "full,alias",
+    [
+        ("Ren Jules Alder", "Ren"),
+        ("Ren Jules Alder", "Alder"),
+        ("Ren Jules Alder, Jr.", "Alder"),
+        ("R. Alder", "Alder"),
+        ("Ren, Jules, Alder", "Ren"),
+        ("Ren Ren", "Ren"),
+    ],
+)
+def test_ambiguous_multipart_initial_and_shared_component_aliases_are_not_guessed(
+    full, alias
+):
+    values = [full, alias]
+    text = " | ".join(values)
+    result = synthetic(text, spans_for(text, [(value, "NAME") for value in values]))
+    assert len(result["entities"][1]["replacement"].split()) == 2
+
+
+def test_particle_family_tail_is_not_guessed_from_a_partial_surname():
+    values = ["Åsa de Valen", "Valen"]
+    text = " | ".join(values)
+    result = synthetic(text, spans_for(text, [(value, "NAME") for value in values]))
+    assert len(result["entities"][1]["replacement"].split()) == 2
+
+
+def test_reduced_alias_linking_is_note_local_not_a_cross_note_identity_claim():
+    full = "Åsa de Valen"
+    alias = "Åsa"
+    text = full + " | " + alias
+    together = synthetic(text, spans_for(text, [(full, "NAME"), (alias, "NAME")]))
+    assert len(together["entities"][1]["replacement"].split()) == 1
+    separately = synthetic(alias, [Span(0, len(alias), "NAME")])
+    assert len(separately["text"].split()) == 2
+
+
+def test_existing_ascii_hmac_identity_title_order_case_and_alias_outputs_stay_exact():
+    # Pinned before the Unicode/alias repair using the original implementation.
+    values = ["Jane Smith", "Smith, Jane", "Dr. Jane Smith", "Jane", "Smith"]
+    text = " | ".join(values)
+    spans = spans_for(text, [(value, "NAME") for value in values])
+    result = replace(
+        text,
+        spans,
+        mode="synthetic",
+        patient_id="patient-a",
+        secret=b"0123456789abcdef0123456789abcdef",
+    )
+    assert [entity["replacement"] for entity in result["entities"]] == [
+        "Quinn Grove",
+        "Quinn Grove",
+        "Dr. Quinn Grove",
+        "Quinn",
+        "Grove",
+    ]
+    assert (
+        synthetic("JANE   SMITH", [Span(0, len("JANE   SMITH"), "NAME")])["text"]
+        == synthetic("Jane Smith", [Span(0, len("Jane Smith"), "NAME")])["text"]
+    )
+
+
+def test_alias_component_cannot_remain_private_surname_unchanged_after_suffix(
+    monkeypatch,
+):
+    import clinical_deid.replacement as module
+
+    monkeypatch.setattr(module, "_FIRST_NAMES", ("Fictional",))
+    monkeypatch.setattr(module, "_LAST_NAMES", ("Vale", "FictionalSurname"))
+    digest = bytes(32)
+    original = module._digest
+
+    def controlled(secret, patient, label, value, salt=0):
+        if label == "NAME":
+            return digest if salt == 0 else bytes(4) + b"\x00\x00\x00\x01" + bytes(24)
+        return original(secret, patient, label, value, salt)
+
+    monkeypatch.setattr(module, "_digest", controlled)
+    values = ["Elian Vale Jr.", "Vale"]
+    text = " | ".join(values)
+    result = synthetic(text, spans_for(text, [(value, "NAME") for value in values]))
+    assert [entity["replacement"] for entity in result["entities"]] == [
+        "Fictional FictionalSurname",
+        "FictionalSurname",
+    ]
+    assert "Vale" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "original,setting",
+    [
+        ("Zephrel Wound Pavilion", "Wound Pavilion"),
+        ("Zephrel Wound Care Pavilion", "Wound Care Pavilion"),
+        ("Zephrel Wound Care Clinic", "Wound Care Clinic"),
+        ("Woundfield Carepoint Pavilion", "Medical Center"),
+    ],
+)
+def test_wound_setting_replacement_uses_only_fixed_public_care_words(original, setting):
+    result = synthetic(original, [Span(0, len(original), "FACILITY")])
+    assert re.fullmatch(
+        rf"Synthetic {re.escape(setting)} [A-F0-9]{{6}}", result["text"]
+    )
+    assert original not in json.dumps(result)
+    assert original.split()[0] not in result["text"]
 
 
 def test_patient_and_secret_scope_identity():
@@ -153,12 +533,20 @@ def test_patient_and_secret_scope_identity():
     same = synthetic(text, spans)["text"]
     assert same == synthetic(text, spans)["text"]
     outputs = {
-        replace(text, spans, mode="synthetic", patient_id=f"patient-{i}", secret=SECRET)["text"]
+        replace(
+            text, spans, mode="synthetic", patient_id=f"patient-{i}", secret=SECRET
+        )["text"]
         for i in range(12)
     }
     assert len(outputs) > 1
     keyed = {
-        replace(text, spans, mode="synthetic", patient_id="patient-a", secret=bytes([i]) * 32)["text"]
+        replace(
+            text,
+            spans,
+            mode="synthetic",
+            patient_id="patient-a",
+            secret=bytes([i]) * 32,
+        )["text"]
         for i in range(12)
     }
     assert len(keyed) > 1
@@ -177,15 +565,23 @@ def test_normal_ages_can_retain_clinical_value_in_synthetic_mode():
 
 def test_contact_and_identifier_replacements_are_fictional():
     values = [
-        ("801-555-8999", "PHONE"), ("jane@example.org", "EMAIL"),
-        ("123 Main St", "ADDRESS"), ("123-45-6789", "SSN"),
-        ("1234567", "MRN"), ("ACCT123", "ACCOUNT"), ("EMP123", "ID"),
-        ("https://patient.example.com", "URL"), ("172.16.1.1", "IP"),
-        ("Salt Lake City", "LOCATION"), ("Regional Hospital", "FACILITY"),
+        ("801-555-8999", "PHONE"),
+        ("jane@example.org", "EMAIL"),
+        ("123 Main St", "ADDRESS"),
+        ("123-45-6789", "SSN"),
+        ("1234567", "MRN"),
+        ("ACCT123", "ACCOUNT"),
+        ("EMP123", "ID"),
+        ("https://patient.example.com", "URL"),
+        ("172.16.1.1", "IP"),
+        ("Salt Lake City", "LOCATION"),
+        ("Regional Hospital", "FACILITY"),
     ]
     text = " | ".join(original for original, _ in values)
     result = synthetic(text, spans_for(text, values))
-    replacements = {entity["label"]: entity["replacement"] for entity in result["entities"]}
+    replacements = {
+        entity["label"]: entity["replacement"] for entity in result["entities"]
+    }
     assert re.fullmatch(r"\(202\) 555-01\d{2}", replacements["PHONE"])
     assert replacements["EMAIL"].endswith("@example.invalid")
     assert replacements["SSN"].startswith("000-")
@@ -227,14 +623,24 @@ def test_explicit_offset_must_be_nonzero_bounded_integer(offset):
 
 
 def test_invalid_overlapping_duplicate_and_out_of_range_spans_are_rejected():
-    for spans in ([Span(0, 2, "NAME"), Span(1, 3, "NAME")], [Span(0, 3, "NAME"), Span(0, 3, "NAME")], [Span(0, 4, "NAME")]):
+    for spans in (
+        [Span(0, 2, "NAME"), Span(1, 3, "NAME")],
+        [Span(0, 3, "NAME"), Span(0, 3, "NAME")],
+        [Span(0, 4, "NAME")],
+    ):
         with pytest.raises(ValueError, match="nonoverlapping"):
             replace("abc", spans)
 
 
 def test_adjacent_spans_and_empty_inputs_are_safe():
-    assert replace("Jane123", [Span(0, 4, "NAME"), Span(4, 7, "MRN")])["text"] == "[NAME][MRN]"
-    assert replace("No PHI: glucose 123 mg/dL.", [])["text"] == "No PHI: glucose 123 mg/dL."
+    assert (
+        replace("Jane123", [Span(0, 4, "NAME"), Span(4, 7, "MRN")])["text"]
+        == "[NAME][MRN]"
+    )
+    assert (
+        replace("No PHI: glucose 123 mg/dL.", [])["text"]
+        == "No PHI: glucose 123 mg/dL."
+    )
     assert replace("", [])["text"] == ""
 
 
@@ -267,7 +673,16 @@ def test_additional_common_date_formats_preserve_format_and_time(original, expec
     assert result["preservation"]["date_intervals_preserved"] is True
 
 
-@pytest.mark.parametrize("value", ["2024-02-29T25:30:00Z", "2024-02-29T08:61:00Z", "2024-02-29T08:30:61Z", "2024-02-29T08:30:00+25:00", "2024-02-29T08:30:00+05:61"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2024-02-29T25:30:00Z",
+        "2024-02-29T08:61:00Z",
+        "2024-02-29T08:30:61Z",
+        "2024-02-29T08:30:00+25:00",
+        "2024-02-29T08:30:00+05:61",
+    ],
+)
 def test_invalid_time_or_timezone_fails_closed_without_phi_in_warning(value):
     result = synthetic(value, [Span(0, len(value), "DATE")], date_shift_days=1)
     assert result["text"] == "[DATE]"
@@ -284,28 +699,44 @@ def test_ambiguous_numeric_date_remains_us_convention_with_warning():
 
 def test_equivalent_mixed_formats_share_one_patient_offset():
     values = [
-        "2002-05-13", "13/05/2002", "13-May-2002", "May-13-2002",
-        "May 13, 2002", "2002-05-13T08:30:00+05:30",
+        "2002-05-13",
+        "13/05/2002",
+        "13-May-2002",
+        "May-13-2002",
+        "May 13, 2002",
+        "2002-05-13T08:30:00+05:30",
     ]
     text = " | ".join(values)
     spans = spans_for(text, [(value, "DATE") for value in values])
     result = synthetic(text, spans, date_shift_days=20)
     assert [entity["replacement"] for entity in result["entities"]] == [
-        "2002-06-02", "02/06/2002", "02-Jun-2002", "Jun-02-2002",
-        "June 2, 2002", "2002-06-02T08:30:00+05:30",
+        "2002-06-02",
+        "02/06/2002",
+        "02-Jun-2002",
+        "Jun-02-2002",
+        "June 2, 2002",
+        "2002-06-02T08:30:00+05:30",
     ]
     assert result["preservation"]["exact_dates_shifted"] == 6
     assert result["preservation"]["date_intervals_preserved"] is True
 
 
 def test_mixed_date_datetime_intervals_across_leap_day_are_preserved():
-    text = "Admit 2024-02-28T23:15:30-07:00; follow up 14/03/2024; resolved 15-Mar-2024."
+    text = (
+        "Admit 2024-02-28T23:15:30-07:00; follow up 14/03/2024; resolved 15-Mar-2024."
+    )
     values = ["2024-02-28T23:15:30-07:00", "14/03/2024", "15-Mar-2024"]
-    result = synthetic(text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=2)
+    result = synthetic(
+        text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=2
+    )
     assert [entity["replacement"] for entity in result["entities"]] == [
-        "2024-03-01T23:15:30-07:00", "16/03/2024", "17-Mar-2024",
+        "2024-03-01T23:15:30-07:00",
+        "16/03/2024",
+        "17-Mar-2024",
     ]
-    assert (date(2024, 3, 16) - date(2024, 3, 1)).days == (date(2024, 3, 14) - date(2024, 2, 28)).days
+    assert (date(2024, 3, 16) - date(2024, 3, 1)).days == (
+        date(2024, 3, 14) - date(2024, 2, 28)
+    ).days
     assert (date(2024, 3, 17) - date(2024, 3, 16)).days == 1
 
 
@@ -341,10 +772,14 @@ def test_patient_anchor_is_exact_case_sensitive_and_preserves_whitespace():
         ("Unknown Identifying Words", "Medical Center"),
     ],
 )
-def test_synthetic_facility_preserves_only_whitelisted_generic_setting(original, setting):
+def test_synthetic_facility_preserves_only_whitelisted_generic_setting(
+    original, setting
+):
     spans = [Span(0, len(original), "FACILITY")]
     result = synthetic(original, spans)
-    assert re.fullmatch(rf"Synthetic {re.escape(setting)} [A-F0-9]{{6}}", result["text"])
+    assert re.fullmatch(
+        rf"Synthetic {re.escape(setting)} [A-F0-9]{{6}}", result["text"]
+    )
     assert result == synthetic(original, spans)
     assert original not in json.dumps(result)
     assert original.split()[0] not in result["text"]

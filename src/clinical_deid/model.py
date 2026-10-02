@@ -6,6 +6,7 @@ import json
 import hashlib
 import math
 import os
+import re
 from pathlib import Path
 from types import MethodType
 import unicodedata
@@ -231,6 +232,11 @@ def decode_bioes(logits, offsets, text):
                     if letter(text[a - 1]) and letter(text[a]):
                         a -= 1
                     elif (
+                        text[a] in "'’-" and a + 1 < b
+                        and letter(text[a - 1]) and letter(text[a + 1])
+                    ):
+                        a -= 1
+                    elif (
                         text[a - 1] in "'’-" and a - 2 >= left_limit
                         and letter(text[a - 2]) and letter(text[a])
                     ):
@@ -241,12 +247,56 @@ def decode_bioes(logits, offsets, text):
                     if letter(text[b - 1]) and letter(text[b]):
                         b += 1
                     elif (
+                        text[b - 1] in "'’-" and b - 2 >= a
+                        and letter(text[b - 2]) and letter(text[b])
+                    ):
+                        b += 1
+                    elif (
                         text[b] in "'’-" and b + 1 < right_limit
                         and letter(text[b - 1]) and letter(text[b + 1])
                     ):
                         b += 2
                     else:
                         break
+                if tag[2:] == "NAME":
+                    # An English possessive is grammar outside the person's
+                    # name. Normalize after word completion: BPE may attach
+                    # the suffix, or a partial prediction may stop inside it.
+                    # A true lexical ending is required so O'Sullivan and
+                    # apostrophe/hyphen compounds remain complete, including
+                    # when another decoded entity prevents right expansion.
+                    possessive_end = b
+                    while possessive_end > a and text[possessive_end - 1] in ".!?":
+                        possessive_end -= 1
+                    terminal = (
+                        possessive_end == len(text)
+                        or not (
+                            text[possessive_end].isalnum() or letter(text[possessive_end]) or text[possessive_end] == "_"
+                            or (
+                                text[possessive_end] in "'’-" and possessive_end + 1 < len(text)
+                                and letter(text[possessive_end + 1])
+                            )
+                        )
+                    )
+                    suffix_before_possessive = bool(re.search(r"\b(?:Jr|Sr)\.$", text[a:possessive_end - 2], re.I))
+                    if terminal and possessive_end - a > 2 and text[possessive_end - 2] in "'’" and text[possessive_end - 1] in "sS" and (letter(text[possessive_end - 3]) or suffix_before_possessive):
+                        b = possessive_end - 2
+                    elif (
+                        b > a and text[b - 1] in "'’"
+                        and re.search(r"\b(?:Jr|Sr)\.$", text[a:b - 1], re.I)
+                        and text[b:b + 1] in {"s", "S"}
+                        and (b + 1 == len(text) or not (
+                            letter(text[b + 1]) or text[b + 1].isalnum() or text[b + 1] == "_"
+                            or (text[b + 1] in "'’\u2010\u2011-" and b + 2 < len(text) and letter(text[b + 2]))
+                        ))
+                    ):
+                        # BPE can end immediately after the apostrophe in
+                        # "Jr.'s". Keep the suffix period, excluding possessive
+                        # grammar only when the complete following s is proven.
+                        b -= 1
+                    elif terminal and possessive_end - a > 1 and text[possessive_end - 1] in "'’" and text[possessive_end - 2] in "sS":
+                        # Plural possessives such as James' retain the final s.
+                        b = possessive_end - 1
             if b > a:
                 confidence = (
                     scores[start : i + 1]

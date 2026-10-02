@@ -90,6 +90,18 @@ replacement strings, model/rule confidence scores, warnings, and a model version
 Response metadata contains no original PHI, patient anchor, date offset, or key.
 Scores are model probabilities or rule scores, not calibrated safety estimates.
 
+The default API uses the hybrid detector. NER reads the original clinical text;
+structural extractors then scan that same complete text and merge their matches
+with the learned spans. An email does not need a successful NER prediction to
+be detected. The email recognizer supports ASCII aliases and punctuation,
+Unicode mailbox text and domains, punycode domains, quoted mailbox names, and
+IP address literals while preserving original character offsets. Regression
+tests force NER to return no PHI and verify both redaction and synthetic
+replacement through the public Python API. Obfuscated forms such as
+`alice [at] example [dot] org` remain outside this deterministic grammar.
+`backend="model"` is available for evaluating NER separately and skips the
+structural extractors.
+
 ## Consistent synthetic replacements
 
 Set `DEID_SECRET` to a secret with at least 32 bytes and keep it stable. Synthetic
@@ -157,9 +169,9 @@ checked. Ordinary token accuracy is excluded. Model-only and hybrid results
 are reported separately. See [evaluation protocol](reports/evaluation_protocol.md).
 Document leak-free rate is reported alongside entity metrics.
 
-The current frozen final test contains 1,200 synthetic notes and 14,121 PHI
-spans. **The 99% qualification target has not been met.** Results from the
-first one-shot final evaluation are:
+The initial frozen final test contained 1,200 synthetic notes and 14,121 PHI
+spans. **The 99% qualification target has not been met.** Results from that
+first one-shot final evaluation were:
 
 | Detector | Exact precision | Exact recall | Exact F1 |
 |---|---:|---:|---:|
@@ -171,9 +183,67 @@ The separate 3,200-note checkpoint-selection validation scored 99.82% F1, which
 did not carry over to the final test. Full final metrics, per-type recall and
 unchanged model/source/corpus hashes are recorded in
 [final qualification](reports/final_v4_qualification.json) and the
-[detector freeze](reports/detector_freeze.json). Final failures have not yet
-been used for further training or tuning. This is a working first-pass system,
-not a qualified 99% clinical detector.
+[detector freeze](reports/detector_freeze.json). Its failures subsequently guided
+decoder and clinical guard fixes, so the corpus was explicitly retired into
+`data/retired_v4_development.jsonl`. Subsequent results on it are development
+diagnostics.
+
+The independently authored v5 qualification bank then exposed a larger
+generalization gap in the v7 adapter and guards. Its frozen, one-shot evaluation
+covered 2,160 notes and 14,112 PHI spans:
+
+| Detector | Exact precision | Exact recall | Exact F1 |
+|---|---:|---:|---:|
+| Trained encoder and NER | 68.73% | 80.97% | 74.35% |
+| Hybrid encoder, NER and clinical guards | 73.63% | 86.95% | 79.74% |
+
+Hybrid PHI-character recall was 98.10%; 74.03% of documents were leak-free.
+The [immutable qualification report](reports/blind_v5_qualification.json)
+records the failed gates and frozen inputs. Before inspecting its failures,
+that bank was retired into `data/retired_blind_v5_development.jsonl` for
+validation only. The v8 pass adds broader invented clinical contexts and
+negative examples, spelled-out age handling, compound care settings and
+identifier-field grammar. A separately authored v6 qualification bank remains
+sealed until development selection is complete. **The 99% target remains unmet.**
+
+The latest completed full-detector development check uses the v9 epoch 8
+candidate and repaired contact/name boundaries on 7,860 declared development
+notes. Reapplying the current helpers to its saved actual neural predictions
+scores 98.42% exact precision, 99.05% recall and 98.73% F1; NAME recall
+is 95.63%, PHI-character recall is 99.82%, and 95.80% of documents are leak-free.
+All 4,606 gold EMAIL spans are exact matches, with one extra model prediction.
+The [saved development replay](reports/v9_epoch8_commit_hybrid.json)
+and [repair delta](reports/v9_post_contact_identity_delta.json) pin the actual
+neural outputs and helper sources. These figures are development evidence.
+
+The completed matched comparison adds 2,000 authored nominal-alias training notes
+and 500 separately reported development notes. Its two runs use identical
+starting weights, corpora, seed and optimizer settings, with singleton
+NAME/LOCATION loss weights of 1 and 4. The
+[predeclared protocol](reports/training_v10_protocol.json) records 44,800
+training and 8,360 development notes. Both runs completed eight epochs and
+verified their frozen inputs. Control checkpoint ranking is complete; weighted
+ranking and full-detector candidate verification remain pending. Earlier cohorts remain separately
+reported; new examples cannot conceal regressions in them. The default model
+artifact remains the original v4 adapter while later candidates are evaluated.
+See [current snapshot](reports/current_state_snapshot.md) for validation and
+the remaining work.
+
+The new narrative generators add single-token names and places, broader role
+language, contrasting identifier captions, and clinical negatives. The
+compositional training bank preserves each original narrative training note's
+exact PHI values and labels while varying grammar and layout. It replaces that
+bank during v6 training; all 4,200 development notes stay unchanged. Training
+retains each epoch and selects checkpoints using exact typed-span metrics rather
+than cross-entropy alone. Additional training duration is a comparison caveat;
+this experiment alone cannot establish that context composition caused a gain.
+
+```sh
+.venv/bin/python -m clinical_deid.narrative_synthetic
+.venv/bin/python -m clinical_deid.compositional_synthetic
+.venv/bin/python scripts/retire_final_to_development.py \
+  --source data/challenge_final.jsonl --output data/retired_v4_development.jsonl
+```
 
 ```sh
 .venv/bin/python -m clinical_deid.challenge --suite development --seed 240100 --count 800 --output data/challenge_development.jsonl

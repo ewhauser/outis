@@ -111,3 +111,19 @@ def test_batch_predictions_use_fast_path_and_validate_batch_size():
 def test_duplicate_corpus_identifiers_are_rejected():
     with pytest.raises(ValueError, match="Duplicate corpus"):
         evaluate([row(), row()], lambda text: [])
+def test_detector_source_manifest_includes_changed_transitive_helpers(tmp_path, monkeypatch):
+    import clinical_deid.evaluate as evaluation
+
+    for name, text in {
+        "model.py": "from .types import Span\n",
+        "rules.py": "from .helper import refine\n",
+        "helper.py": "from .types import Span\ndef refine(): pass\n",
+        "types.py": "class Span: pass\n",
+    }.items():
+        (tmp_path / name).write_text(text)
+    monkeypatch.setattr(evaluation, "__file__", str(tmp_path / "evaluate.py"))
+    before = evaluation.detector_source_manifest()
+    assert set(before) == {"model.py", "rules.py", "helper.py", "types.py"}
+    (tmp_path / "helper.py").write_text("def refine(): return 1\n")
+    after = evaluation.detector_source_manifest()
+    assert before["helper.py"] != after["helper.py"]
