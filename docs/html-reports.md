@@ -19,6 +19,29 @@ The module form is also supported:
   --output reports/pipeline_report.html
 ```
 
+## Reading benchmark progress
+
+The page opens on the configured `default_run` and leads with its benchmark
+verdict and the count of required checks met. This is a checklist count, not a
+percentage of deployment readiness. Selecting a run updates the entire summary,
+target table, label breakdown, and supporting metrics together.
+
+The target table shows each observed value, its declared target, and the
+shortfall. Accuracy shortfalls use percentage points; support shortfalls use
+spans. The all-label gates show the weakest recall and smallest label sample.
+Per-label rows are ordered by recall, with unassessed labels last. Tiny nonzero
+gaps remain visible as `<0.01 pp`; a failing result that would round up to its
+target is displayed as `<99%` rather than appearing to meet it.
+
+Notes with uncovered annotated PHI and negative notes left untouched remain
+prominent diagnostics. Neither has an acceptance threshold in the current
+protocol, so the page does not invent pass/fail gates for them. Detection
+coverage is measured before replacement and does not validate final output.
+Development and historical qualification are explicitly distinguished;
+comparison and timing appear after benchmark progress. The view also identifies
+the remaining clinical-validation scope and the absence of a per-family
+breakdown.
+
 For a local HTTP preview, serve only the output directory you intend to expose:
 
 ```sh
@@ -133,7 +156,8 @@ Reported completion time comes only from the qualification wrapper; regeneration
 does not invent a new evaluation timestamp.
 
 ```sh
-.venv/bin/python -m pytest -q tests/test_report.py
+.venv/bin/python -m pytest -q tests/test_report.py tests/test_report_progress.py
 .venv/bin/ruff check src/clinical_deid/report.py src/clinical_deid/report_html.py \
-  scripts/build_report.py tests/test_report.py
+  src/clinical_deid/report_progress.py scripts/build_report.py \
+  tests/test_report.py tests/test_report_progress.py
 ```

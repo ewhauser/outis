@@ -11,6 +11,8 @@ import json
 import math
 from typing import Any
 
+from .report_progress import benchmark_progress
+
 
 def _text(value: Any, fallback: str = "Unavailable") -> str:
     return html.escape(fallback if value is None else str(value), quote=True)
@@ -111,37 +113,6 @@ def _badge(label: str, style: str = "neutral") -> str:
     return f'<span class="badge {style}">{_text(label)}</span>'
 
 
-def _qualification(run: dict) -> str:
-    qualified = (run.get("provenance") or {}).get("qualified")
-    model_only = run.get("backend") == "model"
-    if qualified is True:
-        label = (
-            "Hybrid qualification recorded" if model_only else "Qualification recorded"
-        )
-        if run.get("purpose") == "historical_qualification":
-            label = "Historical " + label[0].lower() + label[1:]
-        return _badge(label, "teal")
-    if qualified is False:
-        return _badge(
-            "Hybrid qualification not met" if model_only else "Not qualified", "amber"
-        )
-    return _badge(
-        "Hybrid qualification not established"
-        if model_only
-        else "Qualification not established"
-    )
-
-
-def _goal_status(goal: dict | None) -> str:
-    if not goal or goal.get("passed") not in (True, False):
-        return _badge("Goal unavailable")
-    return (
-        _badge("Recorded goal passed", "teal")
-        if goal["passed"] is True
-        else _badge("Recorded goal not met", "amber")
-    )
-
-
 def _counts(metrics: dict) -> str:
     return (
         f"<span>{_count(metrics.get('true_positives'))} matched</span>"
@@ -198,10 +169,197 @@ def _metric_card(title: str, metrics: dict) -> str:
     )
 
 
-def _label_table(run: dict) -> str:
+def _target_rate(value: Any, target: Any) -> str:
+    """Keep a tiny shortfall visible when the displayed rates round equally."""
+    actual, threshold = _number(value), _number(target)
+    if actual is not None and threshold is not None and actual < threshold:
+        if _percent(actual) == _percent(threshold):
+            return "&lt;" + _percent(threshold)
+    return _percent(value)
+
+
+def _gap(value: Any, unit: str = "rate") -> str:
+    value = _number(value)
+    if value is None:
+        return "Unavailable"
+    if value == 0:
+        return "None"
+    if unit == "count":
+        return _count(value) + " spans"
+    points = value * 100
+    return "&lt;0.01 pp" if points < 0.01 else f"{points:.2f} pp"
+
+
+def _target_bar(value: Any, target: Any, label: str) -> str:
+    actual, threshold = _number(value), _number(target)
+    if actual is None:
+        return '<span class="muted">N/A</span>'
+    marker = (
+        f'<i class="target-marker" style="left:{threshold * 100:.9f}%" title="Target: {_percent(threshold)}"></i>'
+        if threshold is not None
+        else ""
+    )
+    color = "gap-fill" if threshold is not None and actual < threshold else "met-fill"
+    return (
+        f'<div class="target-metric"><strong>{_target_rate(actual, threshold)}</strong>'
+        f'<span class="target-track" role="meter" aria-label="{_text(label)}" '
+        f'aria-valuemin="0" aria-valuemax="100" aria-valuenow="{actual * 100:.12g}">'
+        f'<span class="{color}" style="width:{actual * 100:.9f}%"></span>{marker}</span></div>'
+    )
+
+
+def _progress_overview(run: dict, progress: dict, index: int) -> str:
+    purpose = run.get("purpose")
+    prefix = (
+        "Historical benchmark"
+        if purpose == "historical_qualification"
+        else ("Development benchmark" if purpose == "development" else "Benchmark")
+    )
+    status = progress["status"]
+    headline = (
+        prefix
+        + {"met": " met", "not_met": " not met", "unavailable": " status unavailable"}[
+            status
+        ]
+    )
+    provenance = run.get("provenance") or {}
+    date = provenance.get("completed_at")
+    date_line = f" · Evaluated {_text(str(date).split('T')[0])}" if date else ""
+    count_line = (
+        f"<strong>{progress['passed_checks']}<span> / {progress['total_checks']}</span></strong>"
+        "<span>required checks met</span>"
+        if progress["total_checks"]
+        else "<strong>—</strong><span>Benchmark checks unavailable</span>"
+    )
+    goal = run.get("goal") or {}
+    target = goal.get("threshold")
+    chars = run.get("character") or {}
+    character_rate = _metric_rate(chars, "recall")
+    char_gap = next(
+        (
+            gate["gap"]
+            for gate in progress["gates"]
+            if gate["name"] == "phi_character_recall_at_least_99_percent"
+        ),
+        None,
+    )
+    below, assessed = progress["labels_below_target"], progress["labels_assessed"]
+    labels_value = _count(below) if below is not None else "Unavailable"
+    labels_note = (
+        f"of {assessed} assessed labels · target {_percent(target)} each"
+        if target is not None
+        else "Recall target not recorded"
+    )
+    negative = run.get("negative_documents") or {}
+    negative_count = _number(negative.get("count"))
+    negative_value = (
+        _percent(negative.get("clean_rate"))
+        if negative_count
+        else ("N/A" if negative_count == 0 else "Unavailable")
+    )
+    negative_note = (
+        f"{_count(negative.get('clean_count'))} / {_count(negative.get('count'))} notes left untouched"
+        if negative_count
+        else "No negative documents in this run"
+        if negative_count == 0
+        else "Negative-document metrics unavailable"
+    )
+    label_evidence = (
+        f"{_count(len(progress['label_rows']) - assessed)} labels without recall evidence"
+        if progress["label_rows"]
+        else "Per-label evidence unavailable"
+    )
+    return (
+        f'<div class="benchmark-hero {status}"><div><p class="eyebrow">Recorded benchmark result</p>'
+        f'<h3 id="run-title-{index}">{headline}</h3>'
+        f'<p class="evidence-line">{_text(run.get("label"))} · {_count(run.get("documents"))} notes{date_line}</p>'
+        f'<p class="run-note">{_text(run.get("note") or "Saved evaluation; not a live service measurement.")}</p>'
+        '</div><div class="gate-tally">' + count_line + "</div></div>"
+        '<div class="readiness-cards">'
+        '<div class="readiness-card privacy-card"><span class="small-label">Notes with uncovered annotated PHI</span>'
+        f"<strong>{_count(progress['leaking_documents'])}</strong>"
+        f"<span>of {_count(run.get('documents'))} notes · {_percent(progress['leaking_rate'])}</span>"
+        "<small>Coverage diagnostic · acceptance target not set</small></div>"
+        '<div class="readiness-card"><span class="small-label">PHI character recall</span>'
+        f"<strong>{_target_rate(character_rate, target)}</strong><span>Target {_percent(target)}</span>"
+        f"<small>Shortfall: {_gap(char_gap)}</small></div>"
+        '<div class="readiness-card"><span class="small-label">Labels below recall target</span>'
+        f"<strong>{labels_value}</strong><span>{labels_note}</span>"
+        f"<small>{label_evidence}</small></div>"
+        '<div class="readiness-card"><span class="small-label">Negative notes untouched</span>'
+        f"<strong>{negative_value}</strong><span>{negative_note}</span>"
+        "<small>False-positive diagnostic · acceptance target not set</small></div></div>"
+    )
+
+
+def _benchmark_gates(progress: dict) -> str:
+    order = {
+        name: i
+        for i, name in enumerate(
+            (
+                "typed_span_recall_at_least_99_percent",
+                "phi_character_recall_at_least_99_percent",
+                "every_label_recall_at_least_99_percent",
+                "recall_wilson_lower_95_at_least_99_percent",
+                "typed_span_precision_at_least_99_percent",
+                "typed_span_f1_at_least_99_percent",
+                "all_labels_have_sufficient_support",
+            )
+        )
+    }
     rows = []
-    for item in run.get("per_label") or []:
-        support = item.get("sufficient_support")
+    for gate in sorted(progress["gates"], key=lambda item: order.get(item["name"], 99)):
+        gate_label = gate["label"].removesuffix(" ≥ 99%")
+        if gate["name"] == "every_label_recall_at_least_99_percent":
+            gate_label = "Lowest label recall"
+            if progress["weakest_label"]:
+                gate_label += f" ({progress['weakest_label']})"
+        elif gate["name"] == "all_labels_have_sufficient_support":
+            gate_label = "Smallest label sample"
+        is_rate = gate["unit"] == "rate"
+        actual = (
+            _target_bar(gate["actual"], gate["target"], gate["label"])
+            if is_rate
+            else _count(gate["actual"])
+        )
+        target = (
+            _percent(gate["target"])
+            if is_rate
+            else _count(gate["target"]) + " spans / label"
+        )
+        status = (
+            _badge("Met", "teal")
+            if gate["passed"] is True
+            else (
+                _badge("Not met", "amber")
+                if gate["passed"] is False
+                else _badge("Unavailable")
+            )
+        )
+        rows.append(
+            f'<tr><th scope="row">{_text(gate_label)}</th><td>{actual}</td>'
+            f'<td>{target}</td><td class="numeric">{_gap(gate["gap"], gate["unit"])}</td><td>{status}</td></tr>'
+        )
+    return (
+        '<section class="subsection benchmark-gates"><div class="subsection-heading"><div>'
+        '<p class="eyebrow">01 / Distance to the benchmark</p><h4>Every required check must pass</h4></div></div>'
+        '<p class="muted">Shortfall is measured in percentage points (pp), or spans for support. '
+        "Bars run from 0 to 100%; the dark marker is the target. A check count is not a percentage of deployment readiness.</p>"
+        '<div class="table-scroll" tabindex="0" role="region" aria-label="Benchmark targets and shortfalls">'
+        '<table class="gates-table"><caption class="sr-only">Recorded benchmark results against every required target</caption>'
+        '<thead><tr><th scope="col">Required check</th><th scope="col">Observed</th><th scope="col">Target</th>'
+        '<th scope="col">Shortfall</th><th scope="col">Status</th></tr></thead><tbody>'
+        + "".join(rows)
+        + "</tbody></table></div></section>"
+    )
+
+
+def _label_table(run: dict, progress: dict) -> str:
+    rows = []
+    source_rows = {item["label"]: item for item in run.get("per_label") or []}
+    target = (run.get("goal") or {}).get("threshold")
+    for item in progress["label_rows"]:
+        support = source_rows[item["label"]].get("sufficient_support")
         badge = (
             _badge("Below required support", "amber")
             if support is False
@@ -211,66 +369,23 @@ def _label_table(run: dict) -> str:
         )
         rows.append(
             f'<tr><th scope="row"><code>{_text(item.get("label"))}</code></th>'
-            f"<td>{_bar(_metric_rate(item, 'recall'), str(item.get('label')) + ' recall')}</td>"
-            f'<td class="numeric">{_percent(_metric_rate(item, "precision"))}</td>'
-            f'<td class="numeric">{_percent(_metric_rate(item, "f1"))}</td>'
+            f"<td>{_target_bar(item['recall'], target, item['label'] + ' recall')}</td>"
+            f'<td class="numeric">{_percent(target)}</td>'
+            f'<td class="numeric">{_gap(item["gap"])}</td>'
             f'<td class="numeric">{_count(item.get("support"))}</td>'
-            f'<td class="numeric">{_count(item.get("false_negatives"))}</td>'
+            f'<td class="numeric">{_count(item.get("missed"))}</td>'
             f"<td>{badge}</td></tr>"
         )
     if not rows:
         return '<p class="empty">Per-label metrics are unavailable for this run.</p>'
     return (
         '<div class="table-scroll" tabindex="0" role="region" aria-label="Per-label quality metrics">'
-        '<table class="labels-table"><caption class="sr-only">Recall, precision, F1, support, and missed spans for each label.</caption>'
+        '<table class="labels-table"><caption class="sr-only">Per-label recall targets and shortfalls, weakest observed recall first.</caption>'
         '<thead><tr><th scope="col">PHI label</th><th scope="col">Recall · 0–100%</th>'
-        '<th scope="col">Precision</th><th scope="col">F1</th><th scope="col">Support</th>'
-        '<th scope="col">Missed</th><th scope="col">Support check</th></tr></thead><tbody>'
+        '<th scope="col">Target</th><th scope="col">Shortfall</th><th scope="col">Gold spans</th>'
+        '<th scope="col">Total missed</th><th scope="col">Support check</th></tr></thead><tbody>'
         + "".join(rows)
         + "</tbody></table></div>"
-    )
-
-
-def _goal(goal: dict | None) -> str:
-    if not goal:
-        return '<div class="subsection"><h4>Recorded goal checks</h4><p class="muted">No goal result was recorded for this run.</p></div>'
-    threshold = goal.get("threshold")
-    threshold_text = (
-        f"Recorded threshold: {_percent(threshold)}."
-        if threshold is not None
-        else "A numeric goal threshold was not recorded."
-    )
-    if goal.get("minimum_label_support") is not None:
-        threshold_text += (
-            f" Minimum support per label: {_count(goal.get('minimum_label_support'))}."
-        )
-    threshold_line = f'<p class="muted">{threshold_text} Checks below retain their source meaning.</p>'
-    checks = []
-    for check in goal.get("checks") or []:
-        passed = check.get("passed")
-        state, style = (
-            ("Passed", "teal")
-            if passed is True
-            else ("Not met", "amber")
-            if passed is False
-            else ("Unavailable", "neutral")
-        )
-        name, label = check.get("name"), check.get("label")
-        checks.append(
-            f'<li><span title="{_text(name)}">{_text(label or name)}'
-            + f"</span>{_badge(state, style)}</li>"
-        )
-    return (
-        '<div class="subsection"><div class="subsection-heading"><h4>Recorded goal checks</h4>'
-        + _goal_status(goal)
-        + "</div>"
-        + threshold_line
-        + (
-            '<ul class="checks">' + "".join(checks) + "</ul>"
-            if checks
-            else '<p class="muted">Individual checks were not recorded.</p>'
-        )
-        + "</div>"
     )
 
 
@@ -365,45 +480,38 @@ def _provenance(run: dict) -> str:
 
 
 def _run_panel(run: dict, index: int, selected: int) -> str:
-    label = run.get("label") or run.get("id") or f"Run {index + 1}"
-    leak, negative = run.get("document_leak_free") or {}, run.get("negative_documents")
-    negative_count = _number((negative or {}).get("count"))
-    if negative_count == 0:
-        negative_summary = (
-            "<strong>N/A</strong><span>No negative documents in this run.</span>"
-        )
-    elif negative is None or negative_count is None:
-        negative_summary = "<strong>Unavailable</strong><span>Negative-document metrics were not recorded.</span>"
-    else:
-        negative_summary = f"<strong>{_percent(negative.get('clean_rate'))}</strong><span>{_count(negative.get('clean_count'))} / {_count(negative.get('count'))} negative notes left clean</span>"
-    note = (
-        f'<p class="run-note">{_text(run.get("note"))}</p>' if run.get("note") else ""
-    )
+    progress = benchmark_progress(run)
+    provenance = run.get("provenance") or {}
+    adapter = provenance.get("adapter_sha256")
+    corpus = provenance.get("corpus_sha256")
     return (
         f'<article class="run-panel" id="run-panel-{index}" data-run-index="{index}"'
         + (" hidden" if index != selected else "")
         + f' aria-labelledby="run-title-{index}">'
-        f'<div class="run-heading"><div><p class="eyebrow">Selected evaluation</p><h3 id="run-title-{index}">{_text(label)}</h3></div>'
-        '<div class="badges">'
-        + _badge(_purpose(run))
-        + _badge(_backend(run))
-        + _qualification(run)
-        + "</div></div>"
-        + note
-        + '<div class="metric-cards">'
+        + _progress_overview(run, progress, index)
+        + '<p class="artifact-line">Recorded adapter <code>'
+        + _text(adapter[:12] if adapter else None)
+        + "</code> · Corpus <code>"
+        + _text(corpus[:12] if corpus else None)
+        + "</code> · Coverage is measured against annotated PHI, before replacement.</p>"
+        + _benchmark_gates(progress)
+        + '<section class="subsection"><div class="subsection-heading"><div>'
+        '<p class="eyebrow">02 / Recall blockers</p><h4>Which identifiers still miss the target?</h4></div></div>'
+        '<p class="muted">Weakest observed recall first. Total missed spans are exact boundary/type mismatches; '
+        "they are not a count of exposed identifiers. Zero-support labels are unassessed.</p>"
+        + _label_table(run, progress)
+        + '</section><section class="use-boundary"><h4>What remains beyond this benchmark?</h4>'
+        "<p>Passing these checks establishes performance on the recorded evaluation. "
+        "It does not establish readiness on real clinical records or verify the final redacted or replaced output.</p>"
+        "<p>The current protocol has no acceptance threshold for document leakage or negative-note preservation. "
+        "Those decisions, representative clinical validation, and output-level checks remain separate. "
+        "Per-family results are not included in this view.</p></section>"
+        '<details class="supporting-details"><summary>Additional quality metrics &amp; error counts</summary><div class="metric-cards">'
         + _metric_card("Exact typed spans", run.get("typed_span") or {})
         + _metric_card("PHI character coverage", run.get("character") or {})
-        + "</div>"
-        + '<div class="document-summary"><div><span class="small-label">Leak-free notes</span>'
-        + f"<strong>{_percent(leak.get('rate'))}</strong><span>{_count(leak.get('count'))} / {_count(run.get('documents'))} notes have no uncovered gold PHI</span></div>"
-        + '<div><span class="small-label">Negative documents</span>'
-        + negative_summary
-        + "</div></div>"
-        + '<div class="subsection"><div class="subsection-heading"><h4>Recall by PHI label</h4><span class="muted small">Exact typed span matching</span></div>'
-        + _label_table(run)
-        + "</div>"
-        + _goal(run.get("goal"))
+        + '</div></details><details class="supporting-details"><summary>Recorded performance &amp; stage timing</summary>'
         + _timing(run)
+        + "</details>"
         + _provenance(run)
         + "</article>"
     )
@@ -415,6 +523,18 @@ _STYLE = """
 .stage-composition{margin-top:18px}.stage-strip{display:flex;height:12px;overflow:hidden;border-radius:5px;margin:8px 0;background:#e0eaf0}.stage-strip>span{height:100%}.neural-stage{background:var(--blue)}.rules-stage{background:var(--teal)}.stage-legend{display:flex;flex-wrap:wrap;gap:10px 22px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}.stage-legend>span{display:flex;align-items:center;gap:6px}.stage-legend i{width:8px;height:8px;border-radius:2px}.stage-strip,.stage-legend i{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 @media(max-width:760px){main{padding:25px 16px}h1{letter-spacing:-.8px}.intro-top{align-items:flex-start}.intro-top button{font-size:11px;padding:7px 9px}.section-heading{padding:20px;align-items:flex-start;flex-direction:column}.run-panel{padding:20px}.run-heading{flex-direction:column;gap:12px}.badges{justify-content:flex-start}.selector{margin:0;flex-wrap:wrap;width:100%}.selector select{width:100%;max-width:100%;min-width:0}.metric-cards{grid-template-columns:1fr}.triple strong{font-size:23px}.checks{grid-template-columns:1fr}.timing-grid{grid-template-columns:1fr;gap:14px}.source-list>div{grid-template-columns:1fr;gap:4px}.definitions{padding:0 20px 8px}.definition-list{grid-template-columns:1fr}.comparison-foot{padding:14px 20px}.document-summary{gap:20px}.document-summary strong{font-size:18px}.subsection-heading{align-items:flex-start}.comparison th:first-child{padding-left:20px}.candidate{gap:8px 18px}.scale-key{display:none}footer{flex-direction:column}.panel{border-radius:11px}}
 @media print{body{background:white;font-size:10pt}main{max-width:none;padding:0}h1{font-size:25pt}.panel{box-shadow:none;border-radius:0;overflow:visible}.intro-top button,.selector,.scale-key{display:none}.run-panel[hidden]{display:block!important}.run-panel{break-before:page;padding:16px 0;border:0}.section-heading{padding:14px 0}.comparison{min-width:0;table-layout:auto}.table-scroll{overflow:visible}.comparison th:first-child{width:24%;padding-left:6px}th,td{padding:9px 6px}.metric{min-width:0}.metric-value{font-size:9pt}.row-subtitle{font-size:8pt}.bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}.labels-table{min-width:0}.labels-table th,.labels-table td{padding:8px}.metric-card,.document-summary,.timing-grid,.checks li{break-inside:avoid}.source-details{background:white}.source-details>*,.definitions>*{display:block!important}details>summary{list-style:none}.definitions{padding:0}.definition-list{display:grid!important}.source-list>div{break-inside:avoid}.run-heading{align-items:flex-start}.metric-cards{gap:12px}.notes{break-inside:avoid}footer{margin-top:15px}a{color:inherit}.badges .badge{border:1px solid #ccd5dc}.intro{padding-bottom:15px}}
+"""
+
+
+_PROGRESS_STYLE = """
+main{padding-top:28px}h1{font-size:34px;letter-spacing:-1px}.intro{padding-bottom:20px}.intro-top{margin-bottom:12px}.description{margin:10px 0;font-size:14px}.intro .meta{font-size:11px}.section-heading{padding:20px 27px}.section-heading h2{font-size:19px}.run-panel{padding-top:22px}
+.benchmark-hero{display:flex;align-items:center;justify-content:space-between;gap:28px;border-left:4px solid #b47712;padding:4px 0 4px 20px}.benchmark-hero.met{border-color:var(--teal)}.benchmark-hero.unavailable{border-color:#778699}.benchmark-hero h3{font-size:29px;line-height:1.2}.benchmark-hero .eyebrow{color:var(--amber);margin-bottom:7px}.benchmark-hero.met .eyebrow{color:var(--teal)}.benchmark-hero .run-note{margin-top:7px;font-size:12px;max-width:750px}.evidence-line{font-size:13px;margin-top:10px;font-weight:600}.gate-tally{min-width:165px;flex-shrink:0;background:#fff5df;padding:16px 20px;border-radius:10px;text-align:center;display:flex;flex-direction:column}.met .gate-tally{background:#e1f3ee}.unavailable .gate-tally{background:#edf1f5}.gate-tally strong{font-size:42px;line-height:1.15;font-variant-numeric:tabular-nums}.gate-tally strong span{font-size:26px;color:var(--muted);font-weight:500}.gate-tally>span{font-size:11px;color:var(--muted);margin-top:6px}
+.readiness-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:24px}.readiness-card{border:1px solid var(--line);border-radius:9px;background:#fbfdff;padding:15px 16px;display:flex;flex-direction:column;min-width:0}.readiness-card.privacy-card{background:#fff9ef;border-color:#e8d5b4}.readiness-card>.small-label{min-height:32px;font-size:10px;line-height:1.5}.readiness-card strong{font-size:30px;letter-spacing:-.6px;font-variant-numeric:tabular-nums;line-height:1.35;margin:4px 0 6px;overflow-wrap:anywhere}.readiness-card>span:not(.small-label){font-size:11px}.readiness-card small{color:var(--muted);font-size:10px;line-height:1.5;margin-top:8px}.artifact-line{color:var(--muted);font-size:10px;margin:12px 0 0;overflow-wrap:anywhere}.artifact-line code{font-size:10px}
+.benchmark-gates{margin-top:22px}.subsection-heading .eyebrow{font-size:10px;margin-bottom:5px}.benchmark-gates>p{margin:10px 0 16px}.gates-table{min-width:730px;font-size:12px}.gates-table th,.gates-table td{padding:13px 12px}.gates-table tbody th{width:34%;font-weight:550}.gates-table td:nth-child(2){width:24%}.gates-table th:first-child{padding-left:0}.gates-table thead th{background:#fff}.gates-table td:last-child{white-space:nowrap}.target-metric{min-width:110px;max-width:220px}.target-metric strong{font-weight:650;font-size:13px;font-variant-numeric:tabular-nums}.target-track{position:relative;display:block;height:7px;border-radius:3px;background:#e7eef3;margin:7px 0 3px}.target-track>span{display:block;height:100%;border-radius:3px}.gap-fill{background:#c18b35}.met-fill{background:var(--teal)}.target-track .target-marker{position:absolute;display:block;top:-3px;height:13px;width:2px;background:#243b52;transform:translateX(-1px)}.target-track{-webkit-print-color-adjust:exact;print-color-adjust:exact}.labels-table td:nth-child(2){width:25%}.labels-table td:last-child{min-width:140px}
+.use-boundary{margin-top:25px;padding:18px 20px;border:1px solid var(--line);border-radius:9px;background:#f4f7fb}.use-boundary h4{font-size:14px}.use-boundary p{font-size:12px;color:var(--muted);margin-top:7px}.supporting-details{border-top:1px solid var(--line);margin-top:22px}.supporting-details>summary{font-size:13px;padding:16px 0}.supporting-details>.subsection{border-top:0;padding-top:0;margin-top:0}.supporting-details .metric-cards{margin-top:0}.evidence-context{padding:0 27px}.evidence-context>details>summary{font-size:14px;padding:18px 0}.evidence-context .candidate{margin-top:0;border-top:0;padding:0 0 16px}.evidence-context .notes{margin-bottom:16px}
+@media(max-width:1000px){.readiness-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.benchmark-hero h3{font-size:25px}}
+@media(max-width:760px){h1{font-size:29px}.benchmark-hero{align-items:flex-start;flex-direction:column;gap:16px;padding-left:14px}.gate-tally{width:100%;flex-direction:row;align-items:center;justify-content:space-between;padding:12px 16px}.gate-tally strong{font-size:32px}.gate-tally>span{margin:0;font-size:12px}.readiness-card{padding:12px}.readiness-card strong{font-size:25px}.readiness-card>.small-label{font-size:9px;min-height:40px}.section-heading{padding:18px 20px}.benchmark-hero h3{font-size:25px}.evidence-context{padding:0 20px}.evidence-line{font-size:12px}.use-boundary{padding:15px}.gates-table th:first-child{padding-left:8px}}
+@media print{.benchmark-hero,.readiness-cards,.use-boundary{break-inside:avoid}.readiness-cards{grid-template-columns:repeat(4,1fr)}.gates-table{min-width:0}.gates-table th,.gates-table td{padding:9px 6px}.target-metric{min-width:0}.supporting-details>*{display:block!important}.evidence-context>details>*{display:block!important}.gate-tally{border:1px solid #ddd}.run-panel:first-of-type{break-before:auto}}
 """
 
 
@@ -538,23 +658,15 @@ def render_report(snapshot: dict) -> str:
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f"<title>{_text(title)}</title><style>{_STYLE}</style>"
+        f"<title>{_text(title)}</title><style>{_STYLE}{_PROGRESS_STYLE}</style>"
         "<noscript><style>.run-panel[hidden]{display:block!important}.selector,#download-snapshot{display:none}</style></noscript>"
-        '</head><body><main><header class="intro"><div class="intro-top"><p class="eyebrow">Evaluation / source snapshot</p>'
+        '</head><body><main><header class="intro"><div class="intro-top"><p class="eyebrow">Benchmark progress / saved evidence</p>'
         '<button id="download-snapshot" type="button">Download metric snapshot</button></div>'
         f'<h1>{_text(title)}</h1><p class="description">{_text(description)}</p>'
         f'<p class="meta">{generated_line}{len(runs)} recorded {"run" if len(runs) == 1 else "runs"} · Offline, self-contained report</p>'
-        + candidate_html
         + "</header>"
-        + notices
-        + '<section class="panel" aria-labelledby="comparison-title"><div class="section-heading"><div>'
-        '<p class="eyebrow">01 / Compare</p><h2 id="comparison-title">Quality across recorded runs</h2>'
-        "<p>Compare like-for-like corpora and run purposes before interpreting differences.</p></div>"
-        '<div class="scale-key"><span>0%</span><i aria-hidden="true"></i><span>100%</span></div></div>'
-        + _comparison(runs, selected)
-        + '<p class="comparison-foot">Every bar uses the full 0–100% scale. Percentages are rounded to two decimal places; exact error and support counts appear below. N/A indicates a zero denominator. These metrics do not establish production readiness.</p></section>'
         + '<section class="panel" aria-labelledby="detail-title"><div class="section-heading"><div>'
-        '<p class="eyebrow">02 / Inspect</p><h2 id="detail-title">Run detail</h2></div>'
+        '<h2 id="detail-title">Benchmark progress</h2><p>Select the evidence to assess.</p></div>'
         + selector
         + "</div>"
         + '<p id="selection-status" class="sr-only" role="status" aria-live="polite"></p>'
@@ -570,6 +682,16 @@ def render_report(snapshot: dict) -> str:
             else ""
         )
         + "</section>"
+        + '<section class="panel" aria-labelledby="comparison-title"><div class="section-heading"><div>'
+        '<p class="eyebrow">03 / Context</p><h2 id="comparison-title">Development and qualification side by side</h2>'
+        "<p>These are distinct evaluations, not a timeline of improvement. Development scores cannot substitute for qualification.</p></div>"
+        '<div class="scale-key"><span>0%</span><i aria-hidden="true"></i><span>100%</span></div></div>'
+        + _comparison(runs, selected)
+        + '<p class="comparison-foot">Every bar uses the full 0–100% scale. Percentages are rounded to two decimal places; exact counts appear in the selected run. N/A indicates a zero denominator.</p></section>'
+        + '<section class="panel evidence-context"><details><summary>Evidence scope &amp; selected candidate</summary>'
+        + candidate_html
+        + notices
+        + "</details></section>"
         + '<section class="panel definitions"><details><summary>Metric definitions &amp; interpretation</summary><dl class="definition-list">'
         "<div><dt>Exact typed spans</dt><dd>A match requires the expected entity label and exact start and end boundaries. Matched, extra, and missed counts are the recorded true positives, false positives, and false negatives.</dd></div>"
         "<div><dt>Precision, recall, and F1</dt><dd>Precision measures how many predicted spans are correct. Recall measures how many gold spans are found. F1 balances the two. All values retain the source evaluation’s definition.</dd></div>"
