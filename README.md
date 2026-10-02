@@ -206,6 +206,23 @@ The challenge suites share a synthetic value-construction vocabulary, so their
 results establish template generalization within this synthetic benchmark;
 they do not establish generalization to real institutions or all unseen identities.
 
+## Repeatable HTML performance report
+
+Build a self-contained page from the saved quality and timing reports:
+
+```sh
+.venv/bin/python scripts/build_report.py \
+  --config reports/pipeline_report_config.json \
+  --output reports/pipeline_report.html
+```
+
+Open the resulting HTML in a browser. It includes quality comparisons, per-label
+recall, evaluation gates, recorded detection timing, and source hashes. The
+checked-in config selects the v7 candidate and its historical blind v5 results;
+it does not automatically select the latest model. Edit the config to select
+new evaluation reports. No model inference or corpus access is performed.
+See [report configuration and metric definitions](docs/html-reports.md).
+
 ## Operational controls
 
 Request bodies and source PHI are not logged by the application. Validation and
