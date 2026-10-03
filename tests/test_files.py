@@ -1,0 +1,328 @@
+"""Native fixtures contain synthetic identifiers; no models or external files."""
+import base64
+import io
+import json
+import re
+import zipfile
+from xml.etree import ElementTree as ET
+
+import pytest
+
+from clinical_deid.files import A, C, MIME_TYPES, P, R, S, W, process_file
+
+
+class StubService:
+    version = "test-model"
+
+    def process_segments(self, requests, **kwargs):
+        results = []
+        for request in requests:
+            text = request["text"]
+            matches = list(re.finditer(r"Jane Doe|Zoë Núñez|2024-10-03", text))
+            entities = [{"start": m.start(), "end": m.end(), "label": "NAME", "replacement": "[NAME]"} for m in matches]
+            results.append({"text": re.sub(r"Jane Doe|Zoë Núñez|2024-10-03", "[NAME]", text), "entities": entities, "model_version": self.version})
+        return results
+
+
+def encode(raw):
+    return base64.b64encode(raw).decode("ascii")
+
+
+def invoke(raw, kind, **kwargs):
+    return process_file(StubService(), data=encode(raw), content_type=MIME_TYPES[kind], **kwargs)
+
+
+def make_office(kind, parts=None):
+    mains = {"docx": "word/document.xml", "xlsx": "xl/workbook.xml", "pptx": "ppt/presentation.xml"}
+    default = {
+        "docx": {"word/document.xml": f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>Jane </w:t></w:r><w:r><w:t>Doe</w:t></w:r></w:p></w:body></w:document>'},
+        "xlsx": {"xl/workbook.xml": f'<workbook xmlns="{S}"><sheets><sheet name="Patients" sheetId="1"/></sheets></workbook>', "xl/worksheets/sheet1.xml": f'<worksheet xmlns="{S}"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><r><t>Jane </t></r><r><t>Doe</t></r></is></c></row></sheetData></worksheet>'},
+        "pptx": {"ppt/presentation.xml": f'<p:presentation xmlns:p="{P}"/>', "ppt/slides/slide1.xml": f'<p:sld xmlns:p="{P}" xmlns:a="{A}"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Jane </a:t></a:r><a:r><a:t>Doe</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'},
+    }[kind]
+    members = {
+        "[Content_Types].xml": f'<Types xmlns="{C}"><Override PartName="/docProps/core.xml" ContentType="core"/></Types>',
+        "_rels/.rels": f'<Relationships xmlns="{R}"><Relationship Id="r1" Type="officeDocument" Target="{mains[kind]}"/><Relationship Id="r2" Type="metadata" Target="docProps/core.xml"/></Relationships>',
+        "docProps/core.xml": '<properties><creator>Jane Doe</creator></properties>',
+        **default,
+        **(parts or {}),
+    }
+    return zip_bytes(members)
+
+
+def zip_bytes(members):
+    raw = io.BytesIO()
+    with zipfile.ZipFile(raw, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, data in members.items():
+            archive.writestr(name, data)
+    return raw.getvalue()
+
+
+def unpack(result):
+    with zipfile.ZipFile(io.BytesIO(base64.b64decode(result["data"]))) as archive:
+        return {name: archive.read(name) for name in archive.namelist()}
+
+
+@pytest.mark.parametrize("kind", ["docx", "xlsx", "pptx"])
+def test_split_native_runs_and_metadata(kind):
+    result = invoke(make_office(kind), kind)
+    members = unpack(result)
+    assert "docProps/core.xml" not in members
+    assert result["entity_count"] == 1
+    assert all("Jane" not in raw.decode() and "Doe" not in raw.decode() for raw in members.values())
+    assert any("[NAME]" in raw.decode() for raw in members.values())
+    assert isinstance(result["entities"][0]["location"]["part"], int)
+    for raw in members.values():
+        ET.fromstring(raw)
+
+
+def test_docx_header_footer_and_footnotes_processed():
+    parts = {f"word/{part}.xml": f'<w:root xmlns:w="{W}"><w:p><w:r><w:t>Jane Doe</w:t></w:r></w:p></w:root>' for part in ["header1", "footer1", "footnotes"]}
+    result = invoke(make_office("docx", parts), "docx")
+    assert result["entity_count"] == 4
+    assert all(b"Jane" not in raw for raw in unpack(result).values())
+
+
+def test_docx_breaks_do_not_join_words():
+    part = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>Jane</w:t><w:tab/><w:t>Doe</w:t></w:r></w:p></w:body></w:document>'
+    result = invoke(make_office("docx", {"word/document.xml": part}), "docx")
+    root = ET.fromstring(unpack(result)["word/document.xml"])
+    assert "".join(root.itertext()) == "Jane\tDoe"
+
+
+@pytest.mark.parametrize("part,body", [("word/comments.xml", "<comments/>"), ("word/media/image1.png", b"image"), ("word/vbaProject.bin", b"binary")])
+def test_unsupported_parts_fail_closed(part, body):
+    with pytest.raises(ValueError, match="unsupported parts"):
+        invoke(make_office("docx", {part: body}), "docx")
+
+
+@pytest.mark.parametrize("body", [f'<w:fldSimple xmlns:w="{W}" w:instr="Jane Doe"/>', f'<w:ins xmlns:w="{W}"><w:t>Jane Doe</w:t></w:ins>'])
+def test_fields_and_changes_rejected(body):
+    with pytest.raises(ValueError, match="unsupported fields"):
+        invoke(make_office("docx", {"word/settings.xml": body}), "docx")
+
+
+def test_external_relationships_rejected():
+    part = f'<Relationships xmlns="{R}"><Relationship Id="r1" Target="https://example.invalid/patient" TargetMode="External"/></Relationships>'
+    with pytest.raises(ValueError, match="External"):
+        invoke(make_office("docx", {"word/_rels/document.xml.rels": part}), "docx")
+
+
+def test_xlsx_formulas_and_hidden_rows_rejected():
+    for content in ['<row><c><f>Jane Doe</f><v>1</v></c></row>', '<row hidden="1"><c/></row>']:
+        part = f'<worksheet xmlns="{S}"><sheetData>{content}</sheetData></worksheet>'
+        with pytest.raises(ValueError):
+            invoke(make_office("xlsx", {"xl/worksheets/sheet1.xml": part}), "xlsx")
+
+
+def test_xlsx_shared_strings_dates_and_names():
+    parts = {
+        "xl/sharedStrings.xml": f'<sst xmlns="{S}"><si><r><t>Jane </t></r><r><t>Doe</t></r></si></sst>',
+        "xl/styles.xml": f'<styleSheet xmlns="{S}"><cellXfs><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>',
+        "xl/worksheets/sheet1.xml": f'<worksheet xmlns="{S}"><sheetData><row><c r="A1" t="s"><v>0</v></c><c r="A2" s="1"><v>45568</v></c></row></sheetData></worksheet>',
+        "xl/workbook.xml": f'<workbook xmlns="{S}"><sheets><sheet name="Jane Doe" sheetId="1"/></sheets></workbook>',
+    }
+    result = invoke(make_office("xlsx", parts), "xlsx")
+    assert result["entity_count"] == 3
+    members = unpack(result)
+    assert all(b"Jane" not in raw for raw in members.values())
+    assert b"45568" not in members["xl/worksheets/sheet1.xml"]
+
+
+@pytest.mark.parametrize("path", ["../secret.xml", "/secret.xml", "a/../secret.xml", "a\\secret.xml"])
+def test_zip_traversal_rejected(path):
+    with pytest.raises(ValueError, match="unsafe"):
+        invoke(zip_bytes({path: "secret"}), "docx")
+
+
+def test_zip_bomb_and_duplicate_rejected():
+    with pytest.raises(ValueError, match="compression ratio"):
+        invoke(zip_bytes({"word/document.xml": b"a" * 2_000_000}), "docx")
+    raw = io.BytesIO()
+    with zipfile.ZipFile(raw, "w") as archive:
+        archive.writestr("a", "1")
+        with pytest.warns(UserWarning):
+            archive.writestr("a", "2")
+    with pytest.raises(ValueError, match="duplicate"):
+        invoke(raw.getvalue(), "docx")
+
+
+def test_unsafe_office_xml_rejected():
+    part = '<!DOCTYPE data [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><data>&xxe;</data>'
+    with pytest.raises(ValueError, match="unsafe XML"):
+        invoke(make_office("docx", {"word/settings.xml": part}), "docx")
+
+
+def test_utf8_text_and_json_csv_xml_files():
+    fixtures = {"txt": "Jane Doe", "json": '{"name": "Jane Doe"}', "csv": 'name\nJane Doe\n', "xml": '<record>Jane Doe</record>'}
+    for kind, text in fixtures.items():
+        result = invoke(text.encode(), kind)
+        output = base64.b64decode(result["data"]).decode()
+        assert "Jane" not in output and "[NAME]" in output
+        assert result["entities"][0]["location"]
+        assert result["entity_count"] == 1
+    assert json.loads(base64.b64decode(invoke(fixtures["json"].encode(), "json")["data"])) == {"name": "[NAME]"}
+
+
+@pytest.mark.parametrize("raw", [b'{"x": "Jane Doe", "x": "duplicate"}', b'{"x": NaN}', b'not-json'])
+def test_invalid_json_rejected(raw):
+    with pytest.raises(ValueError, match="valid JSON"):
+        invoke(raw, "json")
+
+
+def test_invalid_type_encoding_and_paths():
+    with pytest.raises(ValueError, match="Unsupported content"):
+        process_file(StubService(), data="aGVsbG8=", content_type="image/png")
+    with pytest.raises(ValueError, match="base64"):
+        process_file(StubService(), data="not-base64!", content_type="txt")
+    with pytest.raises(ValueError, match="UTF-8"):
+        invoke(b"\xff\xfe\xfa", "txt")
+    with pytest.raises(ValueError, match="Field selection"):
+        invoke(b"Jane Doe", "txt", paths=["/name"])
+
+
+def make_pdf(text="Jane Doe", blank=False):
+    from reportlab.pdfgen.canvas import Canvas
+    buf = io.BytesIO()
+    canvas = Canvas(buf)
+    canvas.setAuthor("Jane Doe")
+    if not blank:
+        canvas.drawString(20, 750, text)
+    canvas.showPage()
+    canvas.save()
+    return buf.getvalue()
+
+
+def test_digital_pdf_extract_redact_rebuild():
+    from pypdf import PdfReader
+    result = invoke(make_pdf("Jane Doe takes metformin."), "pdf")
+    pdf = PdfReader(io.BytesIO(base64.b64decode(result["data"])))
+    assert "[NAME] takes metformin." in "".join(page.extract_text() for page in pdf.pages)
+    assert "Jane Doe" not in str(pdf.metadata)
+    assert result["entity_count"] == 1
+    assert result["entities"][0]["location"] == {"page": 1}
+    assert "layout" in result["warnings"][0]
+
+
+def test_blank_encrypted_attached_and_annotated_pdfs_rejected():
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import ArrayObject, DictionaryObject, NameObject, TextStringObject
+    with pytest.raises(ValueError, match="OCR"):
+        invoke(make_pdf(blank=True), "pdf")
+    for feature in ["encrypted", "attached", "annotation"]:
+        writer = PdfWriter()
+        writer.append_pages_from_reader(PdfReader(io.BytesIO(make_pdf())))
+        if feature == "encrypted":
+            writer.encrypt("password")
+        elif feature == "attached":
+            writer.add_attachment("patient.txt", b"Jane Doe")
+        else:
+            writer.pages[0][NameObject("/Annots")] = ArrayObject([DictionaryObject({NameObject("/Contents"): TextStringObject("Jane Doe")})])
+        buf = io.BytesIO()
+        writer.write(buf)
+        with pytest.raises(ValueError):
+            invoke(buf.getvalue(), "pdf")
+
+
+@pytest.mark.parametrize("kind,part,xml", [
+    ("docx", "word/styles.xml", f'<w:styles xmlns:w="{W}"><w:style w:styleId="JaneDoe"><w:name w:val="Jane Doe"/></w:style></w:styles>'),
+    ("xlsx", "xl/styles.xml", f'<styleSheet xmlns="{S}"><numFmts><numFmt numFmtId="166" formatCode="&quot;Jane Doe&quot; 0"/></numFmts></styleSheet>'),
+    ("xlsx", "xl/styles.xml", f'<styleSheet xmlns="{S}"><cellStyles><cellStyle name="Jane Doe"/></cellStyles></styleSheet>'),
+])
+def test_identifiers_in_unsupported_office_attributes_fail_closed(kind, part, xml):
+    with pytest.raises(ValueError, match="unsupported attributes"):
+        invoke(make_office(kind, {part: xml}), kind)
+
+
+def test_style_identifiers_and_bookmarks_are_consistently_remapped():
+    parts = {
+        "word/styles.xml": f'<w:styles xmlns:w="{W}"><w:style w:styleId="JaneDoe"><w:name w:val="Custom"/></w:style></w:styles>',
+        "word/document.xml": f'<w:document xmlns:w="{W}"><w:body><w:p><w:pPr><w:pStyle w:val="JaneDoe"/></w:pPr><w:bookmarkStart w:name="JaneDoe" w:id="0"/><w:r><w:t>Jane Doe</w:t></w:r><w:bookmarkEnd w:id="0"/></w:p></w:body></w:document>',
+    }
+    members = unpack(invoke(make_office("docx", parts), "docx"))
+    assert all(b"Jane" not in value and b"Doe" not in value for value in members.values())
+    document = ET.fromstring(members["word/document.xml"])
+    assert next(document.iter(f"{{{W}}}bookmarkStart")).get(f"{{{W}}}name") == "bookmark_0"
+    style = ET.fromstring(members["word/styles.xml"])
+    assert next(document.iter(f"{{{W}}}pStyle")).get(f"{{{W}}}val") == next(style.iter(f"{{{W}}}style")).get(f"{{{W}}}styleId")
+
+
+def test_unclaimed_text_is_transformed_and_auxiliary_parts_are_removed():
+    parts = {
+        "customXml/item1.xml": "<bibliography>Jane Doe</bibliography>",
+        "word/settings.xml": f'<w:settings xmlns:w="{W}"><w:extension>Jane Doe</w:extension></w:settings>',
+    }
+    result = invoke(make_office("docx", parts), "docx")
+    members = unpack(result)
+    assert "customXml/item1.xml" not in members
+    assert b"[NAME]" in members["word/settings.xml"]
+    assert all(b"Jane" not in value for value in members.values())
+
+
+def test_deep_office_xml_rejected():
+    with pytest.raises(ValueError, match="unsafe XML"):
+        invoke(make_office("docx", {"word/settings.xml": "<x>" * 65 + "Jane Doe" + "</x>" * 65}), "docx")
+
+
+def test_pdf_compressed_content_is_bounded_before_extraction():
+    from clinical_deid.files import MAX_ZIP_BYTES
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import DecodedStreamObject, NameObject
+    writer = PdfWriter()
+    writer.append_pages_from_reader(PdfReader(io.BytesIO(make_pdf())))
+    stream = DecodedStreamObject()
+    stream.set_data(b" " * (MAX_ZIP_BYTES + 1))
+    writer.pages[0][NameObject("/Contents")] = writer._add_object(stream.flate_encode())
+    buf = io.BytesIO()
+    writer.write(buf)
+    with pytest.raises(ValueError, match="20 MiB"):
+        invoke(buf.getvalue(), "pdf")
+
+
+def test_pdf_unicode_english_text_remains_extractable():
+    from pypdf import PdfReader
+    from reportlab.pdfgen.canvas import Canvas
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    import reportlab
+    from pathlib import Path
+    pdfmetrics.registerFont(TTFont("TestVera", str(Path(reportlab.__file__).parent / "fonts" / "Vera.ttf")))
+    buf = io.BytesIO()
+    canvas = Canvas(buf)
+    canvas.setFont("TestVera", 12)
+    canvas.drawString(20, 750, "Jane Doe visited the café.")
+    canvas.save()
+    result = invoke(buf.getvalue(), "pdf")
+    reader = PdfReader(io.BytesIO(base64.b64decode(result["data"])))
+    assert "[NAME] visited the café." in reader.pages[0].extract_text()
+
+
+def test_encoded_word_symbol_text_rejected():
+    symbols = ''.join(f'<w:sym w:font="Arial" w:char="{ord(char):04X}"/>' for char in "Jane Doe")
+    document = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r>{symbols}</w:r></w:p></w:body></w:document>'
+    with pytest.raises(ValueError, match="unsupported fields"):
+        invoke(make_office("docx", {"word/document.xml": document}), "docx")
+
+
+def test_word_hyperlinks_rejected_to_avoid_losing_clickable_labels():
+    document = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>Jane Doe</w:t></w:r><w:hyperlink w:anchor="JaneDoe"><w:r><w:t>Jump</w:t></w:r></w:hyperlink></w:p></w:body></w:document>'
+    with pytest.raises(ValueError, match="unsupported fields"):
+        invoke(make_office("docx", {"word/document.xml": document}), "docx")
+
+
+def test_escaped_spreadsheet_display_literals_rejected():
+    styles = f'<styleSheet xmlns="{S}"><numFmts><numFmt numFmtId="166" formatCode="\\J\\a\\n\\e \\D\\o\\e 0"/></numFmts></styleSheet>'
+    with pytest.raises(ValueError, match="literal or escaped"):
+        invoke(make_office("xlsx", {"xl/styles.xml": styles}), "xlsx")
+
+
+@pytest.mark.parametrize("payload", ["_x004A_ane Doe", "Jane _x0044_oe", "_x005F_x004A_ane Doe"])
+def test_office_encoded_escape_sequences_fail_closed(payload):
+    sheet = f'<worksheet xmlns="{S}"><sheetData><row><c r="A1" t="inlineStr"><is><t>{payload}</t></is></c></row></sheetData></worksheet>'
+    with pytest.raises(ValueError, match="escaped character"):
+        invoke(make_office("xlsx", {"xl/worksheets/sheet1.xml": sheet}), "xlsx")
+
+
+def test_presentation_custom_path_geometry_rejected():
+    slide = f'<p:sld xmlns:p="{P}" xmlns:a="{A}"><p:cSld><p:spTree><p:sp><p:spPr><a:custGeom><a:pathLst/></a:custGeom></p:spPr></p:sp></p:spTree></p:cSld></p:sld>'
+    with pytest.raises(ValueError, match="unsupported fields"):
+        invoke(make_office("pptx", {"ppt/slides/slide1.xml": slide}), "pptx")

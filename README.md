@@ -102,6 +102,16 @@ replacement through the public Python API. Obfuscated forms such as
 `backend="model"` is available for evaluating NER separately and skips the
 structural extractors.
 
+## Configurable clinical text API
+
+The [API guide](docs/api.md) covers detection-only requests, custom policies and
+identifier rules, masks and configurable markers, linked-message identities,
+explicit restoration mappings, entity analysis, JSON/CSV/XML and supported
+native text files, usage metrics, and WebSockets. Existing request defaults
+remain available. Mapping, sensitive-analysis, and per-type `keep` options can
+return original values; treat those results as sensitive. OCR,
+audio, and multilingual detection remain outside the supported scope.
+
 ## Consistent synthetic replacements
 
 Set `DEID_SECRET` to a secret with at least 32 bytes and keep it stable. Synthetic
