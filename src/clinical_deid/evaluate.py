@@ -81,9 +81,11 @@ def evaluate(rows: Iterable[dict[str, Any]], predictor: Callable[[str], list[Spa
     character = Counter(tp=0, fp=0, fn=0)
     typed_character = Counter(tp=0, fp=0, fn=0)
     per_label = {label: Counter(tp=0, fp=0, fn=0) for label in ENTITY_TYPES}
+    label_characters = {label: Counter(covered=0, exposed=0) for label in ENTITY_TYPES}
     per_family: dict[str, Counter] = {}
     failures = []
     documents = leak_free = negative_documents = negative_clean = 0
+    phi_documents = phi_leak_free = 0
     duplicate_predictions = 0
     identifiers: set[str] = set()
     started = time.perf_counter()
@@ -124,6 +126,10 @@ def evaluate(rows: Iterable[dict[str, Any]], predictor: Callable[[str], list[Spa
         character.update(tp=len(expected_characters & predicted_characters),
                          fp=len(predicted_characters - expected_characters),
                          fn=len(expected_characters - predicted_characters))
+        for label in ENTITY_TYPES:
+            expected = _characters({span for span in gold if span[2] == label})
+            label_characters[label].update(covered=len(expected & predicted_characters),
+                                           exposed=len(expected - predicted_characters))
         expected_typed, predicted_typed = _characters(gold, True), _characters(predicted, True)
         typed_character.update(tp=len(expected_typed & predicted_typed),
                                fp=len(predicted_typed - expected_typed), fn=len(expected_typed - predicted_typed))
@@ -134,6 +140,9 @@ def evaluate(rows: Iterable[dict[str, Any]], predictor: Callable[[str], list[Spa
         if not gold:
             negative_documents += 1
             negative_clean += not predicted
+        else:
+            phi_documents += 1
+            phi_leak_free += safe
         if (missing or extras) and len(failures) < max_failures:
             def details(spans):
                 return [{"start": start, "end": end, "label": label, "text": text[start:end]}
@@ -167,6 +176,18 @@ def evaluate(rows: Iterable[dict[str, Any]], predictor: Callable[[str], list[Spa
                                      "leak_free_rate": c["leak_free"] / c["documents"]} for family, c in per_family.items()},
             "document_leak_free": {"count": leak_free, "rate": leak_free / documents,
                                    "wilson_lower_95": wilson_lower(leak_free, documents)},
+            "phi_bearing_documents": {
+                "count": phi_documents, "leak_free_count": phi_leak_free,
+                "leak_free_rate": phi_leak_free / phi_documents if phi_documents else None,
+                "wilson_lower_95": wilson_lower(phi_leak_free, phi_documents) if phi_documents else None,
+            },
+            "per_label_character_exposure": {
+                label: {
+                    "support": c["covered"] + c["exposed"],
+                    "covered_characters": c["covered"], "exposed_characters": c["exposed"],
+                    "recall": c["covered"] / (c["covered"] + c["exposed"]) if c["covered"] + c["exposed"] else None,
+                } for label, c in label_characters.items()
+            },
             "negative_documents": {"count": negative_documents, "clean_count": negative_clean,
                                    "clean_rate": _ratio(negative_clean, negative_documents)},
             "goal": {"threshold": .99, "minimum_label_support": minimum_label_support,

@@ -127,3 +127,41 @@ def test_detector_source_manifest_includes_changed_transitive_helpers(tmp_path, 
     (tmp_path / "helper.py").write_text("def refine(): return 1\n")
     after = evaluation.detector_source_manifest()
     assert before["helper.py"] != after["helper.py"]
+
+
+def test_phi_bearing_document_metric_excludes_automatically_safe_negatives():
+    rows = [row(), {"id": "negative", "text": "Vitals normal", "spans": []}]
+    result = evaluate(rows, lambda text: [])
+    assert result["document_leak_free"]["rate"] == .5
+    assert result["phi_bearing_documents"] == {
+        "count": 1, "leak_free_count": 0, "leak_free_rate": 0.0, "wilson_lower_95": 0.0,
+    }
+    assert result["per_label_character_exposure"]["NAME"]["exposed_characters"] == 3
+
+
+def test_character_exposure_tracks_gold_label_even_with_wrong_prediction_type():
+    result = evaluate([row()], lambda text: [Span(0, 2, "LOCATION")])
+    name = result["per_label_character_exposure"]["NAME"]
+    assert name["support"] == 3
+    assert name["covered_characters"] == 2
+    assert name["exposed_characters"] == 1
+    assert name["recall"] == pytest.approx(2 / 3)
+    assert result["per_label_character_exposure"]["LOCATION"]["recall"] is None
+    assert result["per_label"]["NAME"]["recall"] == 0
+
+
+def test_empty_phi_support_is_not_reported_as_perfect_diagnostic_coverage():
+    result = evaluate([{"id": "negative", "text": "Vitals normal", "spans": []}], lambda text: [])
+    assert result["phi_bearing_documents"] == {
+        "count": 0, "leak_free_count": 0, "leak_free_rate": None, "wilson_lower_95": None,
+    }
+    assert all(stats["recall"] is None for stats in result["per_label_character_exposure"].values())
+    # Existing report semantics and admission gates remain backward compatible.
+    assert result["negative_documents"]["clean_rate"] == 1
+    assert result["schema_version"] == 1
+    assert not result["goal"]["passed"]
+
+
+def test_minimum_support_for_possible_99_percent_wilson_bound_is_381():
+    assert wilson_lower(380, 380) < .99
+    assert wilson_lower(381, 381) >= .99

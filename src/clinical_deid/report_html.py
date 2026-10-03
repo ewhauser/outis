@@ -269,6 +269,14 @@ def _progress_overview(run: dict, progress: dict, index: int) -> str:
         if progress["label_rows"]
         else "Per-label evidence unavailable"
     )
+    typed = run.get("typed_span") or {}
+    true_positives = _number(typed.get("true_positives"))
+    false_positives = _number(typed.get("false_positives"))
+    predictions = (
+        true_positives + false_positives
+        if true_positives is not None and false_positives is not None
+        else None
+    )
     return (
         f'<div class="benchmark-hero {status}"><div><p class="eyebrow">Recorded benchmark result</p>'
         f'<h3 id="run-title-{index}">{headline}</h3>'
@@ -283,12 +291,13 @@ def _progress_overview(run: dict, progress: dict, index: int) -> str:
         '<div class="readiness-card"><span class="small-label">PHI character recall</span>'
         f"<strong>{_target_rate(character_rate, target)}</strong><span>Target {_percent(target)}</span>"
         f"<small>Shortfall: {_gap(char_gap)}</small></div>"
-        '<div class="readiness-card"><span class="small-label">Labels below recall target</span>'
-        f"<strong>{labels_value}</strong><span>{labels_note}</span>"
-        f"<small>{label_evidence}</small></div>"
+        '<div class="readiness-card"><span class="small-label">Extra predicted spans (FP)</span>'
+        f"<strong>{_count(false_positives)}</strong><span>{_percent(_metric_rate(typed, 'precision'))} span precision</span>"
+        f"<small>of {_count(predictions)} predicted spans · exact boundary/type errors</small></div>"
         '<div class="readiness-card"><span class="small-label">Negative notes untouched</span>'
         f"<strong>{negative_value}</strong><span>{negative_note}</span>"
         "<small>False-positive diagnostic · acceptance target not set</small></div></div>"
+        f'<p class="label-overview">Labels below recall target: {labels_value} · {labels_note} · {label_evidence}</p>'
     )
 
 
@@ -359,7 +368,8 @@ def _label_table(run: dict, progress: dict) -> str:
     source_rows = {item["label"]: item for item in run.get("per_label") or []}
     target = (run.get("goal") or {}).get("threshold")
     for item in progress["label_rows"]:
-        support = source_rows[item["label"]].get("sufficient_support")
+        source = source_rows[item["label"]]
+        support = source.get("sufficient_support")
         badge = (
             _badge("Below required support", "amber")
             if support is False
@@ -370,9 +380,11 @@ def _label_table(run: dict, progress: dict) -> str:
         rows.append(
             f'<tr><th scope="row"><code>{_text(item.get("label"))}</code></th>'
             f"<td>{_target_bar(item['recall'], target, item['label'] + ' recall')}</td>"
+            f'<td class="numeric">{_percent(_metric_rate(source, "precision"))}</td>'
             f'<td class="numeric">{_percent(target)}</td>'
             f'<td class="numeric">{_gap(item["gap"])}</td>'
             f'<td class="numeric">{_count(item.get("support"))}</td>'
+            f'<td class="numeric">{_count(source.get("false_positives"))}</td>'
             f'<td class="numeric">{_count(item.get("missed"))}</td>'
             f"<td>{badge}</td></tr>"
         )
@@ -380,10 +392,10 @@ def _label_table(run: dict, progress: dict) -> str:
         return '<p class="empty">Per-label metrics are unavailable for this run.</p>'
     return (
         '<div class="table-scroll" tabindex="0" role="region" aria-label="Per-label quality metrics">'
-        '<table class="labels-table"><caption class="sr-only">Per-label recall targets and shortfalls, weakest observed recall first.</caption>'
+        '<table class="labels-table"><caption class="sr-only">Per-label precision, recall targets and false-positive and false-negative counts, weakest recall first.</caption>'
         '<thead><tr><th scope="col">PHI label</th><th scope="col">Recall · 0–100%</th>'
-        '<th scope="col">Target</th><th scope="col">Shortfall</th><th scope="col">Gold spans</th>'
-        '<th scope="col">Total missed</th><th scope="col">Support check</th></tr></thead><tbody>'
+        '<th scope="col">Precision</th><th scope="col">Recall target</th><th scope="col">Recall gap</th><th scope="col">Gold spans</th>'
+        '<th scope="col">False positives</th><th scope="col">False negatives</th><th scope="col">Support check</th></tr></thead><tbody>'
         + "".join(rows)
         + "</tbody></table></div>"
     )
@@ -497,8 +509,8 @@ def _run_panel(run: dict, index: int, selected: int) -> str:
         + _benchmark_gates(progress)
         + '<section class="subsection"><div class="subsection-heading"><div>'
         '<p class="eyebrow">02 / Recall blockers</p><h4>Which identifiers still miss the target?</h4></div></div>'
-        '<p class="muted">Weakest observed recall first. Total missed spans are exact boundary/type mismatches; '
-        "they are not a count of exposed identifiers. Zero-support labels are unassessed.</p>"
+        '<p class="muted">Weakest observed recall first. False positives and false negatives count exact boundary/type mismatches; '
+        "one boundary or type error can contribute to both even when PHI is fully covered. They are not counts of exposed or over-redacted identifiers. Zero-support labels are unassessed.</p>"
         + _label_table(run, progress)
         + '</section><section class="use-boundary"><h4>What remains beyond this benchmark?</h4>'
         "<p>Passing these checks establishes performance on the recorded evaluation. "
@@ -530,7 +542,7 @@ _PROGRESS_STYLE = """
 main{padding-top:28px}h1{font-size:34px;letter-spacing:-1px}.intro{padding-bottom:20px}.intro-top{margin-bottom:12px}.description{margin:10px 0;font-size:14px}.intro .meta{font-size:11px}.section-heading{padding:20px 27px}.section-heading h2{font-size:19px}.run-panel{padding-top:22px}
 .benchmark-hero{display:flex;align-items:center;justify-content:space-between;gap:28px;border-left:4px solid #b47712;padding:4px 0 4px 20px}.benchmark-hero.met{border-color:var(--teal)}.benchmark-hero.unavailable{border-color:#778699}.benchmark-hero h3{font-size:29px;line-height:1.2}.benchmark-hero .eyebrow{color:var(--amber);margin-bottom:7px}.benchmark-hero.met .eyebrow{color:var(--teal)}.benchmark-hero .run-note{margin-top:7px;font-size:12px;max-width:750px}.evidence-line{font-size:13px;margin-top:10px;font-weight:600}.gate-tally{min-width:165px;flex-shrink:0;background:#fff5df;padding:16px 20px;border-radius:10px;text-align:center;display:flex;flex-direction:column}.met .gate-tally{background:#e1f3ee}.unavailable .gate-tally{background:#edf1f5}.gate-tally strong{font-size:42px;line-height:1.15;font-variant-numeric:tabular-nums}.gate-tally strong span{font-size:26px;color:var(--muted);font-weight:500}.gate-tally>span{font-size:11px;color:var(--muted);margin-top:6px}
 .readiness-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:24px}.readiness-card{border:1px solid var(--line);border-radius:9px;background:#fbfdff;padding:15px 16px;display:flex;flex-direction:column;min-width:0}.readiness-card.privacy-card{background:#fff9ef;border-color:#e8d5b4}.readiness-card>.small-label{min-height:32px;font-size:10px;line-height:1.5}.readiness-card strong{font-size:30px;letter-spacing:-.6px;font-variant-numeric:tabular-nums;line-height:1.35;margin:4px 0 6px;overflow-wrap:anywhere}.readiness-card>span:not(.small-label){font-size:11px}.readiness-card small{color:var(--muted);font-size:10px;line-height:1.5;margin-top:8px}.artifact-line{color:var(--muted);font-size:10px;margin:12px 0 0;overflow-wrap:anywhere}.artifact-line code{font-size:10px}
-.benchmark-gates{margin-top:22px}.subsection-heading .eyebrow{font-size:10px;margin-bottom:5px}.benchmark-gates>p{margin:10px 0 16px}.gates-table{min-width:730px;font-size:12px}.gates-table th,.gates-table td{padding:13px 12px}.gates-table tbody th{width:34%;font-weight:550}.gates-table td:nth-child(2){width:24%}.gates-table th:first-child{padding-left:0}.gates-table thead th{background:#fff}.gates-table td:last-child{white-space:nowrap}.target-metric{min-width:110px;max-width:220px}.target-metric strong{font-weight:650;font-size:13px;font-variant-numeric:tabular-nums}.target-track{position:relative;display:block;height:7px;border-radius:3px;background:#e7eef3;margin:7px 0 3px}.target-track>span{display:block;height:100%;border-radius:3px}.gap-fill{background:#c18b35}.met-fill{background:var(--teal)}.target-track .target-marker{position:absolute;display:block;top:-3px;height:13px;width:2px;background:#243b52;transform:translateX(-1px)}.target-track{-webkit-print-color-adjust:exact;print-color-adjust:exact}.labels-table td:nth-child(2){width:25%}.labels-table td:last-child{min-width:140px}
+.benchmark-gates{margin-top:22px}.subsection-heading .eyebrow{font-size:10px;margin-bottom:5px}.benchmark-gates>p{margin:10px 0 16px}.gates-table{min-width:730px;font-size:12px}.gates-table th,.gates-table td{padding:13px 12px}.gates-table tbody th{width:34%;font-weight:550}.gates-table td:nth-child(2){width:24%}.gates-table th:first-child{padding-left:0}.gates-table thead th{background:#fff}.gates-table td:last-child{white-space:nowrap}.target-metric{min-width:110px;max-width:220px}.target-metric strong{font-weight:650;font-size:13px;font-variant-numeric:tabular-nums}.target-track{position:relative;display:block;height:7px;border-radius:3px;background:#e7eef3;margin:7px 0 3px}.target-track>span{display:block;height:100%;border-radius:3px}.gap-fill{background:#c18b35}.met-fill{background:var(--teal)}.target-track .target-marker{position:absolute;display:block;top:-3px;height:13px;width:2px;background:#243b52;transform:translateX(-1px)}.target-track{-webkit-print-color-adjust:exact;print-color-adjust:exact}.labels-table{min-width:1010px}.labels-table th:first-child{width:auto}.labels-table td:nth-child(2){width:21%}.labels-table td:last-child{min-width:140px}.label-overview{color:var(--muted);font-size:11px;margin-top:12px}
 .use-boundary{margin-top:25px;padding:18px 20px;border:1px solid var(--line);border-radius:9px;background:#f4f7fb}.use-boundary h4{font-size:14px}.use-boundary p{font-size:12px;color:var(--muted);margin-top:7px}.supporting-details{border-top:1px solid var(--line);margin-top:22px}.supporting-details>summary{font-size:13px;padding:16px 0}.supporting-details>.subsection{border-top:0;padding-top:0;margin-top:0}.supporting-details .metric-cards{margin-top:0}.evidence-context{padding:0 27px}.evidence-context>details>summary{font-size:14px;padding:18px 0}.evidence-context .candidate{margin-top:0;border-top:0;padding:0 0 16px}.evidence-context .notes{margin-bottom:16px}
 @media(max-width:1000px){.readiness-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.benchmark-hero h3{font-size:25px}}
 @media(max-width:760px){h1{font-size:29px}.benchmark-hero{align-items:flex-start;flex-direction:column;gap:16px;padding-left:14px}.gate-tally{width:100%;flex-direction:row;align-items:center;justify-content:space-between;padding:12px 16px}.gate-tally strong{font-size:32px}.gate-tally>span{margin:0;font-size:12px}.readiness-card{padding:12px}.readiness-card strong{font-size:25px}.readiness-card>.small-label{font-size:9px;min-height:40px}.section-heading{padding:18px 20px}.benchmark-hero h3{font-size:25px}.evidence-context{padding:0 20px}.evidence-line{font-size:12px}.use-boundary{padding:15px}.gates-table th:first-child{padding-left:8px}}

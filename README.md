@@ -171,6 +171,50 @@ synthetic = deid.deidentify(
 print(result["text"])
 ```
 
+## Synthetic data remediation (v11)
+
+The [completed remediation](reports/current_state_snapshot.md) includes frozen
+data, both training arms, full-Detector evaluation, a separate helper repair,
+and legacy regressions. No new candidate passed the accuracy and consistency
+checks or replaced the default model.
+
+New development uses the [shared annotation policy](docs/annotation-policy-v2.md)
+and [remediation plan](docs/synthetic-data-remediation.md). The earlier generation
+and training commands above reproduce the original model lineage; they are not
+the recommended inputs for a new remediation run. Legacy corpora remain
+historical evidence.
+
+The replacement generators create separate versioned files and refuse to replace
+existing differing artifacts. The development generator is independently authored.
+Run commands from this checkout with `PYTHONPATH=src:scripts`:
+
+```sh
+PYTHONPATH=src .venv/bin/python -m clinical_deid.remediation_synthetic --output data/NEW_train.jsonl
+PYTHONPATH=src .venv/bin/python -m clinical_deid.remediation_development --output data/NEW_validation.jsonl
+PYTHONPATH=src:scripts .venv/bin/python scripts/audit_corpus_quality.py \
+  --corpus train=data/NEW_train.jsonl --corpus validation=data/NEW_validation.jsonl \
+  --output reports/NEW_quality.json
+```
+
+`scripts/run_remediation_training.py prepare` freezes a passed quality audit,
+corpora, sources, runtime, initialization and settings before its `run` command
+compares fresh and continued adapter/head training. The pretrained backbone is
+unchanged. The optional `overlap_owned` training policy keeps context visible
+while supervising every global token once. Legacy cache behavior remains the
+default for historical reproduction.
+
+`scripts/evaluate_remediation.py` evaluates explicit development banks through
+the complete Detector and saves model-only/hybrid predictions, cohort metrics,
+PHI-bearing document leakage, per-label exposure and long-document batch checks.
+It never launches qualification or promotes a model. Exact typed gates remain
+unchanged; small slices and synthetic results do not establish clinical readiness.
+
+Original experiment protocols and outputs are immutable. The retained
+`reports/v11_remediation_frozen_sources/` snapshot preserves their source state.
+The evaluation amendment and posthoc LOCATION repair are separate records;
+new experiments should prepare new protocols and output directories with the
+current source, rather than overwrite or resume a historical protocol after edits.
+
 ## Evaluation
 
 The predeclared 99% target is exact typed PHI-span precision, recall, and F1,
@@ -216,28 +260,48 @@ negative examples, spelled-out age handling, compound care settings and
 identifier-field grammar. A separately authored v6 qualification bank remains
 sealed until development selection is complete. **The 99% target remains unmet.**
 
-The latest completed full-detector development check uses the v9 epoch 8
-candidate and repaired contact/name boundaries on 7,860 declared development
-notes. Reapplying the current helpers to its saved actual neural predictions
-scores 98.42% exact precision, 99.05% recall and 98.73% F1; NAME recall
-is 95.63%, PHI-character recall is 99.82%, and 95.80% of documents are leak-free.
-All 4,606 gold EMAIL spans are exact matches, with one extra model prediction.
-The [saved development replay](reports/v9_epoch8_commit_hybrid.json)
-and [repair delta](reports/v9_post_contact_identity_delta.json) pin the actual
-neural outputs and helper sources. These figures are development evidence.
+The v10 matched comparison and actual full-detector development verification
+are complete. The two runs add 2,000 authored nominal-alias training notes and
+500 separately reported development notes. Starting weights, corpora, seed and
+optimizer settings are identical, with singleton NAME/LOCATION loss weights
+of 1 and 4. The [predeclared protocol](reports/training_v10_protocol.json)
+records 44,800 training and 8,360 development notes. Both runs completed eight
+epochs; all 18 retained entries were ranked with the same current helpers and
+verified frozen inputs. Epoch 7 leads both arms, and control is preferred under
+the declared balanced development criterion. Both finalists then received
+actual full-detector inference on all 8,360 notes.
 
-The completed matched comparison adds 2,000 authored nominal-alias training notes
-and 500 separately reported development notes. Its two runs use identical
-starting weights, corpora, seed and optimizer settings, with singleton
-NAME/LOCATION loss weights of 1 and 4. The
-[predeclared protocol](reports/training_v10_protocol.json) records 44,800
-training and 8,360 development notes. Both runs completed eight epochs and
-verified their frozen inputs. Control checkpoint ranking is complete; weighted
-ranking and full-detector candidate verification remain pending. Earlier cohorts remain separately
-reported; new examples cannot conceal regressions in them. The default model
-artifact remains the original v4 adapter while later candidates are evaluated.
-See [current snapshot](reports/current_state_snapshot.md) for validation and
-the remaining work.
+| Actual hybrid, full 8,360-note development bank | Exact precision | Exact recall | Exact F1 | NAME recall | Leak-free documents |
+|---|---:|---:|---:|---:|---:|
+| V10 control epoch 7 | 98.85% | 98.85% | 98.85% | 94.74% | 94.78% |
+| V10 weighted epoch 7 | 98.46% | 98.94% | 98.70% | 95.24% | 95.28% |
+
+Weighting yields 63 fewer exact misses and 41 more leak-free notes, with 280
+additional exact false positives. LOCATION precision falls from 97.19% to
+95.26%, while LOCATION recall remains 99.78%. **Neither candidate meets the
+99% development goal.** All 4,606 gold EMAIL spans are exact matches in each
+arm, with two extra predictions.
+
+On the identical earlier 7,860-note cohort, control improves precision/F1 to
+98.91%/98.95% from the [v9 replay](reports/v9_epoch8_commit_hybrid.json)'s
+98.42%/98.73%, but recall falls from 99.05% to 98.99% and leak-free documents
+fall from 7,530 to 7,507. NAME recall falls from 95.63% to 95.20%. The separate
+new 500-note nominal cohort has NAME recall of 88.56% for control and 90.41%
+for weighted, with leak-free rates of 83.40% and 86.60%. Its zero gold LOCATION
+spans cannot establish location recall. The common cohort and new cohort are
+reported separately so added examples cannot conceal earlier regressions.
+V9-to-v10 also changes training data and duration; that comparison does not
+isolate the effect of weighting. These are synthetic development results,
+not independent qualification or evidence of real clinical readiness.
+
+See the [completed outcome](reports/v10_matched_actual_outcome.md),
+[current snapshot](reports/current_state_snapshot.md), and
+[saved NAME/LOCATION roadmap](docs/name-location-improvement-plan.md). The next
+recommendation is broader paired contextual synthetic positives and negatives,
+plus narrow repairs for measured boundary and type errors. No further training
+or rule implementation was performed during this comparison. The default API
+artifact remains the original v4 adapter, and fresh v6 qualification remains
+sealed and unrun.
 
 The new narrative generators add single-token names and places, broader role
 language, contrasting identifier captions, and clinical negatives. The
@@ -296,11 +360,14 @@ Build a self-contained page from the saved quality and timing reports:
   --output reports/pipeline_report.html
 ```
 
-Open the resulting HTML in a browser. It includes quality comparisons, per-label
-recall, evaluation gates, recorded detection timing, and source hashes. The
-checked-in config selects the v7 candidate and its historical blind v5 results;
-it does not automatically select the latest model. Edit the config to select
-new evaluation reports. No model inference or corpus access is performed.
+Open the [resulting HTML](reports/pipeline_report.html) in a browser. It includes
+quality comparisons, per-label precision/recall, false positives and negatives,
+evaluation gates, recorded detection timing, and source hashes. The checked-in
+config selects the completed v10 actual results, their common 7,860-note and
+new 500-note cohorts, and the preceding v9 baseline, alongside historical
+qualification evidence. It does not automatically select or promote a model.
+Edit the config to select new evaluation reports. Building the HTML performs
+no model inference or corpus access.
 See [report configuration and metric definitions](docs/html-reports.md).
 
 ## Operational controls
