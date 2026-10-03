@@ -128,6 +128,36 @@ def test_dotted_dates_share_one_shift_and_preserve_intervals():
     assert result["preservation"]["date_intervals_preserved"]
 
 
+@pytest.mark.parametrize("separator", ["/", ".", "-"])
+def test_shifted_day_first_dates_remain_unambiguous_and_preserve_intervals(separator):
+    values = [separator.join(parts) for parts in [
+        ("13", "09", "2024"), ("14", "09", "2024"), ("2024", "09", "15")
+    ]]
+    text = "Admit " + values[0] + "; review " + values[1] + "; discharge " + values[2] + "."
+    result = synthetic(text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=20)
+    replacements = [entity["replacement"] for entity in result["entities"]]
+    assert replacements == [separator.join(("2024", "10", day)) for day in ("03", "04", "05")]
+    # Read the emitted year-first dates independently of the replacement parser.
+    dates = [date(*(int(part) for part in value.split(separator))) for value in replacements]
+    assert [(value - dates[0]).days for value in dates] == [0, 1, 2]
+    assert result["text"] == "Admit " + replacements[0] + "; review " + replacements[1] + "; discharge " + replacements[2] + "."
+    assert result["preservation"]["date_intervals_preserved"] is True
+    assert result["preservation"]["exact_dates_shifted"] == 3
+    assert len(result["warnings"]) == 2
+    assert all("year/month/day" in warning for warning in result["warnings"])
+    assert not any(value in " ".join(result["warnings"]) for value in values)
+
+
+def test_day_first_backward_shift_changes_order_only_when_meaning_would_be_ambiguous():
+    values = ["13/09/2024", "14/09/2024", "10/13/2024"]
+    text = " | ".join(values)
+    result = synthetic(text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=-1)
+    assert result["text"] == "2024/09/12 | 13/09/2024 | 10/12/2024"
+    assert len(result["warnings"]) == 1
+    assert "year/month/day" in result["warnings"][0]
+    assert result["preservation"]["date_intervals_preserved"] is True
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -412,10 +442,7 @@ def test_name_key_normalization_does_not_change_identifier_or_patient_anchor(
         patient_id=patient,
         secret=SECRET,
     )
-    assert {value for _, label, value in calls if label == "ID"} == {
-        "o’neri‐rios jr",
-        "o'neri-rios jr.",
-    }
+    assert {value for _, label, value in calls if label == "ID"} == set(values)
     assert all(anchor == patient for anchor, _, _ in calls)
     assert values[0] not in json.dumps(result, ensure_ascii=False)
     assert values[1] not in json.dumps(result, ensure_ascii=False)
@@ -595,6 +622,26 @@ def test_contact_and_identifier_replacements_are_fictional():
     assert SECRET.hex() not in json.dumps(result)
 
 
+@pytest.mark.parametrize("label,values", [
+    ("MRN", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
+    ("ACCOUNT", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
+    ("ID", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
+    ("EMAIL", ["A@example.org", "a@example.org", "a@example.org "]),
+    ("URL", ["https://example.org/A", "https://example.org/a", "https://example.org/a "]),
+])
+def test_case_sensitive_identifier_replacements_preserve_exact_identity(label, values):
+    text = " | ".join(values)
+    spans = spans_for(text, [(value, label) for value in values])
+    result = synthetic(text, spans)
+    replacements = [entity["replacement"] for entity in result["entities"]]
+    assert len(set(replacements)) == len(values)
+    assert result["preservation"]["patient_consistent_replacements"] is True
+    for value, replacement in zip(values, replacements):
+        assert replacement == synthetic(value, [Span(0, len(value), label)])["text"]
+    redacted = replace(text, spans)
+    assert redacted["text"] == " | ".join(f"[{label}]" for _ in values)
+
+
 def test_unknown_labels_fall_back_to_safe_redaction():
     span = SimpleNamespace(start=0, end=6, label="DEVICE", score=1.0, source="test")
     assert synthetic("serial", [span])["text"] == "[DEVICE]"
@@ -654,7 +701,7 @@ def test_unknown_mode_is_rejected():
     [
         ("14/07/2007", "15/07/2007"),
         ("31-12-2023", "01-01-2024"),
-        ("29/2/2024", "1/3/2024"),
+        ("29/2/2024", "2024/3/1"),
         ("13-May-2002", "14-May-2002"),
         ("May-13-2002", "May-14-2002"),
         ("29-Feb-2024", "01-Mar-2024"),
@@ -711,7 +758,7 @@ def test_equivalent_mixed_formats_share_one_patient_offset():
     result = synthetic(text, spans, date_shift_days=20)
     assert [entity["replacement"] for entity in result["entities"]] == [
         "2002-06-02",
-        "02/06/2002",
+        "2002/06/02",
         "02-Jun-2002",
         "Jun-02-2002",
         "June 2, 2002",

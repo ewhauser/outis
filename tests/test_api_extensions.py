@@ -129,6 +129,24 @@ def test_structured_json_preserves_shape_and_nulls(service):
     assert all("location" in entity for entity in result["entities"])
 
 
+def test_structured_json_requires_data_but_preserves_explicit_null(service):
+    with TestClient(create_app(service)) as client:
+        missing = client.post("/v1/structured", json={})
+        assert missing.status_code == 422
+        assert service.detector.calls == []
+        for original in (None, {"value": None}):
+            response = client.post("/v1/structured", json={"data": original})
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "application/json"
+            result = response.json()
+            assert "data" in result
+            assert result["data"] == original
+            assert result["format"] == "json"
+            assert result["entities"] == []
+            assert result["entity_count"] == 0
+            assert result["warnings"] == []
+
+
 def test_file_base64_roundtrip(service):
     with TestClient(create_app(service)) as client:
         response = client.post("/v1/files", json={"data": base64.b64encode(TEXT.encode()).decode(), "content_type": "text/plain"})
@@ -281,6 +299,85 @@ def test_effective_sensitive_replacement_requires_patient_anchor_before_inferenc
         response = client.post("/v1/deidentify", json={"text": TEXT, "replacement": replacement})
     assert response.status_code == 422
     assert not service.detector.calls
+
+
+@pytest.mark.parametrize("label", ["MRN", "ACCOUNT", "ID"])
+def test_http_synthetic_opaque_identifiers_keep_exact_identities_and_restore(label):
+    originals = ["AB12", "ab12", "AB12 "]
+    text = "|".join(originals)
+    spans = [Span(0, 4, label), Span(5, 9, label), Span(10, 15, label)]
+
+    class OpaqueIdentifierDetector:
+        def detect_batch(self, texts):
+            assert texts == [text]
+            return [spans]
+
+    service = Deidentifier(detector=OpaqueIdentifierDetector(), secret=SECRET)
+    payload = {
+        "text": text,
+        "mode": "synthetic",
+        "patient_id": "opaque-identity-patient",
+        "replacement": {"type": "synthetic", "entity_ids": "keyed", "include_mapping": True},
+    }
+    with TestClient(create_app(service)) as client:
+        first = client.post("/v1/deidentify", json=payload)
+        repeated = client.post("/v1/deidentify", json=payload)
+        assert first.status_code == repeated.status_code == 200
+        result = first.json()
+        assert result == repeated.json()
+        assert result["entity_count"] == 3
+        assert len({entity["entity_id"] for entity in result["entities"]}) == 3
+        replacements = [entity["replacement"] for entity in result["entities"]]
+        assert len(set(replacements)) == 3
+        assert set(replacements).isdisjoint(originals)
+        assert result["text"] == "|".join(replacements)
+        assert {row["marker"]: row["original"] for row in result["mappings"]} == dict(zip(replacements, originals))
+        assert all(row["label"] == label for row in result["mappings"])
+        restored = client.post("/v1/reidentify", json={
+            "text": result["text"],
+            "mappings": result["mappings"],
+            "allowed_types": [label],
+            "restore_sensitive": True,
+        })
+    assert restored.status_code == 200
+    assert restored.json() == {"text": text, "restored_count": 3}
+
+
+@pytest.mark.parametrize("dates,shift,expected", [
+    (
+        ["13/09/2024", "14/09/2024", "09/13/2024", "2024-09-13"],
+        20,
+        ["2024/10/03", "2024/10/04", "10/03/2024", "2024-10-03"],
+    ),
+    (["29/2/2024", "2024-02-29"], 1, ["2024/3/1", "2024-03-01"]),
+])
+def test_http_synthetic_dmy_dates_emit_unambiguous_shifted_timeline(dates, shift, expected):
+    text = "Visits: " + "; ".join(dates) + "."
+
+    class DateDetector:
+        def detect_batch(self, texts):
+            assert texts == [text]
+            return [[Span(text.index(date), text.index(date) + len(date), "DATE") for date in dates]]
+
+    service = Deidentifier(detector=DateDetector(), secret=SECRET)
+    with TestClient(create_app(service)) as client:
+        response = client.post("/v1/deidentify", json={
+            "text": text,
+            "mode": "synthetic",
+            "patient_id": "date-timeline-patient",
+            "date_shift_days": shift,
+            "replacement": {"type": "synthetic"},
+        })
+    assert response.status_code == 200
+    result = response.json()
+    assert result["text"] == "Visits: " + "; ".join(expected) + "."
+    assert [entity["replacement"] for entity in result["entities"]] == expected
+    assert all(result["text"][entity["processed_start"]:entity["processed_end"]] == entity["replacement"]
+               for entity in result["entities"])
+    assert result["preservation"]["date_intervals_preserved"]
+    assert result["preservation"]["exact_dates_shifted"] == len(dates)
+    assert result["preservation"]["unshiftable_dates_redacted"] == 0
+    assert any("year/month/day" in warning.lower() for warning in result["warnings"])
 
 
 @pytest.mark.parametrize("project_id", ["x" * 61, "space name", "person@example.com"])

@@ -148,6 +148,10 @@ shift applies to `DATE`. For configured synthetic replacement, set both
 an explicit shift, the server derives a stable nonzero patient shift from its
 secret. Unsupported date forms are redacted with warnings. The analysis
 endpoint's `locale` does not change date-shifting interpretation.
+If an inferred day/month/year date shifts to a value that could mean a different
+date under the month/day/year default, it is emitted as year/month/day with the
+original separator and a warning. For example, `13/09/2024` shifted by 20 days
+becomes `2024/10/03`.
 
 The response's `preservation` fields report date-shift outcomes and replacement
 consistency for the selected actions. Masking, marking, or keeping a detected
@@ -182,9 +186,18 @@ context between requests.
 ```
 
 Identity resolution uses repeated values and unambiguous literal first/last
-name aliases of detected full names. It does not resolve pronouns or arbitrary
-semantic references. If two full names share a reduced name, ambiguous reduced
+name aliases of detected full names. Supported explicit nickname declarations
+link the detected nickname occurrence and owner to the same ID and synthetic
+identity. Shared messages and fields use their exact occurrence offsets; a
+matching nickname alone does not establish ownership. If the generated nickname
+would repeat the original nickname, replacement uses the owner's synthetic family
+name or redacts it with a warning. Pronouns and arbitrary semantic references
+remain unresolved. If two full names share a reduced name, ambiguous reduced
 mentions remain separate. Opaque identifiers retain their case and spelling.
+Synthetic replacements for `MRN`, `ACCOUNT`, `ID`, `EMAIL`, and `URL` likewise
+use exact source values, including whitespace and Unicode spelling. This fixes
+earlier normalization that merged distinct values; affected replacements change
+on upgrade, so reprocess related notes to keep one mapping universe.
 A detection crossing a message boundary produces local `context_fragment`
 spans; synthetic replacement uses markers for these fragments.
 
@@ -232,7 +245,8 @@ result are bounded to 1,000,000 characters, with at most 20,000 mappings and
 `/v1/structured` takes `data`, `format` (`json`, `csv`, or `xml`), optional
 `paths`, optional replacement `options`, and `link_records` (default `false`).
 `options` contains the fields of a deidentification request except `text`.
-JSON data is a JSON value; CSV and XML data are strings. The response returns
+JSON data is a JSON value, including root `null`, which is returned unchanged.
+The `data` field is required; omitting it returns 422. CSV and XML data are strings. The response returns
 transformed `data`, its `format`, located `entities`, counts, warnings, and
 explicitly requested mappings.
 

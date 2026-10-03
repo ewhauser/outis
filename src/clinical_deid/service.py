@@ -209,13 +209,15 @@ class Deidentifier:
                                            patient_id=first["patient_id"] if keyed else None)
             results = []
             mention_offset = 0
+            context_offset = 0
             for req, spans in zip(requests, predictions):
                 extended = req["_extended"] or link_batch or shared_entities
                 if extended:
                     result = render(req["text"], spans, options=req["replacement"], mode=req["mode"],
                                     patient_id=req["patient_id"], secret=self.secret,
                                     date_shift_days=req["date_shift_days"], prepared_context=prepared,
-                                    index_offset=mention_offset if context is not None else 0)
+                                    index_offset=mention_offset if context is not None else 0,
+                                    context_offset=context_offset if context is not None else None)
                     result["policy"] = policy_metadata(req["policy"])
                 else:
                     result = replace(req["text"], spans, mode=req["mode"], patient_id=req["patient_id"],
@@ -223,6 +225,7 @@ class Deidentifier:
                 result.update(model_version=self.version, mode=req["mode"], entity_count=len(result["entities"]))
                 results.append(result)
                 mention_offset += len(result["entities"])
+                context_offset += len(req["text"]) + 1
             if sum(len(result["text"]) for result in results) > 1_000_000:
                 raise ValueError("Batch replacement output exceeds the size limit")
             if sum(len(item["marker"]) + len(item["original"])

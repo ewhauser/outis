@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from .entities import Entity, checked_entities
 from .name_aliases import full_identity_aliases
+from .replacement_identity import NameBinding, nickname_bindings
 from .replacement import (
     _canonical,
     _digest,
@@ -140,6 +141,7 @@ def _patient_key(secret, patient_id):
 
 def _identity_keys(text, spans):
     aliases = _name_aliases(text, spans)
+    bindings = nickname_bindings(text, spans)
     owners: dict[str, set[str]] = {}
     for span in spans:
         if span.label == "NAME":
@@ -153,7 +155,10 @@ def _identity_keys(text, spans):
         value = text[span.start : span.end]
         if span.label == "NAME":
             _, value = _name_identity(value)
-            if value in aliases:
+            binding = bindings.get((span.start, span.end))
+            if binding is not None:
+                value = binding.owner
+            elif value in aliases:
                 value = aliases[value][0]
             elif len(owners.get(value, ())) > 1:
                 # A shared reduced name has no proven owner, including another
@@ -227,6 +232,8 @@ class PreparedContext:
     spans: tuple[Entity, ...] = field(repr=False)
     identities: Mapping[tuple[str, str], frozenset[str]] = field(repr=False)
     aliases: Mapping[str, tuple[str, str]] = field(repr=False)
+    bindings: Mapping[tuple[int, int], NameBinding] = field(repr=False)
+    occurrence_ids: Mapping[tuple[int, int, str], str] = field(repr=False)
 
 
 def prepare_context(text, spans, *, secret=None, patient_id=None) -> PreparedContext:
@@ -242,6 +249,8 @@ def prepare_context(text, spans, *, secret=None, patient_id=None) -> PreparedCon
             {key: frozenset(ids) for key, ids in identities.items()}
         ),
         aliases=MappingProxyType(_name_aliases(text, linked)),
+        bindings=nickname_bindings(text, linked),
+        occurrence_ids=MappingProxyType({(s.start, s.end, s.label): s.entity_id for s in linked}),
     )
 
 
@@ -366,6 +375,7 @@ def render(
     context_spans=None,
     prepared_context=None,
     index_offset=0,
+    context_offset=None,
 ):
     """Render configured replacements with input/output character offsets.
 
@@ -373,6 +383,8 @@ def render(
     messages for alias ownership; preassigned identities are always preserved.
     For many linked segments, prepare context once and pass prepared_context
     instead of context_text/context_spans to avoid rebuilding the global index.
+    context_offset identifies this exact segment in shared text; arbitrary
+    nickname proofs never transfer by spelling or by a supplied entity ID.
     Reversible output requires unambiguous literal replacement tokens: patterns
     using {index} support distinct spellings of the same linked identity.
     """
@@ -429,6 +441,16 @@ def render(
     context = prepared_context.text
     context_ids = prepared_context.identities
     aliases = prepared_context.aliases
+    if context_offset is None and context == text:
+        context_offset = 0
+    if context_offset is not None and (
+        type(context_offset) is not int or context_offset < 0
+        or context_offset + len(text) > len(context)
+        or context[context_offset:context_offset + len(text)] != text
+    ):
+        raise ValueError("context_offset must identify the exact text segment")
+    bindings = prepared_context.bindings if context_offset is not None else {}
+
     if shared_context:
         enriched = []
         for span in ordered:
@@ -436,7 +458,12 @@ def render(
             if span.label == "NAME":
                 _, value = _name_identity(value)
                 value = aliases.get(value, (value, "full"))[0]
-            ids = context_ids.get((span.label, value), set())
+            if context_offset is not None:
+                global_key = (span.start + context_offset, span.end + context_offset, span.label)
+                exact_id = prepared_context.occurrence_ids.get(global_key)
+                ids = {exact_id} if exact_id is not None else set()
+            else:
+                ids = context_ids.get((span.label, value), set())
             if span.entity_id is None:
                 if len(ids) != 1:
                     raise ValueError(
@@ -472,7 +499,18 @@ def render(
             if warning:
                 warnings.append(f"Entity {index} (DATE): {warning}")
         elif span.label in ENTITY_TYPES:
-            replacement = _synthetic_value(original, span.label, key, patient, aliases)
+            binding = bindings.get((span.start + (context_offset or 0),
+                                    span.end + (context_offset or 0)))
+            # A supplied conflicting local ID cannot borrow a global proof.
+            expected_id = prepared_context.occurrence_ids.get(
+                (span.start + (context_offset or 0), span.end + (context_offset or 0), span.label)
+            )
+            if binding is not None and span.entity_id != expected_id:
+                binding = None
+            name_warnings = []
+            replacement = _synthetic_value(original, span.label, key, patient, aliases,
+                                           name_binding=binding, name_warnings=name_warnings)
+            warnings.extend(f"Entity {index} (NAME): {warning}" for warning in name_warnings)
         else:
             replacement = marker
         if span.label == "DATE" and (action != "synthetic" or not shifted):

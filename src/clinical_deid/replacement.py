@@ -18,6 +18,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from .name_aliases import full_identity_aliases
+from .replacement_identity import nickname_bindings
 from .types import Span
 
 _FIRST_NAMES = (
@@ -101,6 +102,7 @@ _TITLE = re.compile(r"^(?P<title>(?:dr|mr|mrs|ms|mx|miss|prof)\.?\s+)", re.I)
 _NAME_WORD = re.compile(r"[A-Za-z]+(?:['’-][A-Za-z]+)*")
 _NAME_SUFFIX = re.compile(r"(?:jr|sr|ii|iii|iv|v|vi)\.?\Z", re.I)
 _NAME_PUNCTUATION = str.maketrans({"’": "'", "‐": "-", "‑": "-"})
+_EXACT_IDENTITY_LABELS = frozenset({"MRN", "ACCOUNT", "ID", "EMAIL", "URL"})
 _FACILITY_SPECIALTIES = (
     (
         "Pediatric",
@@ -349,10 +351,16 @@ def _numeric_date(value: str, offset: int) -> tuple[str | None, str | None]:
     order = (
         ("y", "m", "d") if iso else ("d", "m", "y") if day_first else ("m", "d", "y")
     )
-    rendered = match["s"].join(values[part] for part in order)
     warning = None
-    if american and int(match["m"]) <= 12 and int(match["d"]) <= 12:
+    if day_first and shifted.day <= 12 and shifted.day != shifted.month:
+        # A D/M input can be unambiguous while the shifted D/M output is not.
+        # The documented M/D default would then change its calendar meaning.
+        # Retain the separator/padding but make the date order explicit.
+        order = ("y", "m", "d")
+        warning = "Shifted day/month/year date was emitted as year/month/day to avoid ambiguity"
+    elif american and int(match["m"]) <= 12 and int(match["d"]) <= 12:
         warning = "Ambiguous numeric date was interpreted as month/day/year"
+    rendered = match["s"].join(values[part] for part in order)
     return rendered, warning
 
 
@@ -503,15 +511,44 @@ def _synthetic_value(
     secret: bytes,
     patient: str,
     aliases: dict[str, tuple[str, str]],
+    *, name_binding=None, name_warnings=None,
 ) -> str:
-    identity = _canonical(value)
+    canonical = _canonical(value)
+    # Opaque identifiers, email local parts and URL paths can distinguish case,
+    # whitespace or Unicode spelling. Match the exact identity-linking keys;
+    # applying name-style normalization here silently merges distinct values.
+    identity = value if label in _EXACT_IDENTITY_LABELS else canonical
     if label == "NAME":
         title, identity = _name_identity(value)
-        full_identity, role = aliases.get(identity, (identity, "full"))
+        full_identity, role = (
+            (name_binding.owner, name_binding.role) if name_binding is not None
+            else aliases.get(identity, (identity, "full"))
+        )
         first, last = _fictional_name(secret, patient, full_identity)
-        return title + (
+        rendered = title + (
             first if role == "first" else last if role == "last" else first + " " + last
         )
+        if name_binding is not None:
+            original_tokens = _name_words(identity)
+
+            def safe_nickname(candidate):
+                tokens = _name_words(_name_identity(candidate)[1])
+                width = len(original_tokens)
+                return bool(tokens and width and not any(
+                    tokens[i:i + width] == original_tokens
+                    for i in range(len(tokens) - width + 1)
+                ))
+
+            if not safe_nickname(rendered):
+                # Keep the canonical person's key/mapping unchanged. Its family
+                # name is a consistent alias only if no original nickname token
+                # sequence survives; expanding to the full name would echo it.
+                rendered = title + last
+            if not safe_nickname(rendered):
+                if name_warnings is not None:
+                    name_warnings.append("Synthetic owner name contains the original nickname; NAME redacted.")
+                return "[NAME]"
+        return rendered
     if label == "AGE":
         return _age(value, "synthetic")
     for salt in range(100):
@@ -537,7 +574,7 @@ def _synthetic_value(
             replacement = f"Synthetic {_facility_setting(value)} {token[:6].upper()}"
         else:
             return f"[{_safe_label(label)}]"
-        if _canonical(replacement) != identity:
+        if _canonical(replacement) != canonical:
             return replacement
     return f"[{_safe_label(label)}]"
 
@@ -561,6 +598,8 @@ def replace(
     partial names cannot be linked to full identities across different notes.
     Numeric dates use US month/day/year when ambiguous, day/month/year when the
     first component exceeds 12, and year/month/day when year comes first.
+    A shifted day/month/year date is emitted year-first if its meaning would
+    otherwise become ambiguous. Case-sensitive identifiers use exact keys.
     """
     if mode not in {"redact", "synthetic"}:
         raise ValueError("mode must be 'redact' or 'synthetic'")
@@ -590,6 +629,7 @@ def replace(
             offset = shift_index - 365 if shift_index < 365 else shift_index - 364
 
     aliases = _name_aliases(text, ordered) if mode == "synthetic" else {}
+    bindings = nickname_bindings(text, ordered) if mode == "synthetic" else {}
     parts: list[str] = []
     entities: list[dict[str, Any]] = []
     warnings: list[str] = []
@@ -610,7 +650,13 @@ def replace(
             if warning:
                 warnings.append(f"Entity {entity_index} (DATE): {warning}")
         else:
-            replacement = _synthetic_value(original, label, key, patient, aliases)
+            name_warnings = []
+            replacement = _synthetic_value(
+                original, label, key, patient, aliases,
+                name_binding=bindings.get((span.start, span.end)),
+                name_warnings=name_warnings,
+            )
+            warnings.extend(f"Entity {entity_index} (NAME): {warning}" for warning in name_warnings)
         parts.extend((text[cursor : span.start], replacement))
         entities.append(
             {

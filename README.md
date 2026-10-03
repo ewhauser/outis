@@ -140,13 +140,22 @@ preserves event order, intervals, and leap days. A caller can explicitly provide
 for that patient. Incomplete or unsupported dates are redacted with warnings
 instead of inventing precision. Numeric dates use month/day/year when ambiguous
 and emit a warning; an initial value above 12 establishes day/month/year.
+If shifting a day/month/year date would make its meaning ambiguous, the output
+uses year/month/day with the original separator and a warning.
 Year-first dates, dotted numeric dates, hyphenated English month names, and ISO date-times are also
 supported. Date-times retain the original time of day and timezone text.
 Date shifting changes calendar/seasonal context even when intervals are preserved.
 
 Names and identifiers are replaced deterministically. Unambiguous first/last
-name aliases within a note follow a detected full name. Standalone aliases
+name aliases within a note follow a detected full name. Supported explicit
+nickname declarations also link detected nickname occurrences to their detected
+owner, so both use one synthetic identity. Ambiguous ownership remains separate;
+an unsafe nickname replacement falls back to redaction with a warning. Standalone aliases
 across different notes cannot be linked reliably without a full identity.
+MRN, ACCOUNT, ID, EMAIL and URL replacements use the exact detected value,
+including case, whitespace and Unicode spelling, to avoid merging distinct
+identifiers. Earlier versions normalized these values; reprocess related notes
+when upgrading if they must share one replacement mapping.
 Synthetic facilities retain only whitelisted generic setting and specialty
 terms, such as hospice, rehabilitation hospital, pediatric clinic, dialysis
 unit, or infusion center. Identifying names and unknown terms are replaced.
@@ -222,6 +231,16 @@ with per-type recall, character recall, and a Wilson recall lower bound also
 checked. Ordinary token accuracy is excluded. Model-only and hybrid results
 are reported separately. See [evaluation protocol](reports/evaluation_protocol.md).
 Document leak-free rate is reported alongside entity metrics.
+
+The [current HTML report](reports/pipeline_report.html) preserves the latest
+completed independent qualification (V14, 2 of 7 gates passed) and reports later
+development work separately. The latest learned NAME recovery experiment made
+no safe improvement on a separate 160-note development challenge: exact NAME
+recall is 194/505 (38.42%), including 13/227 nickname/alias spans (5.73%); only
+1/160 PHI-bearing notes has all definite gold PHI covered. Those challenge
+results are not pooled with the historical benchmarks below. No learned recovery
+or precision head has been promoted. See the [working state](reports/v13_working_state.json)
+for current experiments and the independent sets still reserved for evaluation.
 
 The initial frozen final test contained 1,200 synthetic notes and 14,121 PHI
 spans. **The 99% qualification target has not been met.** Results from that

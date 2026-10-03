@@ -209,7 +209,12 @@ def load_verified_corpus(path: str | Path) -> tuple[list[dict[str, Any]], dict[s
     if manifest.get("sha256") != actual:
         raise ValueError("Corpus SHA-256 differs from its frozen manifest")
     rows = [json.loads(line) for line in payload.decode("utf-8").splitlines() if line.strip()]
-    if manifest.get("rows") != len(rows):
+    counts = {key: manifest[key] for key in ("rows", "documents") if key in manifest}
+    if not counts or any(type(count) is not int or count < 0 for count in counts.values()):
+        raise ValueError("Corpus manifest requires a nonnegative integer rows or documents count")
+    if len(set(counts.values())) != 1:
+        raise ValueError("Corpus manifest has conflicting rows and documents counts")
+    if next(iter(counts.values())) != len(rows):
         raise ValueError("Corpus row count differs from its frozen manifest")
     support = Counter(span["label"] for row in rows for span in row["spans"])
     if any(manifest.get("label_support", {}).get(label) != support[label] for label in ENTITY_TYPES):

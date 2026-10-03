@@ -33,6 +33,10 @@ def get_encoding(base_dir=None):
     return tiktoken.get_encoding("o200k_base")
 
 
+BACKBONE_COMPUTATION_VERSION = "grouped-moe-v2-fp32-mps-rank-sum"
+BACKBONE_COMPUTE_DTYPE = "float32"
+
+
 def grouped_moe(self, x):
     """Same MoE computation as OPF, grouped into padded per-expert GEMMs.
 
@@ -58,22 +62,42 @@ def grouped_moe(self, x):
             capacity = 1 << (count - 1).bit_length()
             buckets.setdefault(capacity, []).append((expert, offset, count))
         offset += count
-    output = torch.zeros_like(t, dtype=torch.float32)
+    stable_mps = x.device.type == "mps"
+    # Capacity buckets depend on companion tokens. Accumulating in bucket order
+    # changes floating-point summation order and can change later expert routes.
+    # Store MPS contributions by each token's own top-k rank before reducing.
+    output = (
+        torch.empty((expert_ids.numel(), t.shape[-1]), device=x.device, dtype=torch.float32)
+        if stable_mps else torch.zeros_like(t, dtype=torch.float32)
+    )
     for capacity, experts in buckets.items():
         ids = torch.tensor([e[0] for e in experts], device=x.device)
         packed = t.new_zeros((len(experts), capacity, t.shape[-1]))
         for i, (_, start, count) in enumerate(experts):
             packed[i, :count] = t[token_ids[start : start + count]]
-        # Dense experts are kept in fp32 on CPU and fp16 on MPS.
         w1 = self.mlp1_weight[ids]
         w2 = self.mlp2_weight[ids]
-        h = torch.bmm(packed.to(w1.dtype), w1) + self.mlp1_bias[ids, None, :]
+        b1, b2 = self.mlp1_bias[ids, None, :], self.mlp2_bias[ids, None, :]
+        if stable_mps:
+            # Match upstream reference arithmetic even for a half-stored module.
+            w1, w2, b1, b2 = w1.float(), w2.float(), b1.float(), b2.float()
+        h = torch.bmm(packed.to(w1.dtype), w1) + b1
         h = swiglu(h, limit=self.swiglu_limit, packed=self.packed_geglu)
-        y = torch.bmm(h.to(w2.dtype), w2) + self.mlp2_bias[ids, None, :]
+        y = torch.bmm(h.to(w2.dtype), w2) + b2
         for i, (_, start, count) in enumerate(experts):
             positions = order[start : start + count]
             contribution = y[i, :count].float() * weights.reshape(-1)[positions, None]
-            output.index_add_(0, token_ids[start : start + count], contribution)
+            if stable_mps:
+                output[positions] = contribution
+            else:
+                output.index_add_(0, token_ids[start : start + count], contribution)
+    if stable_mps:
+        ranked = output.view(t.shape[0], self.experts_per_token, t.shape[-1])
+        # MPS sum(dim=1) also changes its reduction tree with the outer shape.
+        # Separate additions fix the operation order for each token and channel.
+        output = ranked[:, 0].clone()
+        for rank in range(1, self.experts_per_token):
+            output = output + ranked[:, rank]
     return x + output.reshape_as(x).to(x.dtype)
 
 
@@ -102,9 +126,10 @@ def load_backbone(base_dir, device="auto"):
         )
     torch.set_num_threads(4)
     model = Transformer.from_checkpoint(str(Path(base_dir) / "original"), device="cpu")
-    model = model.to(
-        dtype=torch.float16 if device.type == "mps" else torch.float32, device=device
-    )
+    # Half-precision residual/attention arithmetic amplified tiny batch-shape
+    # differences into different PHI spans. Keep the complete backbone in fp32;
+    # using fp32 only inside experts did not fix the full-document failures.
+    model = model.to(dtype=getattr(torch, BACKBONE_COMPUTE_DTYPE), device=device)
     model.requires_grad_(False).eval()
     for block in model.block:
         block.mlp.forward = MethodType(grouped_moe, block.mlp)

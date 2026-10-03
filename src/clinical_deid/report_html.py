@@ -404,8 +404,17 @@ def _label_table(run: dict, progress: dict) -> str:
 def _timing(run: dict) -> str:
     timing = run.get("timing") or {}
     performed = timing.get("neural_inference_performed")
-    if performed is False:
+    values = (
+        _number(timing.get(key))
+        for key in ("neural_seconds", "rules_seconds", "total_seconds", "documents_per_second")
+    )
+    available = [value is not None and value >= 0 for value in values]
+    if performed is False and all(available):
         note = "Cached timing composition: neural inference was not performed in this evaluation. The recorded total and throughput combine cached neural timing with this rules pass; they are not measurements of one end-to-end run."
+    elif performed is False and any(available):
+        note = "Neural inference was not performed in this evaluation. Timing information is incomplete. Any recorded neural timing is reused; the available values do not measure one end-to-end run."
+    elif performed is False:
+        note = "Neural inference was not performed in this evaluation. No usable timing measurements were recorded, so total time and throughput are unavailable."
     elif performed is True:
         note = "Neural inference was performed for this evaluation. Throughput is the recorded offline evaluation rate; it does not measure live service latency or concurrent capacity."
     else:

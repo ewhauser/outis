@@ -268,7 +268,12 @@ def _validated_result(model, value):
 
 def _payload(model):
     # Preserve old injected-service interfaces and omit absent extensions.
-    return model.model_dump(exclude_none=True, exclude_unset=True)
+    payload = model.model_dump(exclude_none=True, exclude_unset=True)
+    # A required nullable value (structured JSON data) is not an absent option.
+    for name, field in type(model).model_fields.items():
+        if field.is_required() and getattr(model, name) is None:
+            payload[name] = None
+    return payload
 
 
 def _safe_call(function):
@@ -427,7 +432,8 @@ def create_app(service=None, *, api_key=None):
     def reidentify(payload: ReidentifyRequest, request: Request):
         return _safe_call(lambda: single(request.app.state.service, "reidentify", payload))
 
-    @app.post("/v1/structured", response_model=StructuredResponse, response_model_exclude_none=True, dependencies=[Depends(authorize)])
+    # Omit optional defaults while retaining a required data:null response.
+    @app.post("/v1/structured", response_model=StructuredResponse, response_model_exclude_defaults=True, dependencies=[Depends(authorize)])
     def structured(payload: StructuredRequest, request: Request):
         from .structured import process_structured
         return _safe_call(lambda: _validated_result(StructuredResponse, process_structured(request.app.state.service, **_payload(payload))))
