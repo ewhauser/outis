@@ -24,3 +24,7 @@ models/privacy-filter-base/*
 vendor/
 *.egg-info/
 logs/
+
+# Sealed qualification bank author artifacts (generators, seal scripts, ledgers).
+# Never commit; they can reproduce sealed content. Kept only on local disk.
+data/qualification_v9*_author_artifacts/
