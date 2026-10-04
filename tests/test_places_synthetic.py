@@ -302,3 +302,58 @@ def test_packaged_artifacts_reproduce_and_pass_strict_audit():
                             "validation": [ROOT / "data/places_validation.jsonl"]}, strict_policy=True)
     assert result["passed"], result["errors"][:5]
     assert {w["code"] for w in result["warnings"]} <= {"limited_label_support", "token_lengths_unavailable"}
+    for split in SPLITS:
+        manifest = json.loads((ROOT / f"data/places_{split}.jsonl.manifest.json").read_bytes())
+        after = manifest["blind_bank_exclusions"]["contamination_after_filter"][split]
+        assert after["value_level_matches"] == 0 and after["rows_with_ngram_match"] == 0
+
+
+# ---------------------------------------------------------------- blind-bank exclusion list
+
+
+def _blind_hash(value):
+    import unicodedata
+    return hashlib.sha256(unicodedata.normalize("NFC", value.strip()).casefold().encode("utf-8")).hexdigest()
+
+
+def test_exclusion_list_is_pinned_and_hash_only():
+    from clinical_deid.places_synthetic import EXCLUSIONS, EXCLUSIONS_SHA256, exclusion_hashes
+    assert hashlib.sha256(EXCLUSIONS.read_bytes()).hexdigest() == EXCLUSIONS_SHA256
+    data = json.loads(EXCLUSIONS.read_bytes())
+    assert len(exclusion_hashes()) == data["count"] > 0
+    assert all(re.fullmatch(r"[0-9a-f]{64}", item) for item in data["sha256"])
+
+
+@needs_sources
+def test_exclusion_filter_rejects_listed_sequences(monkeypatch, corpus):
+    from clinical_deid import places_synthetic
+    from clinical_deid.places_synthetic import ExcludedNameError, excluded_sequences
+    monkeypatch.setattr(places_synthetic, "exclusion_hashes", lambda: frozenset({_blind_hash("Testford Bay")}))
+    assert excluded_sequences("Pt seen at TESTFORD BAY's clinic.") == 1
+    assert excluded_sequences("(testford bay)") == 1
+    assert excluded_sequences("Testford, Bay") == 0
+    row = json.loads(json.dumps(corpus["train"][0]))
+    row["text"] += " Visited Testford Bay."
+    with pytest.raises(ExcludedNameError):
+        validate_row(row)
+
+
+@needs_sources
+def test_no_blind_bank_exclusion_matches_in_emitted_rows(corpus):
+    import string
+    from clinical_deid.places_synthetic import contamination, exclusion_hashes, row_values
+    hashes = exclusion_hashes()
+    strip = string.punctuation + "‘’“”"
+    for split in SPLITS:
+        counts = contamination(corpus[split])
+        assert counts["value_level_matches"] == 0 and counts["rows_with_ngram_match"] == 0, counts
+        for row in corpus[split]:
+            assert not any(_blind_hash(value) in hashes for value in row_values(row))
+            words = row["text"].split()
+            for i in range(len(words)):
+                for n in range(1, 9):
+                    sequence = " ".join(words[i:i + n]).strip(strip)
+                    candidates = {sequence}
+                    if sequence.endswith(("'s", "’s")):
+                        candidates.add(sequence[:-2].strip(strip))
+                    assert not any(c and _blind_hash(c) in hashes for c in candidates), row["id"]
