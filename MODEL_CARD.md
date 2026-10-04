@@ -60,8 +60,12 @@ in the repository but have not been promoted.
 ## Training data
 
 All task-specific data is synthetic and was authored by the generators in
-`src/clinical_deid/`. No external clinical dataset was downloaded or used. The
-default checkpoint saw 22,800 training notes:
+`src/clinical_deid/`. No external clinical dataset was downloaded or used.
+People, dates and identifiers are invented. The
+[places addendum](docs/annotation-policy-v2-places.md) lets newer generators
+also use real public place and care-site names from US government sources as
+surface values; the default checkpoint was not trained on them. The default
+checkpoint saw 22,800 training notes:
 
 | Corpus | Notes | PHI spans |
 |---|---:|---:|

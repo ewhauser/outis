@@ -70,7 +70,10 @@ positive and negative notes are audit diagnostics requiring review.
 ## Synthetic provenance
 
 Use independently invented people, scenarios, facilities and addresses; do not
-copy real clinical records. Retain reserved network identifiers while varying
+copy real clinical records. Real public place and care-site names are permitted
+as surface values only under the
+[places addendum](annotation-policy-v2-places.md), which defines their sources,
+held-out value pools and matched negatives. Retain reserved network identifiers while varying
 formats: `.test`, `.example`, and example.com/example.net/example.org domains,
 TEST-NET IPv4 addresses, and fictional US 555-0100 through 555-0199 phone lines.
 Other supported identifier families require an explicitly documented reserved

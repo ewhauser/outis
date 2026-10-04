@@ -20,6 +20,8 @@ current results.
   synthetic corpora.
 - [Annotation policy v2](annotation-policy-v2.md): the span conventions for
   development and training corpora.
+- [Places and institutions addendum](annotation-policy-v2-places.md): real
+  localities, care-site abbreviations and public references.
 
 ## Evaluation
 
@@ -30,6 +32,8 @@ current results.
 - [External verification](external-verification.md): public benchmarks,
   comparisons with other open models, and the rules that keep that data out of
   training.
+- [Blind places bank brief](blind-places-bank-brief.md): the isolated
+  diagnostic bank for place-recognition work.
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 

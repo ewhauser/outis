@@ -172,6 +172,7 @@ any output.
 | [Evaluation history](docs/evaluation-history.md) | All qualification and development results |
 | [External verification](docs/external-verification.md) | Public benchmark protocol and results |
 | [Annotation policy](docs/annotation-policy-v2.md) | Span conventions for every entity type |
+| [Places addendum](docs/annotation-policy-v2-places.md) | Real localities, care-site abbreviations and public references |
 
 ## Contributing
 
