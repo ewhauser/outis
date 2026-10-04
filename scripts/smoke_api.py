@@ -1,19 +1,22 @@
 """Exercise the running API with invented clinical text and interval checks."""
 
 import argparse
-from datetime import date
 import json
 import os
-from pathlib import Path
 import urllib.request
+from datetime import date
+from pathlib import Path
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://127.0.0.1:8000")
     parser.add_argument("--output", default="reports/api_smoke.json")
-    parser.add_argument("--api-key", default=os.environ.get("DEID_API_KEY"),
-                        help="Optional X-API-Key; defaults to DEID_API_KEY and is never recorded")
+    parser.add_argument(
+        "--api-key",
+        default=os.environ.get("DEID_API_KEY"),
+        help="Optional X-API-Key; defaults to DEID_API_KEY and is never recorded",
+    )
     args = parser.parse_args()
 
     def request(path, payload=None):
@@ -40,18 +43,29 @@ def main():
         "Creatinine 1.2 mg/dL, potassium 4.1 mmol/L. "
         "Take 25 mg twice daily for 14 days; follow up in six weeks."
     )
-    expected = (("NAME", "Mara Calder"), ("DATE", "1974-06-13"),
-                ("MRN", "MR-724891"), ("DATE", "2024-02-28"),
-                ("DATE", "2024-03-02"), ("PHONE", "(202) 555-0143"),
-                ("EMAIL", "mara.calder@example.org"))
+    expected = (
+        ("NAME", "Mara Calder"),
+        ("DATE", "1974-06-13"),
+        ("MRN", "MR-724891"),
+        ("DATE", "2024-02-28"),
+        ("DATE", "2024-03-02"),
+        ("PHONE", "(202) 555-0143"),
+        ("EMAIL", "mara.calder@example.org"),
+    )
+
     def check_spans(result, original, annotations):
-        gold = {(original.index(value), original.index(value) + len(value), label)
-                for label, value in annotations}
-        predicted = {(entity["start"], entity["end"], entity["label"])
-                     for entity in result["entities"]}
+        gold = {
+            (original.index(value), original.index(value) + len(value), label)
+            for label, value in annotations
+        }
+        predicted = {
+            (entity["start"], entity["end"], entity["label"])
+            for entity in result["entities"]
+        }
         assert predicted == gold and len(result["entities"]) == len(gold)
         assert result["entity_count"] == len(gold)
         assert result["model_version"] == ready["model_version"]
+
     redact = request("/v1/deidentify", {"text": text, "mode": "redact"})
     check_spans(redact, text, expected)
     assert all(value not in redact["text"] for _, value in expected)
@@ -81,25 +95,50 @@ def main():
         assert phrase in redact["text"] and phrase in synthetic["text"]
     # Separate notes for the same patient must derive one nonzero date offset
     # without an explicit shift, including dates not present in the first note.
-    default_payload = {"text": text, "mode": "synthetic", "patient_id": "invented-smoke-patient"}
+    default_payload = {
+        "text": text,
+        "mode": "synthetic",
+        "patient_id": "invented-smoke-patient",
+    }
     default_first = request("/v1/deidentify", default_payload)
     check_spans(default_first, text, expected)
-    followup_text = ("Patient Mara Calder, follow-up 2024-03-16. Discharged 2024-03-02 "
-                     "after admission 2024-02-28. Continue 25 mg twice daily.")
-    followup_expected = (("NAME", "Mara Calder"), ("DATE", "2024-03-16"),
-                         ("DATE", "2024-03-02"), ("DATE", "2024-02-28"))
-    default_followup = request("/v1/deidentify", {**default_payload, "text": followup_text})
+    followup_text = (
+        "Patient Mara Calder, follow-up 2024-03-16. Discharged 2024-03-02 "
+        "after admission 2024-02-28. Continue 25 mg twice daily."
+    )
+    followup_expected = (
+        ("NAME", "Mara Calder"),
+        ("DATE", "2024-03-16"),
+        ("DATE", "2024-03-02"),
+        ("DATE", "2024-02-28"),
+    )
+    default_followup = request(
+        "/v1/deidentify", {**default_payload, "text": followup_text}
+    )
     check_spans(default_followup, followup_text, followup_expected)
+
     def replacements(result, original, label):
-        return {original[entity["start"]:entity["end"]]: entity["replacement"]
-                for entity in result["entities"] if entity["label"] == label}
+        return {
+            original[entity["start"] : entity["end"]]: entity["replacement"]
+            for entity in result["entities"]
+            if entity["label"] == label
+        }
+
     first_dates = replacements(default_first, text, "DATE")
     followup_dates = replacements(default_followup, followup_text, "DATE")
-    assert all(first_dates[value] == followup_dates[value] for value in ("2024-02-28", "2024-03-02"))
-    offsets = {(date.fromisoformat(shifted) - date.fromisoformat(original)).days
-               for mapping in (first_dates, followup_dates) for original, shifted in mapping.items()}
+    assert all(
+        first_dates[value] == followup_dates[value]
+        for value in ("2024-02-28", "2024-03-02")
+    )
+    offsets = {
+        (date.fromisoformat(shifted) - date.fromisoformat(original)).days
+        for mapping in (first_dates, followup_dates)
+        for original, shifted in mapping.items()
+    }
     assert len(offsets) == 1 and next(iter(offsets)) != 0
-    assert replacements(default_first, text, "NAME") == replacements(default_followup, followup_text, "NAME")
+    assert replacements(default_first, text, "NAME") == replacements(
+        default_followup, followup_text, "NAME"
+    )
     assert "Continue 25 mg twice daily." in default_followup["text"]
     assert all(phrase in default_first["text"] for phrase in clinical)
     assert default_first["preservation"]["date_intervals_preserved"]
@@ -128,8 +167,11 @@ def main():
         "Patient name is The patient declined to provide a name.",
     ]
     for start in range(0, len(clinical_negatives), 16):
-        texts = clinical_negatives[start:start + 16]
-        results = request("/v1/batch", {"items": [{"text": value, "mode": "redact"} for value in texts]})
+        texts = clinical_negatives[start : start + 16]
+        results = request(
+            "/v1/batch",
+            {"items": [{"text": value, "mode": "redact"} for value in texts]},
+        )
         assert len(results) == len(texts)
         for original, result in zip(texts, results):
             assert result["entities"] == [] and result["text"] == original, original
@@ -158,7 +200,15 @@ def main():
         "clinical_negative_count": len(clinical_negatives),
     }
     output.write_text(json.dumps(report, indent=2) + "\n")
-    print(json.dumps({"passed": True, "model_version": ready["model_version"], "output": str(output)}))
+    print(
+        json.dumps(
+            {
+                "passed": True,
+                "model_version": ready["model_version"],
+                "output": str(output),
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

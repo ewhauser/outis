@@ -7,25 +7,36 @@ from pathlib import Path
 
 import pytest
 
-import clinical_deid.evaluate as evaluation
+import clinical_deid.evaluation.evaluate as evaluation
 from clinical_deid.types import ENTITY_TYPES
 
 
 def frozen_fixture(tmp_path, counts):
-    rows = [{"id": "development-1", "text": "Zoë reports fever.",
-             "spans": [{"start": 0, "end": 3, "label": "NAME"}],
-             "split": "validation", "suite": "development"}]
+    rows = [
+        {
+            "id": "development-1",
+            "text": "Zoë reports fever.",
+            "spans": [{"start": 0, "end": 3, "label": "NAME"}],
+            "split": "validation",
+            "suite": "development",
+        }
+    ]
     path = tmp_path / "development.jsonl"
     payload = (json.dumps(rows[0], ensure_ascii=False) + "\n").encode("utf-8")
     path.write_bytes(payload)
-    manifest = {"sha256": hashlib.sha256(payload).hexdigest(), **counts,
-                "label_support": {label: int(label == "NAME") for label in ENTITY_TYPES}}
+    manifest = {
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        **counts,
+        "label_support": {label: int(label == "NAME") for label in ENTITY_TYPES},
+    }
     sidecar = path.with_suffix(path.suffix + ".manifest.json")
     sidecar.write_text(json.dumps(manifest))
     return path, sidecar, rows, manifest
 
 
-@pytest.mark.parametrize("counts", [{"rows": 1}, {"documents": 1}, {"rows": 1, "documents": 1}])
+@pytest.mark.parametrize(
+    "counts", [{"rows": 1}, {"documents": 1}, {"rows": 1, "documents": 1}]
+)
 def test_frozen_count_aliases_preserve_original_manifest(tmp_path, counts):
     path, sidecar, expected_rows, manifest = frozen_fixture(tmp_path, counts)
     before = (path.read_bytes(), sidecar.read_bytes())
@@ -36,16 +47,22 @@ def test_frozen_count_aliases_preserve_original_manifest(tmp_path, counts):
     assert {key for key in ("rows", "documents") if key in actual} == set(counts)
 
 
-@pytest.mark.parametrize("counts", [
-    {"rows": 1, "documents": 2}, {"rows": 2, "documents": 1},
-])
+@pytest.mark.parametrize(
+    "counts",
+    [
+        {"rows": 1, "documents": 2},
+        {"rows": 2, "documents": 1},
+    ],
+)
 def test_conflicting_frozen_counts_fail_even_if_one_is_correct(tmp_path, counts):
     path, _, _, _ = frozen_fixture(tmp_path, counts)
     with pytest.raises(ValueError, match="conflicting"):
         evaluation.load_verified_corpus(path)
 
 
-@pytest.mark.parametrize("counts", [{"rows": 2}, {"documents": 2}, {"rows": 2, "documents": 2}])
+@pytest.mark.parametrize(
+    "counts", [{"rows": 2}, {"documents": 2}, {"rows": 2, "documents": 2}]
+)
 def test_declared_count_must_match_verified_payload(tmp_path, counts):
     path, _, _, _ = frozen_fixture(tmp_path, counts)
     with pytest.raises(ValueError, match="row count differs"):
@@ -85,7 +102,7 @@ def test_zero_count_preserves_existing_empty_loader_semantics(tmp_path, key):
     path, sidecar, _, manifest = frozen_fixture(tmp_path, {key: 0})
     path.write_bytes(b"")
     manifest["sha256"] = hashlib.sha256(b"").hexdigest()
-    manifest["label_support"] = {label: 0 for label in ENTITY_TYPES}
+    manifest["label_support"] = dict.fromkeys(ENTITY_TYPES, 0)
     sidecar.write_text(json.dumps(manifest))
     assert evaluation.load_verified_corpus(path) == ([], manifest)
 
@@ -98,19 +115,29 @@ def test_cached_runtime_provenance_pins_evaluator_implementation(tmp_path, monke
     )
     scorer = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(scorer)
-    monkeypatch.setattr(scorer, "neural_runtime_manifest", lambda: {})
-    monkeypatch.setattr(scorer, "rules_source_manifest", lambda: {})
-    monkeypatch.setattr(scorer.train, "loaded_function_fingerprint", lambda function: function.__name__)
+    monkeypatch.setattr(scorer, "neural_runtime_manifest", dict)
+    monkeypatch.setattr(scorer, "rules_source_manifest", dict)
+    monkeypatch.setattr(
+        scorer.train, "loaded_function_fingerprint", lambda function: function.__name__
+    )
     metric_source = tmp_path / "evaluate.py"
     metric_source.write_text("def evaluate(): return 1\n")
     monkeypatch.setattr(evaluation, "__file__", str(metric_source))
     before = scorer.runtime_provenance()
-    assert before["evaluation_source_sha256"] == hashlib.sha256(metric_source.read_bytes()).hexdigest()
+    assert (
+        before["evaluation_source_sha256"]
+        == hashlib.sha256(metric_source.read_bytes()).hexdigest()
+    )
     assert scorer.runtime_provenance() == before
     metric_source.write_text("def evaluate(): return 2\n")
     after = scorer.runtime_provenance()
-    assert after["evaluation_source_sha256"] == hashlib.sha256(metric_source.read_bytes()).hexdigest()
+    assert (
+        after["evaluation_source_sha256"]
+        == hashlib.sha256(metric_source.read_bytes()).hexdigest()
+    )
     assert after["evaluation_source_sha256"] != before["evaluation_source_sha256"]
-    assert {key: value for key, value in after.items() if key != "evaluation_source_sha256"} == {
+    assert {
+        key: value for key, value in after.items() if key != "evaluation_source_sha256"
+    } == {
         key: value for key, value in before.items() if key != "evaluation_source_sha256"
     }

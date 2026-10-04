@@ -22,14 +22,14 @@ compliance.
 | --- | --- |
 | This page | Span conventions, cohorts, provenance, metadata and audit rules |
 | [Places addendum](annotation-policy-v2-places.md) (`clinical-phi-v2-places`) | Real localities, care-site abbreviations and public references to places |
-| [`annotation_policy.py`](../src/clinical_deid/annotation_policy.py) and [`annotation_policy_places.py`](../src/clinical_deid/annotation_policy_places.py) | Executable contract with exact character-offset examples |
+| [`annotation_policy.py`](../src/clinical_deid/data/annotation_policy.py) and [`annotation_policy_places.py`](../src/clinical_deid/data/annotation_policy_places.py) | Executable contract with exact character-offset examples |
 
 Not part of the annotation policy: the API's request policies in
 `src/clinical_deid/policy.py`, whose own version is `"1"`. They control what a
 caller redacts and have nothing to do with how gold spans are annotated.
 
 The executable contract and exact character-offset examples are
-[`annotation_policy.py`](../src/clinical_deid/annotation_policy.py). The original
+[`annotation_policy.py`](../src/clinical_deid/data/annotation_policy.py). The original
 corpora, annotations, generators, checkpoints, manifests and reports remain
 historical evidence. Legacy generators are superseded for new remediation
 training, but retained to reproduce their original artifacts. Corrected labels

@@ -5,7 +5,8 @@ import re
 from collections import Counter
 from datetime import datetime
 
-from clinical_deid.narrative_synthetic import (
+from clinical_deid.data.generators.base import validate_row
+from clinical_deid.data.generators.narrative import (
     FRAMES,
     NARRATIVE_FRAMES,
     NEGATIVE_FRAMES,
@@ -16,7 +17,6 @@ from clinical_deid.narrative_synthetic import (
     single_token_words,
     write_dataset,
 )
-from clinical_deid.synthetic import validate_row
 from clinical_deid.types import ENTITY_TYPES
 
 
@@ -24,11 +24,15 @@ def test_narrative_all_types_clean_notes_and_exact_offsets():
     rows = list(generate_rows(200))
     assert {span["label"] for row in rows for span in row["spans"]} == set(ENTITY_TYPES)
     assert sum(not row["spans"] for row in rows) == 20
-    assert Counter(row["family"].rsplit("_", 1)[-1] for row in rows) == {"dense": 120, "focused": 60, "clean": 20}
+    assert Counter(row["family"].rsplit("_", 1)[-1] for row in rows) == {
+        "dense": 120,
+        "focused": 60,
+        "clean": 20,
+    }
     for row in rows:
         validate_row(row)
         for span in row["spans"]:
-            surface = row["text"][span["start"]:span["end"]]
+            surface = row["text"][span["start"] : span["end"]]
             if span["label"] == "AGE":
                 assert surface.isdigit() and int(surface) > 89
             if span["label"] == "NAME":
@@ -50,8 +54,13 @@ def test_narrative_single_token_supervision_and_bounded_lengths():
 
 def test_narrative_identity_grammar_and_frames_are_disjoint():
     encoding = _encoding()
-    train_pool, validation_pool = single_token_words("train"), single_token_words("validation")
-    assert set(word.casefold() for word in train_pool).isdisjoint(word.casefold() for word in validation_pool)
+    train_pool, validation_pool = (
+        single_token_words("train"),
+        single_token_words("validation"),
+    )
+    assert {word.casefold() for word in train_pool}.isdisjoint(
+        word.casefold() for word in validation_pool
+    )
     for word in train_pool + validation_pool:
         assert word.isalpha() and len(word) in (2, 3, 4)
         assert len(encoding.encode(word)) == 1 and len(encoding.encode(" " + word)) == 1
@@ -63,12 +72,19 @@ def test_narrative_identity_grammar_and_frames_are_disjoint():
     assert training == list(generate_rows(20, seed=45))
     assert training != list(generate_rows(20, seed=46))
     development = list(generate_rows(20, split="validation", seed=45))
-    assert {row["family"] for row in training}.isdisjoint(row["family"] for row in development)
+    assert {row["family"] for row in training}.isdisjoint(
+        row["family"] for row in development
+    )
 
 
 def test_narrative_names_include_multiple_forms_and_clinical_negatives_are_unmarked():
     rows = list(generate_rows(200))
-    names = [row["text"][span["start"]:span["end"]] for row in rows for span in row["spans"] if span["label"] == "NAME"]
+    names = [
+        row["text"][span["start"] : span["end"]]
+        for row in rows
+        for span in row["spans"]
+        if span["label"] == "NAME"
+    ]
     assert any(name.isupper() for name in names)
     assert any("," in name for name in names)
     assert any(re.match(r"^[A-Z]\. ", name) for name in names)
@@ -80,13 +96,19 @@ def test_narrative_names_include_multiple_forms_and_clinical_negatives_are_unmar
             row["text"],
             re.IGNORECASE,
         ):
-            assert all(match.end() <= span["start"] or match.start() >= span["end"] for span in row["spans"])
+            assert all(
+                match.end() <= span["start"] or match.start() >= span["end"]
+                for span in row["spans"]
+            )
 
 
 def test_narrative_dates_are_coherent_and_identifier_shapes_are_shared():
     for split in ("train", "validation"):
         context = _context(random.Random(1981), split, 0)
-        current, previous, following = [datetime.strptime(context[key].text, "%Y-%m-%d") for key in ("date", "past_date", "future_date")]
+        current, previous, following = [
+            datetime.strptime(context[key].text, "%Y-%m-%d")
+            for key in ("date", "past_date", "future_date")
+        ]
         assert 7 <= (current - previous).days <= 28
         assert 14 <= (following - current).days <= 42
         shapes = {label: set() for label in ("mrn", "account", "identifier")}
@@ -114,9 +136,14 @@ def test_narrative_manifests_hashes_and_authored_provenance(tmp_path):
         details = manifest["datasets"][split]
         content = (tmp_path / f"narrative_{split}.jsonl").read_bytes()
         assert hashlib.sha256(content).hexdigest() == details["sha256"]
-        adjacent = json.loads((tmp_path / f"narrative_{split}.jsonl.manifest.json").read_text())
+        adjacent = json.loads(
+            (tmp_path / f"narrative_{split}.jsonl.manifest.json").read_text()
+        )
         assert adjacent["sha256"] == details["sha256"] and adjacent["split"] == split
-        from clinical_deid.evaluate import load_verified_corpus
+        from clinical_deid.evaluation.evaluate import load_verified_corpus
+
         verified, _ = load_verified_corpus(tmp_path / f"narrative_{split}.jsonl")
         assert len(verified) == details["count"]
-        assert details["token_counts"]["S-NAME"] and details["token_counts"]["S-LOCATION"]
+        assert (
+            details["token_counts"]["S-NAME"] and details["token_counts"]["S-LOCATION"]
+        )

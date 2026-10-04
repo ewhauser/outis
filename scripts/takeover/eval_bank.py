@@ -28,7 +28,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(ROOT / ".cache" / "tiktoken"))
 
-from clinical_deid.evaluate import detector_source_manifest, evaluate, load_verified_corpus, model_manifest  # noqa: E402
+from clinical_deid.evaluation.evaluate import detector_source_manifest, evaluate, load_verified_corpus, model_manifest  # noqa: E402
 from clinical_deid.types import ENTITY_TYPES  # noqa: E402
 from prediction_cache import neural_runtime_manifest  # noqa: E402
 
@@ -99,8 +99,8 @@ def guarded_model_manifest(path):
 def source_manifest():
     sources = detector_source_manifest()
     for name, path in {
-        "hf_encoder.py": ROOT / "src/clinical_deid/hf_encoder.py",
-        "evaluate.py": ROOT / "src/clinical_deid/evaluate.py",
+        "hf_encoder.py": ROOT / "src/clinical_deid/detection/hf_encoder.py",
+        "evaluate.py": ROOT / "src/clinical_deid/evaluation/evaluate.py",
         "scripts/prediction_cache.py": ROOT / "scripts/prediction_cache.py",
         "scripts/takeover/eval_bank.py": Path(__file__),
     }.items():
@@ -178,8 +178,8 @@ def main():
     runtime = neural_runtime_manifest(model_dir=args.model_dir)
     sources = source_manifest()
 
-    from clinical_deid.hf_encoder import apply_label_modes, load_detector
-    from clinical_deid.rules import augment
+    from clinical_deid.detection.hf_encoder import apply_label_modes, load_detector
+    from clinical_deid.detection.rules import augment
 
     started = time.perf_counter()
     detector = load_detector(args.model_dir, backend="model", device=args.device,

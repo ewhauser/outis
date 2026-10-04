@@ -1,19 +1,29 @@
 """Construction invariants for independently authored development diagnostics."""
-from collections import Counter, defaultdict
+
 import hashlib
 import json
+from collections import Counter, defaultdict
 
 import pytest
 import tiktoken
 
-from clinical_deid.evaluate import load_verified_corpus
-from clinical_deid.remediation_development import (
-    ENTITY_TYPES, POLICY, _Text, _negative, _short_positive, build_rows, generate_corpus, identity_group,
+from clinical_deid.data.generators.remediation_development import (
+    ENTITY_TYPES,
+    POLICY,
+    _negative,
+    _short_positive,
+    _Text,
+    build_rows,
+    generate_corpus,
+    identity_group,
 )
+from clinical_deid.evaluation.evaluate import load_verified_corpus
 
 
 def fragments(row, label):
-    return [row["text"][s["start"]:s["end"]] for s in row["spans"] if s["label"] == label]
+    return [
+        row["text"][s["start"] : s["end"]] for s in row["spans"] if s["label"] == label
+    ]
 
 
 def test_authored_offsets_are_character_offsets_and_occurrence_specific():
@@ -39,10 +49,15 @@ def test_counts_metadata_pair_groups_and_development_partition():
         if row["spans"]:
             assert int(row["identity_group"][:8], 16) % 10 in {8, 9}
             assert row["identity_group"] in row["identity_groups"]
-            assert all(int(group[:8], 16) % 10 in {8, 9} for group in row["identity_groups"])
+            assert all(
+                int(group[:8], 16) % 10 in {8, 9} for group in row["identity_groups"]
+            )
             pairs[row["pair_id"]].append(row)
     assert all(len(pair) == 2 for pair in pairs.values())
-    assert all(pair[0]["identity_group"] == pair[1]["identity_group"] for pair in pairs.values())
+    assert all(
+        pair[0]["identity_group"] == pair[1]["identity_group"]
+        for pair in pairs.values()
+    )
     support = Counter(span["label"] for row in rows for span in row["spans"])
     assert set(support) == set(ENTITY_TYPES)
     assert any(row["diagnostic_slice"] == "ocr_stress" for row in rows)
@@ -59,7 +74,10 @@ def test_contextual_name_date_and_age_boundaries():
     assert not any(s["start"] <= second < s["end"] for s in row["spans"])
     assert "101" in fragments(row, "AGE")
     assert "101yo" in text
-    assert all(not name.startswith("Dr.") and not name.endswith(", MD") for name in fragments(row, "NAME"))
+    assert all(
+        not name.startswith("Dr.") and not name.endswith(", MD")
+        for name in fragments(row, "NAME")
+    )
     condition_start = text.index("Parkinson disease")
     assert not any(s["start"] <= condition_start < s["end"] for s in row["spans"])
     assert sum(name == "Adriana Haldane" for name in fragments(row, "NAME")) == 2
@@ -83,7 +101,9 @@ def test_alias_precedes_owner_and_pronouns_stay_unannotated():
 
 def test_full_multiline_address_and_compact_written_age_boundaries():
     address_row = _short_positive("Inés Gutiérrez", pair=72, variant=0, seed=7)
-    assert fragments(address_row, "ADDRESS") == ["290 Lantern Walk\nUnit 12\nLarkspur Hollow, Oregon 97072"]
+    assert fragments(address_row, "ADDRESS") == [
+        "290 Lantern Walk\nUnit 12\nLarkspur Hollow, Oregon 97072"
+    ]
     assert fragments(address_row, "LOCATION") == ["Cedar Quay, Wisconsin"]
     compact = _short_positive("Zara Petrov", pair=1, variant=0, seed=7)
     assert "92F" in compact["text"]
@@ -103,7 +123,12 @@ def test_negative_variation_scales_and_new_clinical_genres_are_present():
     assert all(int(row["identity_group"][:8], 16) % 10 in {8, 9} for row in negatives)
     assert len({row["layout"] for row in negatives}) == 4
     families = {row["family"] for row in build_rows(short_count=50, long_count=0)}
-    assert {"psychiatric_review", "obstetric_followup", "dental_assessment", "genetics_counseling"} <= families
+    assert {
+        "psychiatric_review",
+        "obstetric_followup",
+        "dental_assessment",
+        "genetics_counseling",
+    } <= families
 
 
 def test_long_rows_cross_all_requested_joins_and_retain_tail_occurrences():
@@ -114,13 +139,21 @@ def test_long_rows_cross_all_requested_joins_and_retain_tail_occurrences():
         assert row["token_count"] == len(tokens)
         assert 1500 <= len(tokens) <= 6000
         _, offsets = encoding.decode_with_offsets(tokens)
-        expected = [] if row["diagnostic_slice"] == "long_narrative" else sorted({512, *range(384, len(tokens), 256)})
+        expected = (
+            []
+            if row["diagnostic_slice"] == "long_narrative"
+            else sorted({512, *range(384, len(tokens), 256)})
+        )
         assert [check["token_boundary"] for check in row["boundary_checks"]] == expected
         for check in row["boundary_checks"]:
             boundary = offsets[check["token_boundary"]]
             assert check["span_start"] < boundary < check["span_end"]
-            assert {"start": check["span_start"], "end": check["span_end"], "label": check["label"]} in row["spans"]
-        assert any(span["start"] > len(row["text"]) * .95 for span in row["spans"])
+            assert {
+                "start": check["span_start"],
+                "end": check["span_end"],
+                "label": check["label"],
+            } in row["spans"]
+        assert any(span["start"] > len(row["text"]) * 0.95 for span in row["spans"])
         assert len(set(fragments(row, "NAME"))) == 1
         assert len(fragments(row, "NAME")) >= 4
         assert {s["label"] for s in row["spans"]} == set(ENTITY_TYPES)
@@ -130,13 +163,17 @@ def test_manifest_reproducibility_and_no_overwrite(tmp_path):
     destination = tmp_path / "development.jsonl"
     manifest = generate_corpus(destination, short_count=20, long_count=0, seed=72)
     before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
-    assert generate_corpus(destination, short_count=20, long_count=0, seed=72) == manifest
+    assert (
+        generate_corpus(destination, short_count=20, long_count=0, seed=72) == manifest
+    )
     assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
     rows, loaded = load_verified_corpus(destination)
     assert len(rows) == 20
     assert loaded == manifest
     assert hashlib.sha256(destination.read_bytes()).hexdigest() == manifest["sha256"]
-    declaration = json.loads(destination.with_suffix(".jsonl.author-declaration.json").read_text())
+    declaration = json.loads(
+        destination.with_suffix(".jsonl.author-declaration.json").read_text()
+    )
     assert declaration["used_for_checkpoint_selection"] is True
     assert declaration["used_for_training"] is False
     assert declaration["independent_final"] is False

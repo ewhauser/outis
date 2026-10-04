@@ -28,19 +28,19 @@ checkpoint. Each stage resumes from the previous adapter with additional
 synthetic corpora.
 
 ```sh
-.venv/bin/python -m clinical_deid.synthetic --output data --train-count 12000 --val-count 1000
-.venv/bin/python -m clinical_deid.train --epochs 16 --cache-batch-size 32 --output models/clinical-adapter-v1
-.venv/bin/python -m clinical_deid.augment_synthetic generate --output data --train-count 4000 --val-count 1000
-.venv/bin/python -m clinical_deid.challenge --suite development --seed 240100 --count 800 --output data/challenge_development.jsonl
+.venv/bin/python -m clinical_deid.data.generators.base --output data --train-count 12000 --val-count 1000
+.venv/bin/python -m clinical_deid.training.train --epochs 16 --cache-batch-size 32 --output models/clinical-adapter-v1
+.venv/bin/python -m clinical_deid.data.generators.augment generate --output data --train-count 4000 --val-count 1000
+.venv/bin/python -m clinical_deid.data.challenge --suite development --seed 240100 --count 800 --output data/challenge_development.jsonl
 .venv/bin/python scripts/prepare_development_training.py
-.venv/bin/python -m clinical_deid.train \
+.venv/bin/python -m clinical_deid.training.train \
   --extra-train data/development_training.jsonl \
   --extra-train data/augmentation_train.jsonl \
   --extra-validation data/augmentation_validation.jsonl \
   --resume models/clinical-adapter-v1 --output models/clinical-adapter-v2 \
   --epochs 24 --learning-rate 0.0002 --cache-batch-size 32
-.venv/bin/python -m clinical_deid.context_synthetic --train-count 3000 --val-count 600
-.venv/bin/python -m clinical_deid.train \
+.venv/bin/python -m clinical_deid.data.generators.context --train-count 3000 --val-count 600
+.venv/bin/python -m clinical_deid.training.train \
   --extra-train data/development_training.jsonl \
   --extra-train data/augmentation_train.jsonl \
   --extra-train data/context_train.jsonl \
@@ -48,8 +48,8 @@ synthetic corpora.
   --extra-validation data/context_validation.jsonl \
   --resume models/clinical-adapter-v2 --output models/clinical-adapter-v3 \
   --epochs 20 --learning-rate 0.0001 --cache-batch-size 32
-.venv/bin/python -m clinical_deid.coverage_synthetic --train-count 3000 --val-count 600
-.venv/bin/python -m clinical_deid.train \
+.venv/bin/python -m clinical_deid.data.generators.coverage --train-count 3000 --val-count 600
+.venv/bin/python -m clinical_deid.training.train \
   --extra-train data/development_training.jsonl \
   --extra-train data/augmentation_train.jsonl \
   --extra-train data/context_train.jsonl \
@@ -82,8 +82,8 @@ existing differing artifacts. The development generator is independently authore
 Run commands from this checkout with `PYTHONPATH=src:scripts`:
 
 ```sh
-PYTHONPATH=src .venv/bin/python -m clinical_deid.remediation_synthetic --output data/NEW_train.jsonl
-PYTHONPATH=src .venv/bin/python -m clinical_deid.remediation_development --output data/NEW_validation.jsonl
+PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.remediation --output data/NEW_train.jsonl
+PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.remediation_development --output data/NEW_validation.jsonl
 PYTHONPATH=src:scripts .venv/bin/python scripts/audit_corpus_quality.py \
   --corpus train=data/NEW_train.jsonl --corpus validation=data/NEW_validation.jsonl \
   --output reports/NEW_quality.json
@@ -123,8 +123,8 @@ than cross-entropy alone. Additional training duration is a comparison caveat;
 this experiment alone cannot establish that context composition caused a gain.
 
 ```sh
-.venv/bin/python -m clinical_deid.narrative_synthetic
-.venv/bin/python -m clinical_deid.compositional_synthetic
+.venv/bin/python -m clinical_deid.data.generators.narrative
+.venv/bin/python -m clinical_deid.data.generators.compositional
 .venv/bin/python scripts/retire_final_to_development.py \
   --source data/challenge_final.jsonl --output data/retired_v4_development.jsonl
 ```
@@ -140,9 +140,9 @@ the addendum's `train` value pool, and never from the blind places bank's
 hashed exclusion list.
 
 ```sh
-PYTHONPATH=src .venv/bin/python -m clinical_deid.place_sources fetch
-PYTHONPATH=src .venv/bin/python -m clinical_deid.places_synthetic generate
-PYTHONPATH=src .venv/bin/python -m clinical_deid.places_synthetic check
+PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.place_sources fetch
+PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.places generate
+PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.places check
 ```
 
 `check` regenerates both splits and confirms they are byte-identical to the
@@ -151,7 +151,7 @@ manifests.
 ## Development evaluation
 
 ```sh
-.venv/bin/python -m clinical_deid.challenge --suite development --seed 240100 --count 800 --output data/challenge_development.jsonl
-.venv/bin/python -m clinical_deid.evaluate --data data/challenge_development.jsonl --model-dir models/clinical-adapter --backend hybrid --output reports/development_hybrid.json
+.venv/bin/python -m clinical_deid.data.challenge --suite development --seed 240100 --count 800 --output data/challenge_development.jsonl
+.venv/bin/python -m clinical_deid.evaluation.evaluate --data data/challenge_development.jsonl --model-dir models/clinical-adapter --backend hybrid --output reports/development_hybrid.json
 .venv/bin/python -m pytest -q
 ```

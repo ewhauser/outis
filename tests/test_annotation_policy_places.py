@@ -2,15 +2,18 @@ from collections import Counter
 
 import pytest
 
-from clinical_deid.annotation_policy import POLICY_VERSION, annotation_errors
-from clinical_deid.annotation_policy_places import PLACE_FIXTURES, VALUE_POOLS, place_value_pool
-
+from clinical_deid.data.annotation_policy import POLICY_VERSION, annotation_errors
+from clinical_deid.data.annotation_policy_places import (
+    PLACE_FIXTURES,
+    VALUE_POOLS,
+    place_value_pool,
+)
 
 FIXTURES = {row["id"]: row for row in PLACE_FIXTURES}
 
 
 def gold(row):
-    return [(row["text"][s["start"]:s["end"]], s["label"]) for s in row["spans"]]
+    return [(row["text"][s["start"] : s["end"]], s["label"]) for s in row["spans"]]
 
 
 def test_fixtures_are_structurally_valid_v2_rows():
@@ -20,9 +23,13 @@ def test_fixtures_are_structurally_valid_v2_rows():
         assert annotation_errors(row["text"], row["spans"]) == []
 
 
-@pytest.mark.parametrize("key", [k for k in FIXTURES if k.startswith("n") and k[1].isdigit()])
+@pytest.mark.parametrize(
+    "key", [k for k in FIXTURES if k.startswith("n") and k[1].isdigit()]
+)
 def test_public_reference_negatives_have_no_place_spans(key):
-    assert not any(label in {"LOCATION", "FACILITY", "ADDRESS"} for _, label in gold(FIXTURES[key]))
+    assert not any(
+        label in {"LOCATION", "FACILITY", "ADDRESS"} for _, label in gold(FIXTURES[key])
+    )
 
 
 def test_leading_abbreviation_stays_inside_full_care_site():

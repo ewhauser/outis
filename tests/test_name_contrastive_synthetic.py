@@ -1,18 +1,18 @@
 import copy
-from collections import Counter
-from datetime import date
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import unicodedata
+from collections import Counter
+from datetime import date
+from pathlib import Path
 
 import pytest
 import tiktoken
 
-from clinical_deid import name_contrastive_synthetic as generator
-from clinical_deid.evaluate import load_verified_corpus
+from clinical_deid.data.generators import name_contrastive as generator
+from clinical_deid.evaluation.evaluate import load_verified_corpus
 from clinical_deid.types import ENTITY_TYPES
 
 

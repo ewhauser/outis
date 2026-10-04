@@ -351,7 +351,7 @@ def module(name, filename):
 def runtime_functions():
     # Execute just the actual runtime's three tokenizer/window functions; do
     # not import the detector, model module, torch, or any model weights.
-    source = (ROOT / "src/clinical_deid/hf_encoder.py").read_text()
+    source = (ROOT / "src/clinical_deid/detection/hf_encoder.py").read_text()
     tree = ast.parse(source)
     selected = [node for node in tree.body if isinstance(node, ast.FunctionDef)
                 and node.name in {"window_jobs", "special_layout", "encode_text"}]
@@ -606,9 +606,9 @@ def main():
     payload = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n" for r in rows).encode("utf-8")
     corpus_sha = sha(payload)
     relative = lambda p: str(p.relative_to(ROOT))
-    allowed_inputs = [ROOT / "docs/annotation-policy-v2.md", ROOT / "src/clinical_deid/annotation_policy.py",
+    allowed_inputs = [ROOT / "docs/annotation-policy-v2.md", ROOT / "src/clinical_deid/data/annotation_policy.py",
                       ROOT / "scripts/takeover/normalize_conventions.py", ROOT / "scripts/takeover/normalize_date_intervals.py",
-                      ROOT / "scripts/takeover/prepare_training_mixture.py", ROOT / "src/clinical_deid/hf_encoder.py",
+                      ROOT / "scripts/takeover/prepare_training_mixture.py", ROOT / "src/clinical_deid/detection/hf_encoder.py",
                       MODEL / "config.json", MODEL / "hf/config.json", MODEL / "hf/tokenizer.json", MODEL / "hf/tokenizer_config.json"]
     provenance = {relative(p): sha(p.read_bytes()) for p in allowed_inputs}
     common = {

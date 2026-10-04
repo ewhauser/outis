@@ -2,16 +2,16 @@ import copy
 import hashlib
 import json
 import os
-from collections import Counter, defaultdict
-from pathlib import Path
 import random
 import re
 import unicodedata
+from collections import Counter, defaultdict
+from pathlib import Path
 
 import pytest
 import tiktoken
 
-from clinical_deid import generalization_synthetic as generator
+from clinical_deid.data.generators import generalization as generator
 from clinical_deid.types import ENTITY_TYPES
 
 

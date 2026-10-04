@@ -20,7 +20,7 @@ import unicodedata
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["HF_HUB_OFFLINE"] = "1"
 from tokenizers import Tokenizer
-from clinical_deid.annotation_policy import annotation_errors, canonical_identity_group, identity_split
+from clinical_deid.data.annotation_policy import annotation_errors, canonical_identity_group, identity_split
 from clinical_deid.types import ENTITY_TYPES
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -256,7 +256,7 @@ def compose(f, index, variant, control, long, layout_no, pub_first):
                                      public_first=pub_first, requested_long=long, ordinary_age=age)
 
 def load_window_function():
-    tree = ast.parse((ROOT / "src/clinical_deid/hf_encoder.py").read_text())
+    tree = ast.parse((ROOT / "src/clinical_deid/detection/hf_encoder.py").read_text())
     selected = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "window_jobs"]
     scope = {}
     exec(compile(ast.Module(body=selected, type_ignores=[]), "hf_encoder_window_ast", "exec"), scope)

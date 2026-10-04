@@ -14,8 +14,8 @@ from typing import Literal
 import regex
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .entities import Entity
-from .types import ENTITY_TYPES
+from clinical_deid.entities import Entity
+from clinical_deid.types import ENTITY_TYPES
 
 POLICY_VERSION = "1"
 MAX_POLICY_TEXT = 1_000_000
@@ -23,8 +23,15 @@ MAX_POLICY_MATCHES = 10_000
 REGEX_TIMEOUT = 0.025
 POLICY_TIMEOUT = 0.25
 EXTENDED_TYPES = (
-    "CREDIT_CARD", "CVV", "ROUTING_NUMBER", "BANK_ACCOUNT", "PASSPORT",
-    "DRIVER_LICENSE", "PASSWORD", "USERNAME", "DOB",
+    "CREDIT_CARD",
+    "CVV",
+    "ROUTING_NUMBER",
+    "BANK_ACCOUNT",
+    "PASSPORT",
+    "DRIVER_LICENSE",
+    "PASSWORD",
+    "USERNAME",
+    "DOB",
 )
 MEDICAL_TYPES = ("CONDITION", "MEDICATION")
 KNOWN_LABELS = frozenset((*ENTITY_TYPES, *EXTENDED_TYPES, *MEDICAL_TYPES))
@@ -78,13 +85,17 @@ class CustomEntity(BaseModel):
 class DetectionPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
-    profile: Literal["clinical_default", "identifiers_only", "extended"] = "clinical_default"
+    profile: Literal["clinical_default", "identifiers_only", "extended"] = (
+        "clinical_default"
+    )
     include: list[str] | None = Field(default=None, max_length=128)
     exclude: list[str] = Field(default_factory=list, max_length=128)
     allowlist: list[str] = Field(default_factory=list, max_length=128)
     blocklist: list[str] = Field(default_factory=list, max_length=128)
     custom_entities: list[CustomEntity] = Field(default_factory=list, max_length=32)
-    medical_terms: dict[Literal["CONDITION", "MEDICATION"], list[str]] = Field(default_factory=dict)
+    medical_terms: dict[Literal["CONDITION", "MEDICATION"], list[str]] = Field(
+        default_factory=dict
+    )
 
     @field_validator("allowlist", "blocklist")
     @classmethod
@@ -116,7 +127,14 @@ def validate_policy(policy: DetectionPolicy | dict | None) -> DetectionPolicy:
         if isinstance(policy, DetectionPolicy):
             policy = policy.model_dump()
         return DetectionPolicy.model_validate({} if policy is None else policy)
-    except (ValueError, TypeError, regex.error, TimeoutError, RecursionError, OverflowError):
+    except (
+        ValueError,
+        TypeError,
+        regex.error,
+        TimeoutError,
+        RecursionError,
+        OverflowError,
+    ):
         raise ValueError("Invalid detection policy") from None
 
 
@@ -137,29 +155,66 @@ def policy_metadata(policy: DetectionPolicy | dict | None) -> dict:
 # the public field heading remains outside the entity.
 _FIELD = r"[ \t]*(?:number|no\.?|id)?[ \t]*[:=#][ \t]*"
 _CODE = r"(?P<value>[A-Z0-9][A-Z0-9._/-]{1,63})(?![\w./-])"
-_DATE = r"(?P<value>(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}))(?![\w/-])"
+_DATE = (
+    r"(?P<value>(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}))(?![\w/-])"
+)
 _EXTENDED_PATTERNS = [
     ("CREDIT_CARD", r"(?<![\w\d])(?P<value>(?:[0-9][ -]?){12,18}[0-9])(?![\w\d])"),
-    ("CVV", r"\b(?:cvv2?|cvc2?|card security code)" + _FIELD + r"(?P<value>[0-9]{3,4})(?!\w)"),
-    ("ROUTING_NUMBER", r"\b(?:routing|aba)(?:[ \t]+number)?" + _FIELD + r"(?P<value>[0-9]{9})(?!\w)"),
+    (
+        "CVV",
+        r"\b(?:cvv2?|cvc2?|card security code)"
+        + _FIELD
+        + r"(?P<value>[0-9]{3,4})(?!\w)",
+    ),
+    (
+        "ROUTING_NUMBER",
+        r"\b(?:routing|aba)(?:[ \t]+number)?" + _FIELD + r"(?P<value>[0-9]{9})(?!\w)",
+    ),
     ("BANK_ACCOUNT", r"\bbank account" + _FIELD + _CODE),
     # IBANs commonly contain spaces. Capture the complete field; length and
     # checksum validation must never truncate a sensitive identifier.
-    ("BANK_ACCOUNT", r"\biban" + _FIELD + r"(?P<value>[A-Z]{2}[0-9]{2}(?:[ \t]*[A-Z0-9])+)(?!\w)"),
+    (
+        "BANK_ACCOUNT",
+        r"\biban" + _FIELD + r"(?P<value>[A-Z]{2}[0-9]{2}(?:[ \t]*[A-Z0-9])+)(?!\w)",
+    ),
     ("PASSPORT", r"\bpassport" + _FIELD + _CODE),
-    ("DRIVER_LICENSE", r"\b(?:driver(?:'s|’s)?[ -]+licen[cs]e|driving[ -]+licen[cs]e)" + _FIELD + _CODE),
+    (
+        "DRIVER_LICENSE",
+        r"\b(?:driver(?:'s|’s)?[ -]+licen[cs]e|driving[ -]+licen[cs]e)"
+        + _FIELD
+        + _CODE,
+    ),
     # Credentials may be quoted or contain spaces and punctuation. Once an
     # explicit credential heading is present, cover its full line rather than
     # exposing a suffix that happens to look like ordinary prose.
-    ("PASSWORD", r"\b(?:password|passwd|passphrase|api[ _-]?key|access[ _-]?token)" + _FIELD + r"(?P<value>[^\r\n]+)"),
-    ("USERNAME", r"\b(?:username|user[ -]?name|login)" + _FIELD + r"(?P<value>[\w@.+-]{1,128})(?![\w@.+-])"),
+    (
+        "PASSWORD",
+        r"\b(?:password|passwd|passphrase|api[ _-]?key|access[ _-]?token)"
+        + _FIELD
+        + r"(?P<value>[^\r\n]+)",
+    ),
+    (
+        "USERNAME",
+        r"\b(?:username|user[ -]?name|login)"
+        + _FIELD
+        + r"(?P<value>[\w@.+-]{1,128})(?![\w@.+-])",
+    ),
     ("DOB", r"\b(?:dob|date[ -]+of[ -]+birth|birth[ -]+date)" + _FIELD + _DATE),
 ]
-_EXTENDED_PATTERNS = [(label, regex.compile(pattern, regex.I)) for label, pattern in _EXTENDED_PATTERNS]
+_EXTENDED_PATTERNS = [
+    (label, regex.compile(pattern, regex.I)) for label, pattern in _EXTENDED_PATTERNS
+]
 
 
 def _copy_entity(span) -> Entity:
-    return Entity(span.start, span.end, span.label, span.score, span.source, getattr(span, "entity_id", None))
+    return Entity(
+        span.start,
+        span.end,
+        span.label,
+        span.score,
+        span.source,
+        getattr(span, "entity_id", None),
+    )
 
 
 def _merge_coverage(entities: list[Entity]) -> list[Entity]:
@@ -169,10 +224,23 @@ def _merge_coverage(entities: list[Entity]) -> list[Entity]:
     precedence over finer built-in types and model labels. Equal-priority
     overlaps prefer the longest detection, then lexical label for stability.
     """
-    precedence = {"policy:blocklist": 4, "policy:custom": 3, "policy:extended": 2, "policy:medical_dictionary": 2}
+    precedence = {
+        "policy:blocklist": 4,
+        "policy:custom": 3,
+        "policy:extended": 2,
+        "policy:medical_dictionary": 2,
+    }
 
     def choose(group):
-        winner = max(group, key=lambda item: (precedence.get(item.source, 0), item.end - item.start, item.score, item.label))
+        winner = max(
+            group,
+            key=lambda item: (
+                precedence.get(item.source, 0),
+                item.end - item.start,
+                item.score,
+                item.label,
+            ),
+        )
         start, end = min(item.start for item in group), max(item.end for item in group)
         if len(group) == 1:
             return winner
@@ -191,7 +259,9 @@ def _merge_coverage(entities: list[Entity]) -> list[Entity]:
     return result
 
 
-def apply_policy(text: str, spans: Iterable, policy: DetectionPolicy | dict | None = None) -> list[Entity]:
+def apply_policy(
+    text: str, spans: Iterable, policy: DetectionPolicy | dict | None = None
+) -> list[Entity]:
     policy = validate_policy(policy)
     if not isinstance(text, str) or len(text) > MAX_POLICY_TEXT:
         raise ValueError("Policy text exceeds the supported limit")
@@ -219,7 +289,11 @@ def apply_policy(text: str, spans: Iterable, policy: DetectionPolicy | dict | No
         enabled = set(policy.include)
     enabled.difference_update(policy.exclude)
     exemptions = set(policy.allowlist)
-    entities = [span for span in original if span.label in enabled and text[span.start:span.end] not in exemptions]
+    entities = [
+        span
+        for span in original
+        if span.label in enabled and text[span.start : span.end] not in exemptions
+    ]
     deadline = monotonic() + POLICY_TIMEOUT
 
     def matches(compiled, *, value_group=False):
@@ -254,7 +328,15 @@ def apply_policy(text: str, spans: Iterable, policy: DetectionPolicy | dict | No
                 add(start, end, custom.label, "policy:custom")
     for label, terms in policy.medical_terms.items():
         if label in enabled and terms:
-            compiled = regex.compile(r"(?<!\w)(?:" + "|".join(regex.escape(term) for term in sorted(set(terms), key=len, reverse=True)) + r")(?!\w)", regex.I)
+            compiled = regex.compile(
+                r"(?<!\w)(?:"
+                + "|".join(
+                    regex.escape(term)
+                    for term in sorted(set(terms), key=len, reverse=True)
+                )
+                + r")(?!\w)",
+                regex.I,
+            )
             for start, end in matches(compiled):
                 add(start, end, label, "policy:medical_dictionary")
     for literal in policy.blocklist:

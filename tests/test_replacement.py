@@ -6,9 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from clinical_deid.replacement import replace
+from clinical_deid.replacement.surrogates import replace
 from clinical_deid.types import Span
-
 
 SECRET = bytes(range(32))
 
@@ -130,17 +129,41 @@ def test_dotted_dates_share_one_shift_and_preserve_intervals():
 
 @pytest.mark.parametrize("separator", ["/", ".", "-"])
 def test_shifted_day_first_dates_remain_unambiguous_and_preserve_intervals(separator):
-    values = [separator.join(parts) for parts in [
-        ("13", "09", "2024"), ("14", "09", "2024"), ("2024", "09", "15")
-    ]]
-    text = "Admit " + values[0] + "; review " + values[1] + "; discharge " + values[2] + "."
-    result = synthetic(text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=20)
+    values = [
+        separator.join(parts)
+        for parts in [("13", "09", "2024"), ("14", "09", "2024"), ("2024", "09", "15")]
+    ]
+    text = (
+        "Admit "
+        + values[0]
+        + "; review "
+        + values[1]
+        + "; discharge "
+        + values[2]
+        + "."
+    )
+    result = synthetic(
+        text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=20
+    )
     replacements = [entity["replacement"] for entity in result["entities"]]
-    assert replacements == [separator.join(("2024", "10", day)) for day in ("03", "04", "05")]
+    assert replacements == [
+        separator.join(("2024", "10", day)) for day in ("03", "04", "05")
+    ]
     # Read the emitted year-first dates independently of the replacement parser.
-    dates = [date(*(int(part) for part in value.split(separator))) for value in replacements]
+    dates = [
+        date(*(int(part) for part in value.split(separator))) for value in replacements
+    ]
     assert [(value - dates[0]).days for value in dates] == [0, 1, 2]
-    assert result["text"] == "Admit " + replacements[0] + "; review " + replacements[1] + "; discharge " + replacements[2] + "."
+    assert (
+        result["text"]
+        == "Admit "
+        + replacements[0]
+        + "; review "
+        + replacements[1]
+        + "; discharge "
+        + replacements[2]
+        + "."
+    )
     assert result["preservation"]["date_intervals_preserved"] is True
     assert result["preservation"]["exact_dates_shifted"] == 3
     assert len(result["warnings"]) == 2
@@ -151,7 +174,9 @@ def test_shifted_day_first_dates_remain_unambiguous_and_preserve_intervals(separ
 def test_day_first_backward_shift_changes_order_only_when_meaning_would_be_ambiguous():
     values = ["13/09/2024", "14/09/2024", "10/13/2024"]
     text = " | ".join(values)
-    result = synthetic(text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=-1)
+    result = synthetic(
+        text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=-1
+    )
     assert result["text"] == "2024/09/12 | 13/09/2024 | 10/12/2024"
     assert len(result["warnings"]) == 1
     assert "year/month/day" in result["warnings"][0]
@@ -201,7 +226,9 @@ def test_incomplete_unsupported_or_invalid_dates_fail_closed(value):
     ],
 )
 def test_date_range_span_shifts_both_endpoints(original, shift, expected):
-    result = synthetic(original, [Span(0, len(original), "DATE")], date_shift_days=shift)
+    result = synthetic(
+        original, [Span(0, len(original), "DATE")], date_shift_days=shift
+    )
     assert result["text"] == expected
     assert result["preservation"]["exact_dates_shifted"] == 1
     assert result["preservation"]["date_intervals_preserved"] is True
@@ -209,8 +236,14 @@ def test_date_range_span_shifts_both_endpoints(original, shift, expected):
 
 def test_date_range_and_single_dates_share_one_patient_shift():
     text = "Admitted 03/02/2024; rehab March 4-9, 2024; seen 03/20/2024 to 03/22/2024."
-    spans = spans_for(text, [("03/02/2024", "DATE"), ("March 4-9, 2024", "DATE"),
-                             ("03/20/2024 to 03/22/2024", "DATE")])
+    spans = spans_for(
+        text,
+        [
+            ("03/02/2024", "DATE"),
+            ("March 4-9, 2024", "DATE"),
+            ("03/20/2024 to 03/22/2024", "DATE"),
+        ],
+    )
     result = synthetic(text, spans, date_shift_days=-30)
     assert result["text"] == (
         "Admitted 02/01/2024; rehab February 3-8, 2024; seen 02/19/2024 to 02/21/2024."
@@ -225,7 +258,9 @@ def test_date_range_uses_the_patient_offset_without_an_explicit_shift():
     both = synthetic(ranged, [Span(0, len(ranged), "DATE")])["text"]
     start, end = both.split(" to ")
     assert start == alone
-    parse = [date(int(y), int(m), int(d)) for m, d, y in (v.split("/") for v in (start, end))]
+    parse = [
+        date(int(y), int(m), int(d)) for m, d, y in (v.split("/") for v in (start, end))
+    ]
     assert (parse[1] - parse[0]).days == 7
 
 
@@ -487,7 +522,7 @@ def test_conventional_ascii_suffix_and_punctuation_hmac_outputs_stay_exact(
 def test_name_key_normalization_does_not_change_identifier_or_patient_anchor(
     monkeypatch,
 ):
-    import clinical_deid.replacement as module
+    import clinical_deid.replacement.surrogates as module
 
     calls = []
     original_digest = module._digest
@@ -578,7 +613,7 @@ def test_existing_ascii_hmac_identity_title_order_case_and_alias_outputs_stay_ex
 def test_alias_component_cannot_remain_private_surname_unchanged_after_suffix(
     monkeypatch,
 ):
-    import clinical_deid.replacement as module
+    import clinical_deid.replacement.surrogates as module
 
     monkeypatch.setattr(module, "_FIRST_NAMES", ("Fictional",))
     monkeypatch.setattr(module, "_LAST_NAMES", ("Vale", "FictionalSurname"))
@@ -687,13 +722,23 @@ def test_contact_and_identifier_replacements_are_fictional():
     assert SECRET.hex() not in json.dumps(result)
 
 
-@pytest.mark.parametrize("label,values", [
-    ("MRN", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
-    ("ACCOUNT", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
-    ("ID", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
-    ("EMAIL", ["A@example.org", "a@example.org", "a@example.org "]),
-    ("URL", ["https://example.org/A", "https://example.org/a", "https://example.org/a "]),
-])
+@pytest.mark.parametrize(
+    "label,values",
+    [
+        ("MRN", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
+        ("ACCOUNT", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
+        ("ID", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
+        ("EMAIL", ["A@example.org", "a@example.org", "a@example.org "]),
+        (
+            "URL",
+            [
+                "https://example.org/A",
+                "https://example.org/a",
+                "https://example.org/a ",
+            ],
+        ),
+    ],
+)
 def test_case_sensitive_identifier_replacements_preserve_exact_identity(label, values):
     text = " | ".join(values)
     spans = spans_for(text, [(value, label) for value in values])
