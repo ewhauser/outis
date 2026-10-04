@@ -398,6 +398,22 @@ def _case_like(value: str, example: str) -> str:
     return value
 
 
+def _month_text(month: int, source: str, dot: str, hyphenated: bool = False) -> str:
+    abbreviated = len(source) <= 4 and (source.casefold() != "may" or hyphenated)
+    text = _MONTH_ABBREVIATIONS[month] if abbreviated else _MONTHS[month]
+    if source.casefold() == "sept" and month == 9:
+        text = "Sept"
+    return _case_like(text, source) + dot
+
+
+def _day_text(day: int, source: str, ordinal: str | None, hyphenated: bool = False) -> str:
+    text = str(day).zfill(2 if source.startswith("0") or (hyphenated and len(source) == 2) else 1)
+    if ordinal:
+        suffix = "th" if 10 <= day % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+        text += _case_like(suffix, ordinal)
+    return text
+
+
 def _word_date(value: str, offset: int) -> tuple[str | None, str | None]:
     month_first = re.fullmatch(
         rf"(?P<m>{_MONTH_PATTERN})(?P<dot>\.?)"
@@ -421,31 +437,109 @@ def _word_date(value: str, offset: int) -> tuple[str | None, str | None]:
     except (ValueError, OverflowError):
         return None, "Invalid or out-of-range date was redacted"
     hyphenated = match["space"] == "-" or match["join"] == "-"
-    abbreviated = len(match["m"]) <= 4 and (
-        match["m"].casefold() != "may" or hyphenated
-    )
-    month_text = (
-        _MONTH_ABBREVIATIONS[shifted.month] if abbreviated else _MONTHS[shifted.month]
-    )
-    if match["m"].casefold() == "sept" and shifted.month == 9:
-        month_text = "Sept"
-    month_text = _case_like(month_text, match["m"]) + match["dot"]
+    month_text = _month_text(shifted.month, match["m"], match["dot"], hyphenated)
     # Month-name styles ordinarily use an unpadded day.  Preserve an explicit
     # zero-padded style when the source actually gives evidence of that style.
-    day_text = str(shifted.day).zfill(
-        2 if match["d"].startswith("0") or (hyphenated and len(match["d"]) == 2) else 1
-    )
-    if match["ordinal"]:
-        suffix = (
-            "th"
-            if 10 <= shifted.day % 100 <= 20
-            else {1: "st", 2: "nd", 3: "rd"}.get(shifted.day % 10, "th")
-        )
-        day_text += _case_like(suffix, match["ordinal"])
+    day_text = _day_text(shifted.day, match["d"], match["ordinal"], hyphenated)
     year_text = str(shifted.year).zfill(4)
     if month_first:
         return month_text + match["space"] + day_text + match["join"] + year_text, None
     return day_text + match["space"] + month_text + match["join"] + year_text, None
+
+
+_RANGE_CONNECTOR = r"(?:\s*[-–—]\s*|\s+(?:to|through|thru|until)\s+)"
+_COMPRESSED_MONTH_FIRST = re.compile(
+    rf"(?P<m1>{_MONTH_PATTERN})(?P<dot1>\.?)(?P<sp1>\s+)(?P<d1>\d{{1,2}})(?P<o1>st|nd|rd|th)?"
+    rf"(?P<conn>{_RANGE_CONNECTOR})"
+    rf"(?:(?P<m2>{_MONTH_PATTERN})(?P<dot2>\.?)(?P<sp2>\s+))?(?P<d2>\d{{1,2}})(?P<o2>st|nd|rd|th)?"
+    r"(?P<join>,\s*|\s+)(?P<y>\d{4})",
+    re.I,
+)
+_COMPRESSED_DAY_FIRST = re.compile(
+    r"(?P<d1>\d{1,2})(?P<o1>st|nd|rd|th)?"
+    rf"(?:(?P<sp1>\s+)(?P<m1>{_MONTH_PATTERN})(?P<dot1>\.?))?"
+    rf"(?P<conn>{_RANGE_CONNECTOR})"
+    rf"(?P<d2>\d{{1,2}})(?P<o2>st|nd|rd|th)?(?P<sp2>\s+)(?P<m2>{_MONTH_PATTERN})(?P<dot2>\.?)"
+    r"(?P<join>,\s*|\s+)(?P<y>\d{4})",
+    re.I,
+)
+
+
+def _single_date(value: str, offset: int) -> tuple[str | None, str | None]:
+    for parser in (_datetime_date, _numeric_date, _word_date):
+        rendered, warning = parser(value, offset)
+        if rendered is not None or warning is not None:
+            return rendered, warning
+    return None, None
+
+
+def _compressed_range(value: str, offset: int) -> tuple[str | None, str | None]:
+    """Shift a range whose endpoints share one written year, e.g. March 2-9, 2024."""
+    for pattern, month_first in ((_COMPRESSED_MONTH_FIRST, True), (_COMPRESSED_DAY_FIRST, False)):
+        match = pattern.fullmatch(value)
+        if not match:
+            continue
+        first_month = match["m1"] or match["m2"]
+        second_month = match["m2"] or match["m1"]
+        first_dot = match["dot1"] if match["m1"] else match["dot2"]
+        second_dot = match["dot2"] if match["m2"] else match["dot1"]
+        space = match["sp1"] or match["sp2"] or " "
+        year = int(match["y"])
+        try:
+            start = date(year, _MONTH_LOOKUP[first_month.casefold()], int(match["d1"]))
+            end = date(year, _MONTH_LOOKUP[second_month.casefold()], int(match["d2"]))
+        except ValueError:
+            return None, "Invalid or out-of-range date was redacted"
+        if end < start:
+            # A shared written year cannot express a range that crosses a
+            # year boundary; the intended years are not knowable.
+            return None, None
+        try:
+            start, end = start + timedelta(days=offset), end + timedelta(days=offset)
+        except OverflowError:
+            return None, "Invalid or out-of-range date was redacted"
+        start_month = _month_text(start.month, first_month, first_dot)
+        end_month = _month_text(end.month, second_month, second_dot)
+        start_day = _day_text(start.day, match["d1"], match["o1"])
+        end_day = _day_text(end.day, match["d2"], match["o2"])
+        conn, join = match["conn"], match["join"]
+        if start.year != end.year:
+            if month_first:
+                return (f"{start_month}{space}{start_day}{join}{start.year:04d}{conn}"
+                        f"{end_month}{space}{end_day}{join}{end.year:04d}"), None
+            return (f"{start_day}{space}{start_month}{join}{start.year:04d}{conn}"
+                    f"{end_day}{space}{end_month}{join}{end.year:04d}"), None
+        same_month = start.month == end.month
+        if month_first:
+            tail = end_day if same_month and not match["m2"] else f"{end_month}{space}{end_day}"
+            return f"{start_month}{space}{start_day}{conn}{tail}{join}{end.year:04d}", None
+        head = start_day if same_month and not match["m1"] else f"{start_day}{space}{start_month}"
+        return f"{head}{conn}{end_day}{space}{end_month}{join}{end.year:04d}", None
+    return None, None
+
+
+def _date_range(value: str, offset: int) -> tuple[str | None, str | None]:
+    """Shift both endpoints of a written date range by the same offset.
+
+    A range is annotated as one DATE span. Shifting each endpoint separately
+    keeps the interval and the connector, so chronology survives. A range whose
+    endpoints cannot both be parsed is left to the caller to redact.
+    """
+    rendered, warning = _compressed_range(value, offset)
+    if rendered is not None or warning is not None:
+        return rendered, warning
+    for connector in re.finditer(_RANGE_CONNECTOR, value, re.I):
+        left, right = value[: connector.start()], value[connector.end() :]
+        if not left or not right:
+            continue
+        start, start_warning = _single_date(left, offset)
+        end, end_warning = _single_date(right, offset)
+        if start is not None and end is not None:
+            warnings = list(dict.fromkeys(w for w in (start_warning, end_warning) if w))
+            return start + connector.group() + end, "; ".join(warnings) or None
+        if (start is None and start_warning) or (end is None and end_warning):
+            return None, start_warning or end_warning
+    return None, None
 
 
 def _shift_date(value: str, offset: int) -> tuple[str, str | None, bool]:
@@ -453,7 +547,7 @@ def _shift_date(value: str, offset: int) -> tuple[str, str | None, bool]:
     leading = value[: len(value) - len(value.lstrip())]
     trailing = value[len(value.rstrip()) :]
     stripped = value.strip()
-    for parser in (_datetime_date, _numeric_date, _word_date):
+    for parser in (_datetime_date, _numeric_date, _word_date, _date_range):
         rendered, warning = parser(stripped, offset)
         if rendered is not None:
             return leading + rendered + trailing, warning, True

@@ -34,7 +34,12 @@ and emit a warning; an initial value above 12 establishes day/month/year.
 If shifting a day/month/year date would make its meaning ambiguous, the output
 uses year/month/day with the original separator and a warning.
 Year-first dates, dotted numeric dates, hyphenated English month names, and ISO date-times are also
-supported. Date-times retain the original time of day and timezone text.
+supported. A date range detected as one span (`03/02/2024 to 03/09/2024`,
+`March 2-9, 2024`, `March 28 - April 4, 2024`) has both endpoints shifted by the
+same offset, keeping its connector; a compressed range stays compressed only
+while both shifted endpoints share a month and year. A range whose endpoints
+cannot both be read, or one written with a single year that crosses a year
+boundary, is redacted. Date-times retain the original time of day and timezone text.
 Date shifting changes calendar/seasonal context even when intervals are preserved.
 
 ## Names, identifiers and other types

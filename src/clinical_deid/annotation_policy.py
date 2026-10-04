@@ -27,7 +27,7 @@ ANNOTATION_POLICY = {
     "cohorts": list(COHORTS),
     "rules": {
         "NAME": "Annotate personal naming occurrences; exclude ordinary pronouns, titles and credentials. Retain internal proper-name punctuation.",
-        "DATE": "Annotate patient-specific dates, including partial dates and years; exclude public publication dates and durations.",
+        "DATE": "Annotate patient-specific dates, including partial dates and years; a written date range is one span including its connector; separately listed dates are separate spans; exclude public publication dates and durations.",
         "AGE": "Annotate only the age value when greater than 89, including words and compact forms; exclude units, sex markers and suffixes.",
         "LOCATION": "Annotate the maximal authored locality expression, retaining internal commas; keep facility names separate.",
         "FACILITY": "Annotate the authored facility name, including an 'at <name>' continuation; keep separate a locality introduced by 'in' or a comma, an 'at' locality with a state or postal qualifier, an adjacent address, and the parent facility of a named unit.",
@@ -80,6 +80,7 @@ POLICY_FIXTURES = (
     _example("alias_before_full", "[[NAME|Nia]] is the preferred name of [[NAME|Nia Okonkwo]]. She agreed.", ["alias_before_full", "ordinary_pronouns"]),
     _example("patient_partial_dates", "Her surgery was in [[DATE|March 2021]]; she was born in [[DATE|1930]]. A 2021 study described recovery over 14 days.", ["partial_dates", "public_dates", "durations"]),
     _example("complete_date", "Discharged on [[DATE|October 2, 2024]].", ["date_boundaries"]),
+    _example("date_range_one_span", "Admitted from [[DATE|03/02/2024 to 03/09/2024]]; rehab [[DATE|March 11-15, 2024]]; visits on [[DATE|04/01/2024]] and [[DATE|04/08/2024]].", ["date_range", "date_list", "date_boundaries"]),
     _example("age_numeric_boundaries", "Age [[AGE|92]] years old; [[AGE|91]]-year-old patient; 89 years old at the earlier visit.", ["age_boundary", "ordinary_age"]),
     _example("age_word_boundaries", "A [[AGE|ninety-two]] year old and an eighty-nine-year-old discussed care.", ["word_age", "ordinary_age"]),
     _example("age_compact_boundaries", "[[AGE|92]]F; [[AGE|93]]yo; [[AGE|94]] y/o; 89M.", ["compact_age", "ordinary_age"]),
