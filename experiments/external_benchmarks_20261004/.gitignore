@@ -1,0 +1,6 @@
+# Third-party data, converted corpora, raw predictions and isolated runtimes.
+# Manifests, receipts and scored results are versioned.
+downloads/
+corpora/*.jsonl
+predictions/*.jsonl
+.venv-*/
