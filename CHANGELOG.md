@@ -1,0 +1,48 @@
+# Changelog
+
+All notable changes to this project are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
+[Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+
+### Added
+
+- Model card, citation file, contributing guide, security policy and CI.
+- Focused guides for [training](docs/training.md),
+  [evaluation history](docs/evaluation-history.md),
+  [synthetic replacement](docs/replacement.md) and
+  [deployment](docs/deployment.md).
+
+### Changed
+
+- Rewrote the README around installation, usage, results and limitations.
+  The detailed experiment history moved to `docs/`.
+
+## [0.1.0] - 2026-10-04
+
+The initial development release. The default checkpoint is the fourth-stage
+(v4) adapter.
+
+### Added
+
+- Hybrid detector: a residual clinical adapter and BIOES head on the frozen
+  OpenAI Privacy Filter encoder, plus structural extractors and clinical
+  context guards for 14 PHI types.
+- Redaction and patient-consistent synthetic replacement, with per-patient
+  date shifting and name and nickname identity linking.
+- FastAPI server, CLI and Python API with policies, masks, linked messages,
+  restoration mappings, structured data and native text file input.
+- Synthetic corpus generators, training with cached backbone features,
+  qualification and development evaluation, and HTML reports.
+- External benchmark harness with an ASQ-PHI comparison against MedDeID and
+  GLiNER-PII.
+
+### Fixed
+
+- Abbreviated care-site names ("St. Francis Hospital") and "at <name>"
+  facilities are kept whole.
+- NAME boundaries around initials, possessives and quotes.
+
+[Unreleased]: https://github.com/ewhauser/deidentifier/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ewhauser/deidentifier/releases/tag/v0.1.0

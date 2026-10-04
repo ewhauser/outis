@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Clinical Deidentifier"
+abstract: >-
+  Local PHI detection, typed redaction and patient-consistent synthetic
+  replacement for English clinical text, using a clinical adapter on the
+  frozen OpenAI Privacy Filter encoder and trained only on synthetic data.
+type: software
+authors:
+  - family-names: Hauser
+    given-names: Eric
+repository-code: "https://github.com/ewhauser/deidentifier"
+license: Apache-2.0
+version: 0.1.0
+date-released: "2026-10-04"
+keywords:
+  - de-identification
+  - protected health information
+  - clinical NLP
+  - named entity recognition
+  - synthetic data
+references:
+  - type: software
+    title: "OpenAI Privacy Filter"
+    authors:
+      - name: OpenAI
+    repository-code: "https://github.com/openai/privacy-filter"
+    license: Apache-2.0

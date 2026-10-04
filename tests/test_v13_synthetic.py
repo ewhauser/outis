@@ -131,7 +131,6 @@ def test_every_context_pair_contains_an_actual_date_or_site_ownership_flip():
 
 
 def test_date_forms_vary_within_every_family_independently_of_month():
-    from collections import Counter
     from clinical_deid.v13_synthetic import choose_values
     import random
     for f_index, family in enumerate(FAMILIES):
@@ -161,7 +160,13 @@ def test_packaged_payloads_reproduce_and_lineage_changes_only_bookkeeping():
     import json
     from clinical_deid.v13_synthetic import build_payloads
     from clinical_deid.v13_replay import build_replay
+    import pytest
     root = Path(__file__).resolve().parents[1]
+    from clinical_deid.v13_replay import SOURCE
+    required = [SOURCE, root/'data'/'v13_focused_train.jsonl', root/'data'/'v13_replay_train.jsonl']
+    missing = [str(path) for path in required if not Path(path).exists()]
+    if missing:
+        pytest.skip(f"Gitignored frozen corpora are absent: {', '.join(missing)}")
     for filename, raw in build_payloads().items():
         assert raw == (root/'data'/filename).read_bytes()
         manifest = json.loads((root/'data'/(filename+'.manifest.json')).read_bytes())

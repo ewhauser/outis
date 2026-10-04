@@ -5,13 +5,34 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "clinical-deid"
 version = "0.1.0"
-description = "Local clinical PHI NER, redaction and consistent synthetic replacement"
+description = "Local clinical PHI detection, redaction and consistent synthetic replacement"
+readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
+authors = [{ name = "Eric Hauser" }]
+keywords = ["de-identification", "phi", "clinical-nlp", "ner", "privacy", "hipaa"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
 dependencies = ["torch>=2.6", "transformers>=5.6", "safetensors>=0.5", "huggingface-hub>=0.35", "fastapi>=0.115", "uvicorn[standard]>=0.30", "pydantic>=2.10", "python-dateutil>=2.9", "tiktoken>=0.9", "numpy>=2.0", "regex>=2024.11", "defusedxml>=0.7", "pypdf>=6.19.0", "reportlab>=4", "opf @ https://github.com/openai/privacy-filter/archive/f7f00ca7fb869683eb732c010299d901457f19c3.tar.gz"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "httpx>=0.28", "ruff>=0.11", "psutil>=6"]
+
+[project.urls]
+Homepage = "https://github.com/ewhauser/deidentifier"
+Documentation = "https://github.com/ewhauser/deidentifier/tree/main/docs"
+Changelog = "https://github.com/ewhauser/deidentifier/blob/main/CHANGELOG.md"
+Issues = "https://github.com/ewhauser/deidentifier/issues"
 
 [project.scripts]
 clinical-deid = "clinical_deid.cli:main"
@@ -25,11 +46,22 @@ pythonpath = ["src"]
 
 [tool.ruff]
 target-version = "py311"
+# Experiment records and frozen one-off generators are kept byte-for-byte as
+# evidence; their hashes are pinned by manifests, so they are not linted.
+extend-exclude = [
+    "data",
+    "reports",
+    "experiments",
+    "scripts/takeover",
+    "scripts/generate_blind_qualification_*.py",
+    "scripts/v*_qualification_author_qa.py",
+]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
 
 [tool.ruff.lint.per-file-ignores]
-# Preserve the source bytes pinned by the immutable v12 training manifest.
+# Preserve the source bytes pinned by the immutable v12 and v13 training manifests.
 # This exception covers statement layout only; all other checks still apply.
 "src/clinical_deid/v12_synthetic.py" = ["E702"]
+"src/clinical_deid/v13_synthetic.py" = ["E702", "F401"]
