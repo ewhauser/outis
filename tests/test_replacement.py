@@ -279,6 +279,42 @@ def test_unshiftable_date_ranges_fail_closed(value):
     assert result["preservation"]["unshiftable_dates_redacted"] == 1
 
 
+@pytest.mark.parametrize(
+    ("original", "shift", "expected"),
+    [
+        ("3/20/26", 7, "3/27/26"),
+        ("03/20/26", 7, "03/27/26"),
+        ("1-5-24", 10, "1-15-24"),
+        ("12/30/99", 5, "01/04/00"),
+        ("02/27/00", 1, "02/28/00"),
+        ("2/29/96", 1, "3/1/96"),
+        ("25/03/26", 3, "28/03/26"),
+        ("3/20/26 to 3/27/26", -30, "2/18/26 to 2/25/26"),
+    ],
+)
+def test_two_digit_year_dates_shift_and_keep_two_digits(original, shift, expected):
+    result = synthetic(
+        original, [Span(0, len(original), "DATE")], date_shift_days=shift
+    )
+    assert result["text"] == expected
+    assert result["preservation"]["date_intervals_preserved"] is True
+
+
+@pytest.mark.parametrize(
+    ("value", "shift"),
+    [
+        # 1900 is not a leap year and 2000 is, so the century changes the result.
+        ("02/28/00", 1),
+        # Year-first output would be unreadable with a two-digit year.
+        ("25/03/26", -20),
+    ],
+)
+def test_ambiguous_two_digit_year_shifts_fail_closed(value, shift):
+    result = synthetic(value, [Span(0, len(value), "DATE")], date_shift_days=shift)
+    assert result["text"] == "[DATE]"
+    assert result["preservation"]["unshiftable_dates_redacted"] == 1
+
+
 def test_unrepresentable_shifted_date_fails_closed():
     result = synthetic("9999-12-31", [Span(0, 10, "DATE")], date_shift_days=1)
     assert result["text"] == "[DATE]"

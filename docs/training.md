@@ -131,7 +131,7 @@ this experiment alone cannot establish that context composition caused a gain.
 
 ## Places addendum curriculum
 
-`places_synthetic` writes terse and ordinary training rows for the
+`clinical_deid.data.generators.places` writes terse and ordinary training rows for the
 [places addendum](annotation-policy-v2-places.md): real localities, care-site
 abbreviations and short names, matched public-reference negatives and mixed
 care/citation rows. Real names come only from pinned Census Gazetteer and CMS
