@@ -13,20 +13,37 @@ from .operations import Usage
 from .replacement import replace, _validated_secret
 
 
+def _model_version(model_dir, detector):
+    """Identify the locally loaded inference bundle without retaining its weights."""
+    loaded_dir = getattr(detector, "model_dir", None)
+    config = getattr(detector, "config", {})
+    if (loaded_dir is not None and isinstance(config, dict)
+            and config.get("encoder") == "hf_token_classifier"):
+        root = Path(loaded_dir)
+        files = [root / "config.json"]
+        files.extend(sorted(path for path in (root / "hf").rglob("*") if path.is_file()))
+        digest = hashlib.sha256()
+        for path in files:
+            digest.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")
+            with path.open("rb") as stream:
+                digest.update(hashlib.file_digest(stream, "sha256").digest())
+        return digest.hexdigest()[:16]
+    path = Path(model_dir) / "adapter.safetensors"
+    return (hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+            if path.is_file() and loaded_dir is not None else "injected-detector")
+
+
 class Deidentifier:
     def __init__(self, model_dir="models/clinical-adapter", *, secret=None,
                  device="auto", backend="hybrid", detector=None, base_dir=None):
         if detector is None:
-            from .model import Detector
-            detector = Detector(model_dir, device=device, backend=backend, base_dir=base_dir)
+            from .hf_encoder import load_detector
+            detector = load_detector(model_dir, device=device, backend=backend, base_dir=base_dir)
         self.detector = detector
         self.secret = secret
         self.lock = Lock()
         self.usage = Usage()
-        path = Path(model_dir) / "adapter.safetensors"
-        self.version = (hashlib.sha256(path.read_bytes()).hexdigest()[:16]
-                        if path.is_file() and getattr(detector, "model_dir", None) is not None
-                        else "injected-detector")
+        self.version = _model_version(model_dir, detector)
 
     def _requests(self, requests, *, detect=False, limit=16):
         from .policy import KNOWN_LABELS, validate_policy
