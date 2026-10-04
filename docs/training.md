@@ -126,6 +126,25 @@ this experiment alone cannot establish that context composition caused a gain.
   --source data/challenge_final.jsonl --output data/retired_v4_development.jsonl
 ```
 
+## Places addendum curriculum
+
+`places_synthetic` writes terse and ordinary training rows for the
+[places addendum](annotation-policy-v2-places.md): real localities, care-site
+abbreviations and short names, matched public-reference negatives and mixed
+care/citation rows. Real names come only from pinned Census Gazetteer and CMS
+Hospital General Information files plus `data/care_site_names.json`, only from
+the addendum's `train` value pool, and never from the blind places bank's
+hashed exclusion list.
+
+```sh
+PYTHONPATH=src .venv/bin/python -m clinical_deid.place_sources fetch
+PYTHONPATH=src .venv/bin/python -m clinical_deid.places_synthetic generate
+PYTHONPATH=src .venv/bin/python -m clinical_deid.places_synthetic check
+```
+
+`check` regenerates both splits and confirms they are byte-identical to the
+manifests.
+
 ## Development evaluation
 
 ```sh
