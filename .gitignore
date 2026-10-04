@@ -7,8 +7,16 @@ __pycache__/
 .env
 .env.*
 !.env.example
+# Data corpora. Ignored by default, but the corpora listed in
+# CLEANUP.data.sha256 are force-added (git add -f) for safekeeping until the
+# history rewrite in CLEANUP.md. Git keeps tracking them despite this rule.
+# To commit a new corpus, follow "Committing new data" in CLEANUP.md.
+# Never force-add sealed or blind qualification payloads (data/blind_*,
+# *.sealed); scripts/check_data_tracking.py rejects them.
 data/**/*.jsonl
 data/*.sealed
+*.sealed
+*.bak
 # Generated experiment corpora, feature caches, and process-local locks.
 # Keep completed phase summaries and small trained adapter weights versioned.
 reports/**/*.jsonl
@@ -24,6 +32,8 @@ models/privacy-filter-base/*
 vendor/
 *.egg-info/
 logs/
+# Claude Code worktrees are full checkouts; never commit them.
+.claude/worktrees/
 
 # Sealed qualification bank author artifacts (generators, seal scripts, ledgers).
 # Never commit; they can reproduce sealed content. Kept only on local disk.

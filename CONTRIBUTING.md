@@ -30,8 +30,16 @@ CI runs both checks below on every pull request. Run them locally first:
 ```
 
 The unit tests do not need the base encoder or GPU. Tests that verify frozen
-data artifacts are skipped when the gitignored corpora under `data/` are
-missing.
+data artifacts are skipped when the corpora under `data/` are missing.
+
+## Data in the repository
+
+Synthetic corpora under `data/` are gitignored, but `main` currently tracks
+them until a planned history rewrite (about 1.8 GB, so clones are large).
+Before committing any data, read [CLEANUP.md](CLEANUP.md). Add new corpora by
+explicit path, list them in the cleanup manifests, and never commit sealed or
+blind qualification banks. `scripts/check_data_tracking.py` enforces this in
+CI.
 
 ## Pull requests
 
