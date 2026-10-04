@@ -3,6 +3,9 @@
 Start with the [project README](../README.md) for installation, usage and
 current results.
 
+The [project goal](../GOALS.md) defines what the detector must achieve and how
+candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
+
 ## Using the detector
 
 - [Clinical text API](api.md): requests, policies, masks, structured inputs,
@@ -27,8 +30,8 @@ current results.
 
 - [Evaluation history](evaluation-history.md): every qualification and
   development result, and the HTML report.
-- [Evaluation protocol](../reports/evaluation_protocol.md): internal
-  qualification gates and blind-bank rules.
+- [Evaluation protocol](../reports/evaluation_protocol.md): privacy and
+  labelling gates, and blind-bank rules.
 - [External verification](external-verification.md): public benchmarks,
   comparisons with other open models, and the rules that keep that data out of
   training.

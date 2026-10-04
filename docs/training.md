@@ -99,8 +99,11 @@ default for historical reproduction.
 `scripts/evaluate_remediation.py` evaluates explicit development banks through
 the complete Detector and saves model-only/hybrid predictions, cohort metrics,
 PHI-bearing document leakage, per-label exposure and long-document batch checks.
-It never launches qualification or promotes a model. Exact typed gates remain
-unchanged; small slices and synthetic results do not establish clinical readiness.
+It never launches qualification or promotes a model. Promotion is decided by
+the privacy gates and regression rules in [GOALS.md](../GOALS.md). The exact
+typed gates are unchanged in definition and are reported as a stretch target.
+Small slices and synthetic results do not establish clinical readiness.
+New candidates use ModernBERT; see [AGENTS.md](../AGENTS.md).
 
 Original experiment protocols and outputs are immutable. The retained
 `reports/v11_remediation_frozen_sources/` snapshot preserves their source state.

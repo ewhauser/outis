@@ -22,7 +22,8 @@ It is meant to run inside the
 which adds structural extractors and synthetic replacement.
 
 > [!WARNING]
-> Research software. It has not met its 99% qualification target and has
+> Research software. It has not met its [project goal](GOALS.md) or its 99%
+> exact-span qualification target, and has
 > never been evaluated on real clinical records. It is not a substitute for a
 > HIPAA Safe Harbor review or an Expert Determination.
 

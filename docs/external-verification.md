@@ -6,9 +6,15 @@ models under one fixed protocol. It complements the internal
 [evaluation protocol](../reports/evaluation_protocol.md), which qualifies the
 detector on independently authored synthetic banks.
 
-The internal qualification remains the project's acceptance gate. External
-results are evidence of how the detector transfers to someone else's text and
-annotation conventions. They are never used to select, tune or train a model.
+The project's acceptance gate is the goal in [GOALS.md](../GOALS.md), which
+measures whether identifiers stay masked under any label. External results are
+evidence of how the detector transfers to someone else's text and annotation
+conventions, and each scored result should include that any-label coverage.
+They are never used to select, tune or train a model.
+
+GOALS.md ultimately requires evaluation on real notes. That is deferred. Until
+the owner reopens it, do not start access requests for benchmarks that contain
+real clinical text, such as n2c2 2014.
 
 The harness lives in
 [`experiments/external_benchmarks_20261004/`](../experiments/external_benchmarks_20261004/README.md).

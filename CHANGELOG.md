@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- [GOALS.md](GOALS.md): the accepted project goal, measured as any-label
+  recall by identifier class, with regression rules for comparing candidates.
+- `privacy` block in every evaluation report: any-label recall for direct and
+  indirect identifiers, a document-clustered lower bound on NAME recall,
+  any-label precision, and a per-type breakdown of exact misses.
+- [AGENTS.md](AGENTS.md) with standing instructions for coding agents.
 - Model card, citation file, contributing guide, security policy and CI.
 - Focused guides for [training](docs/training.md),
   [evaluation history](docs/evaluation-history.md),
@@ -16,6 +22,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Promotion is now gated by the privacy targets in GOALS.md. The 99% exact
+  typed-span checks are unchanged and reported as a stretch target.
 - Rewrote the README around installation, usage, results and limitations.
   The detailed experiment history moved to `docs/`.
 
