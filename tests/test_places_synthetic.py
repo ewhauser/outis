@@ -237,6 +237,8 @@ def test_identities_and_template_families_respect_the_split(corpus):
         for row in corpus[split]:
             assert all(identity_split(group) == split for group in row["identity_groups"])
             assert {canonical_identity_group(name) for name in row["full_identities"]} == set(row["identity_groups"])
+            assert len(row["full_identities"]) == len(set(row["full_identities"]))
+            assert len(row["identity_groups"]) == len(set(row["identity_groups"]))
             assert row["template_family"].startswith(f"places_{split}.")
             families.setdefault(row["template_family"], split)
             assert families[row["template_family"]] == split
