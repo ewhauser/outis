@@ -16,7 +16,6 @@ from clinical_deid.detection.context.identity import (
     human_person_context,
     pronoun_or_deictic,
 )
-from clinical_deid.detection.name_aliases import full_identity_aliases
 from clinical_deid.detection.context.person import (
     _bounded,
     _continues_name,
@@ -26,8 +25,8 @@ from clinical_deid.detection.context.person import (
     _starts_inside_name,
     _valid_surface,
 )
+from clinical_deid.detection.name_aliases import full_identity_aliases
 from clinical_deid.types import Span
-
 
 _WRITE_NAME = re.compile(
     r"\b(?:the[ \t]+)?(?:patient|person|individual|caregiver|guardian|clinician|doctor|nurse)"

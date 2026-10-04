@@ -9,7 +9,6 @@ import pytest
 from clinical_deid.replacement.surrogates import replace
 from clinical_deid.types import Span
 
-
 SECRET = bytes(range(32))
 
 

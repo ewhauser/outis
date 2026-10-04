@@ -5,8 +5,8 @@ import json
 import re
 from threading import current_thread
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from clinical_deid.api import create_app

@@ -1,11 +1,11 @@
 """Exercise the running API with invented clinical text and interval checks."""
 
 import argparse
-from datetime import date
 import json
 import os
-from pathlib import Path
 import urllib.request
+from datetime import date
+from pathlib import Path
 
 
 def main():

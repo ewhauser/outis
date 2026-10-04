@@ -3,10 +3,10 @@ import json
 import pytest
 
 from clinical_deid.data.generators.base import (
-    MarkedValue,
     TRAIN_TEMPLATES,
     VALIDATION_TEMPLATES,
     VOCABULARY,
+    MarkedValue,
     generate_rows,
     render_marked,
     validate_row,

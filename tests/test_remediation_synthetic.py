@@ -1,7 +1,7 @@
-from collections import Counter, defaultdict
 import hashlib
 import json
 import re
+from collections import Counter, defaultdict
 
 import pytest
 

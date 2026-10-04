@@ -2,6 +2,7 @@ import hashlib
 import json
 import re
 
+from clinical_deid.data.generators.base import validate_row
 from clinical_deid.data.generators.coverage import (
     CARE_SUFFIXES,
     FRAMES,
@@ -10,7 +11,6 @@ from clinical_deid.data.generators.coverage import (
     generate_rows,
     write_dataset,
 )
-from clinical_deid.data.generators.base import validate_row
 from clinical_deid.types import ENTITY_TYPES
 
 

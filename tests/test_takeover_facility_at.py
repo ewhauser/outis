@@ -3,13 +3,12 @@
 import hashlib
 import importlib.util
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
 from clinical_deid.data.annotation_policy import POLICY_FIXTURES
-
 
 SCRIPT = (
     Path(__file__).resolve().parents[1] / "scripts/takeover/normalize_facility_at.py"

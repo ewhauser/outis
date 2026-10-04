@@ -1,12 +1,12 @@
 import copy
-from collections import Counter
-from datetime import date
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import unicodedata
+from collections import Counter
+from datetime import date
+from pathlib import Path
 
 import pytest
 import tiktoken
@@ -405,10 +405,9 @@ def test_manifest_matches_actual_payload_tags_and_exact_quarter_distributions(
                 for name, mention in zip(_names(row), row["name_mentions"])
                 if mention["kind"] != "full"
             )
-        assert counts == {
-            variant: count // 4
-            for variant in ("nominal", "counterfactual", "unanchored", "phi_free")
-        }
+        assert counts == dict.fromkeys(
+            ("nominal", "counterfactual", "unanchored", "phi_free"), count // 4
+        )
         assert manifest["bioes_tag_support"] == dict(tags)
         assert manifest["token_length"]["max"] == max(lengths) <= 512
         assert manifest["token_length"]["mean"] == sum(lengths) / len(lengths)

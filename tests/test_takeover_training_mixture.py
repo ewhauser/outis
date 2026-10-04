@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections import Counter
-from copy import deepcopy
 import importlib.util
 import json
-from pathlib import Path
 import stat
+from collections import Counter
+from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -306,7 +306,7 @@ def test_preflight_errors_never_create_any_output(fixture, defect):
     elif defect == "cohorts":
         repin_manifest(pin, cohort_counts={"unusual": 2})
     elif defect == "labels":
-        repin_manifest(pin, label_counts={label: 0 for label in mixture.LABELS})
+        repin_manifest(pin, label_counts=dict.fromkeys(mixture.LABELS, 0))
     elif defect == "manifest_corpus_hash":
         repin_manifest(pin, sha256="0" * 64)
     elif defect == "unknown_removal":

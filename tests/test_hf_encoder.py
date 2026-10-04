@@ -4,6 +4,7 @@ torch = pytest.importorskip("torch")
 transformers = pytest.importorskip("transformers")
 tokenizers = pytest.importorskip("tokenizers")
 
+from clinical_deid.detection.adapter import TAGS  # noqa: E402
 from clinical_deid.detection.hf_encoder import (  # noqa: E402
     ENCODER_KIND,
     HFTokenDetector,
@@ -11,7 +12,6 @@ from clinical_deid.detection.hf_encoder import (  # noqa: E402
     special_layout,
     window_jobs,
 )
-from clinical_deid.detection.adapter import TAGS  # noqa: E402
 from clinical_deid.types import Span  # noqa: E402
 
 
@@ -202,6 +202,7 @@ def test_invalid_batch_size_rejected(batch_size):
 
 def test_model_root_errors_are_clear_and_publication_fails_closed(tmp_path):
     import json
+
     from clinical_deid.detection.hf_encoder import load_detector
 
     (tmp_path / "config.json").write_text(json.dumps({"model_type": "modernbert"}))

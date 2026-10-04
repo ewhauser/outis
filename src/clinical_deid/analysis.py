@@ -9,8 +9,8 @@ they are experimental rule matches, not clinically validated assertions.
 
 from __future__ import annotations
 
-from datetime import date
 import re
+from datetime import date
 
 from clinical_deid.entities import checked_entities
 
@@ -252,13 +252,11 @@ def _asserted_clause(text, left, right):
     uncertain = r"\b(?:if|unless|whether|suppose|assuming|could|might|possible|suspected|uncertain|not|no|never|denies|denied|negative)\b"
     if re.search(uncertain, before + " " + after, re.I):
         return False
-    if re.search(
+    return not re.search(
         r"\b(?:rule[ds]?\s+out|family|mother|father|sibling|brother|sister)\b",
         before + " " + after,
         re.I,
-    ):
-        return False
-    return True
+    )
 
 
 def analyze_entities(

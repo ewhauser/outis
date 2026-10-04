@@ -2,22 +2,22 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import math
 import os
 import re
+import unicodedata
 from pathlib import Path
 from types import MethodType
-import unicodedata
 
+import tiktoken
 import torch
 from torch import nn
 from torch.nn import functional as F
-import tiktoken
 
-from clinical_deid.types import ENTITY_TYPES, Span
 from clinical_deid.paths import PROJECT_ROOT
+from clinical_deid.types import ENTITY_TYPES, Span
 
 BASE_REVISION = "7ffa9a043d54d1be65afb281eddf0ffbe629385b"
 BASE_WEIGHTS_SHA256 = "9c262cbe68a0c8a50590a648ef8341a2b7d3be1fa11dfb79893fe0b03ce57b5c"
@@ -258,13 +258,15 @@ def decode_bioes(logits, offsets, text):
                     offsets[i + 1][0] if i + 1 < n and labels[i + 1] != 0 else len(text)
                 )
                 while a > left_limit and a < b:
-                    if letter(text[a - 1]) and letter(text[a]):
-                        a -= 1
-                    elif (
-                        text[a] in "'’-"
-                        and a + 1 < b
-                        and letter(text[a - 1])
-                        and letter(text[a + 1])
+                    if (
+                        letter(text[a - 1])
+                        and letter(text[a])
+                        or (
+                            text[a] in "'’-"
+                            and a + 1 < b
+                            and letter(text[a - 1])
+                            and letter(text[a + 1])
+                        )
                     ):
                         a -= 1
                     elif (
@@ -277,13 +279,15 @@ def decode_bioes(logits, offsets, text):
                     else:
                         break
                 while 0 < b < right_limit:
-                    if letter(text[b - 1]) and letter(text[b]):
-                        b += 1
-                    elif (
-                        text[b - 1] in "'’-"
-                        and b - 2 >= a
-                        and letter(text[b - 2])
+                    if (
+                        letter(text[b - 1])
                         and letter(text[b])
+                        or (
+                            text[b - 1] in "'’-"
+                            and b - 2 >= a
+                            and letter(text[b - 2])
+                            and letter(text[b])
+                        )
                     ):
                         b += 1
                     elif (

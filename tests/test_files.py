@@ -9,7 +9,7 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from clinical_deid.formats.files import A, C, MIME_TYPES, P, R, S, W, process_file
+from clinical_deid.formats.files import MIME_TYPES, A, C, P, R, S, W, process_file
 
 
 class StubService:
@@ -370,9 +370,10 @@ def test_deep_office_xml_rejected():
 
 
 def test_pdf_compressed_content_is_bounded_before_extraction():
-    from clinical_deid.formats.files import MAX_ZIP_BYTES
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import DecodedStreamObject, NameObject
+
+    from clinical_deid.formats.files import MAX_ZIP_BYTES
 
     writer = PdfWriter()
     writer.append_pages_from_reader(PdfReader(io.BytesIO(make_pdf())))
@@ -386,12 +387,13 @@ def test_pdf_compressed_content_is_bounded_before_extraction():
 
 
 def test_pdf_unicode_english_text_remains_extractable():
+    from pathlib import Path
+
+    import reportlab
     from pypdf import PdfReader
-    from reportlab.pdfgen.canvas import Canvas
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    import reportlab
-    from pathlib import Path
+    from reportlab.pdfgen.canvas import Canvas
 
     pdfmetrics.registerFont(
         TTFont("TestVera", str(Path(reportlab.__file__).parent / "fonts" / "Vera.ttf"))

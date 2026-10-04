@@ -6,8 +6,8 @@ entity IDs, and matching strings cannot establish a relationship. The returned
 bindings are request-local sensitive data, not API output or persistent memory.
 """
 
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from clinical_deid.detection.context.nickname import (

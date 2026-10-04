@@ -7,8 +7,8 @@ This verifies integration, not independent model accuracy or release readiness.
 import argparse
 import base64
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 

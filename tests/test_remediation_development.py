@@ -1,23 +1,23 @@
 """Construction invariants for independently authored development diagnostics."""
 
-from collections import Counter, defaultdict
 import hashlib
 import json
+from collections import Counter, defaultdict
 
 import pytest
 import tiktoken
 
-from clinical_deid.evaluation.evaluate import load_verified_corpus
 from clinical_deid.data.generators.remediation_development import (
     ENTITY_TYPES,
     POLICY,
-    _Text,
     _negative,
     _short_positive,
+    _Text,
     build_rows,
     generate_corpus,
     identity_group,
 )
+from clinical_deid.evaluation.evaluate import load_verified_corpus
 
 
 def fragments(row, label):

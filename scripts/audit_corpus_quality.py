@@ -2,11 +2,11 @@
 """Audit only explicit development corpus paths; never discover data files."""
 
 import argparse
-from collections import defaultdict
 import json
 import os
-from pathlib import Path
 import sys
+from collections import defaultdict
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))

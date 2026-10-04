@@ -1,16 +1,16 @@
-from collections import Counter, defaultdict
 import hashlib
 import json
 import re
+from collections import Counter, defaultdict
 
 import pytest
 
-from clinical_deid.data.v12 import synthetic as generator
 from clinical_deid.data.annotation_policy import (
     canonical_identity_group,
     identity_split,
 )
 from clinical_deid.data.corpus_quality import audit_corpora
+from clinical_deid.data.v12 import synthetic as generator
 from clinical_deid.types import ENTITY_TYPES
 
 

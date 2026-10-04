@@ -1,14 +1,14 @@
 """Service and HTTP privacy checks with injected detectors, no model load."""
 
-import re
 import importlib.util
 import io
 import json
-from pathlib import Path
+import re
 import sys
+from pathlib import Path
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from clinical_deid.api import create_app
 from clinical_deid.service import Deidentifier

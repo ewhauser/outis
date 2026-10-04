@@ -2,6 +2,5 @@
 
 from clinical_deid.evaluation.report import main
 
-
 if __name__ == "__main__":
     main()

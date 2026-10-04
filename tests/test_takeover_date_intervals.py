@@ -1,17 +1,16 @@
 """Synthetic-only contract tests for training DATE interval derivatives."""
 
-from collections import Counter
-from copy import deepcopy
 import builtins
 import hashlib
 import importlib.util
 import io
 import json
-from pathlib import Path
 import sys
+from collections import Counter
+from copy import deepcopy
+from pathlib import Path
 
 import pytest
-
 
 SCRIPT = (
     Path(__file__).resolve().parents[1] / "scripts/takeover/normalize_date_intervals.py"

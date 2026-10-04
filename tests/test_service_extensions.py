@@ -7,12 +7,11 @@ import re
 import pytest
 
 from clinical_deid.entities import Entity
-from clinical_deid.policy import DetectionPolicy
-from clinical_deid.service import Deidentifier
 from clinical_deid.formats.structured import process_structured
+from clinical_deid.policy import DetectionPolicy
 from clinical_deid.replacement.transform import ReplacementOptions, reidentify
+from clinical_deid.service import Deidentifier
 from clinical_deid.types import ENTITY_TYPES, Span
-
 
 SECRET = b"test-only-service-extension-secret-0123456789"
 MODEL_LABELS = (

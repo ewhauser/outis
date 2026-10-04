@@ -8,13 +8,14 @@ before loading a detector and separates model-only from hybrid results.
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import hashlib
 import json
 import math
-from pathlib import Path
 import time
-from typing import Any, Callable, Iterable
+from collections import Counter
+from collections.abc import Callable, Iterable
+from pathlib import Path
+from typing import Any
 
 from clinical_deid.types import ENTITY_TYPES, Span
 
@@ -191,14 +192,14 @@ def evaluate(
             phi_documents += 1
             phi_leak_free += safe
         if (missing or extras) and len(failures) < max_failures:
-
+            # Called below, within this iteration.
             def details(spans):
                 return [
                     {
                         "start": start,
                         "end": end,
                         "label": label,
-                        "text": text[start:end],
+                        "text": text[start:end],  # noqa: B023
                     }
                     for start, end, label in sorted(spans)
                 ]

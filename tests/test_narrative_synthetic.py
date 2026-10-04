@@ -5,6 +5,7 @@ import re
 from collections import Counter
 from datetime import datetime
 
+from clinical_deid.data.generators.base import validate_row
 from clinical_deid.data.generators.narrative import (
     FRAMES,
     NARRATIVE_FRAMES,
@@ -16,7 +17,6 @@ from clinical_deid.data.generators.narrative import (
     single_token_words,
     write_dataset,
 )
-from clinical_deid.data.generators.base import validate_row
 from clinical_deid.types import ENTITY_TYPES
 
 
@@ -58,7 +58,7 @@ def test_narrative_identity_grammar_and_frames_are_disjoint():
         single_token_words("train"),
         single_token_words("validation"),
     )
-    assert set(word.casefold() for word in train_pool).isdisjoint(
+    assert {word.casefold() for word in train_pool}.isdisjoint(
         word.casefold() for word in validation_pool
     )
     for word in train_pool + validation_pool:

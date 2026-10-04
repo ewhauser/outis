@@ -2,14 +2,14 @@
 
 import importlib.util
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
+from test_hf_encoder import tiny_detector
 
 from clinical_deid.evaluation.evaluate import model_manifest
 from clinical_deid.types import Span
-from test_hf_encoder import tiny_detector
 
 
 @pytest.fixture

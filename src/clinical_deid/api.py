@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 import hmac
 import json
 import os
+from contextlib import asynccontextmanager, suppress
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
@@ -24,8 +24,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from clinical_deid.policy import DetectionPolicy
-from clinical_deid.service import Deidentifier
 from clinical_deid.replacement.transform import ReidentifyRequest, ReplacementOptions
+from clinical_deid.service import Deidentifier
 
 MAX_REQUEST_BYTES = 16 * 1024 * 1024
 _FAILURE = "Deidentification failed; no output released"
@@ -620,7 +620,7 @@ def create_app(service=None, *, api_key=None):
 
     @app.get("/v1/policies", dependencies=[Depends(authorize)])
     def policies():
-        from clinical_deid.policy import POLICY_VERSION, EXTENDED_TYPES, MEDICAL_TYPES
+        from clinical_deid.policy import EXTENDED_TYPES, MEDICAL_TYPES, POLICY_VERSION
         from clinical_deid.types import ENTITY_TYPES
 
         return {
@@ -727,10 +727,13 @@ def create_app(service=None, *, api_key=None):
                     )
                     continue
                 try:
+                    # The closure runs before the next message is read.
                     result = await run_in_threadpool(
                         _safe_call,
                         lambda: single(
-                            socket.app.state.service, envelope.operation, payload
+                            socket.app.state.service,
+                            envelope.operation,  # noqa: B023
+                            payload,  # noqa: B023
                         ),
                     )
                     value = {
@@ -751,10 +754,8 @@ def create_app(service=None, *, api_key=None):
             except Exception:
                 # Transport/serialization exceptions may retain the entire frame.
                 # Close without passing those objects to ASGI error logging.
-                try:
+                with suppress(Exception):
                     await socket.close(code=1011)
-                except Exception:
-                    pass
                 return
 
     return app

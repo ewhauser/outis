@@ -1,17 +1,16 @@
 """Acceptance checks for the independently authored development bank only."""
 
-from collections import Counter, defaultdict
 import hashlib
 import json
-from pathlib import Path
 import socket
+from collections import Counter, defaultdict
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
 
 from clinical_deid.data.annotation_policy import annotation_errors, identity_split
 from clinical_deid.data.corpus_quality import audit_corpora
-from clinical_deid.types import ENTITY_TYPES
 from clinical_deid.data.v12.development import (
     CACHE_FILE,
     CACHE_SHA256,
@@ -25,7 +24,7 @@ from clinical_deid.data.v12.development import (
     token_span_positions,
     write_bank,
 )
-
+from clinical_deid.types import ENTITY_TYPES
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -187,7 +186,7 @@ def test_long_natural_and_seam_stress_are_separate_with_measured_ownership(
     for row in natural:
         assert row["authored_paragraphs"] == len(LONG_PASSAGES)
         assert "repeated_progress_seam_stress" not in row["phenomena"]
-        for title, body in LONG_PASSAGES:
+        for _title, body in LONG_PASSAGES:
             assert row["text"].count(body) == 1
     targeted_labels = set()
     for row in seams:

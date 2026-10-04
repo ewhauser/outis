@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import replace as with_fields
 import hashlib
-from pathlib import Path
 import re
+from dataclasses import replace as with_fields
+from pathlib import Path
 from threading import Lock
 
 from clinical_deid.entities import checked_entities
 from clinical_deid.operations import Usage
-from clinical_deid.replacement.surrogates import replace, _validated_secret
+from clinical_deid.replacement.surrogates import _validated_secret, replace
 
 
 def _model_version(model_dir, detector):
@@ -338,8 +338,8 @@ class Deidentifier:
         from clinical_deid.policy import policy_metadata
         from clinical_deid.replacement.transform import (
             prepare_context,
-            render,
             reidentify,
+            render,
         )
 
         requests = self._requests(requests, limit=limit)

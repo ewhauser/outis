@@ -1,6 +1,7 @@
 import hashlib
 import json
 
+from clinical_deid.data.generators.base import validate_row
 from clinical_deid.data.generators.context import (
     AGE_FRAMES,
     CONTACT_BUNDLES,
@@ -10,7 +11,6 @@ from clinical_deid.data.generators.context import (
     generate_rows,
     write_dataset,
 )
-from clinical_deid.data.generators.base import validate_row
 from clinical_deid.types import ENTITY_TYPES
 
 

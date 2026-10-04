@@ -1,8 +1,8 @@
 """Extensible API entities, independent of the trained model's label vocabulary."""
 
-from dataclasses import asdict, dataclass
 import math
 import re
+from dataclasses import asdict, dataclass
 
 
 @dataclass(frozen=True)

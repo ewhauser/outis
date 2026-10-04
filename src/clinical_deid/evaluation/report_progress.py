@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 
-
 _GATES = (
     ("typed_span_precision_at_least_99_percent", "Exact span precision", "rate"),
     ("typed_span_recall_at_least_99_percent", "Exact span recall", "rate"),

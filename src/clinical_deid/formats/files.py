@@ -15,9 +15,9 @@ import posixpath
 import re
 import zipfile
 import zlib
+from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Lock
-from datetime import datetime, timedelta
 from xml.etree import ElementTree as ET
 
 from defusedxml import ElementTree as SafeET
@@ -676,14 +676,15 @@ def _bounded_pdf_content(page, remaining):
 
 
 def _pdf(service, raw, options, link_records):
-    from pypdf import PdfReader, apply_configuration
+    from xml.sax.saxutils import escape
+
     import reportlab
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
+    from pypdf import PdfReader, apply_configuration
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
-    from xml.sax.saxutils import escape
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
 
     try:
         with apply_configuration(

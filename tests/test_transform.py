@@ -6,8 +6,8 @@ from pydantic import ValidationError
 from clinical_deid.entities import Entity
 from clinical_deid.replacement.surrogates import replace
 from clinical_deid.replacement.transform import (
-    ReplacementOptions,
     ReidentifyRequest,
+    ReplacementOptions,
     link_entities,
     reidentify,
     render,
@@ -80,7 +80,7 @@ def test_opaque_ids_preserve_case_and_whitespace():
 
 
 def test_keyed_ids_are_patient_scoped_and_stable_across_positions():
-    kwargs = dict(secret=SECRET, patient_id="patient-a")
+    kwargs = {"secret": SECRET, "patient_id": "patient-a"}
     original = link_entities("Jane Smith", [Entity(0, 10, "NAME")], **kwargs)[
         0
     ].entity_id
@@ -180,9 +180,14 @@ def test_replacement_options_reject_unknown_fields_and_unsafe_templates(options)
     ],
 )
 def test_malformed_span_metadata_fails_closed(metadata):
-    values = dict(
-        start=0, end=4, label="NAME", score=1.0, source="test", entity_id=None
-    )
+    values = {
+        "start": 0,
+        "end": 4,
+        "label": "NAME",
+        "score": 1.0,
+        "source": "test",
+        "entity_id": None,
+    }
     values.update(metadata)
     span = SimpleNamespace(**values)
     with pytest.raises(ValueError):
@@ -214,7 +219,7 @@ def test_synthetic_semantics_and_dates_match_existing_replacement():
         start = text.index(value, cursor)
         spans.append(Entity(start, start + len(value), label))
         cursor = start + len(value)
-    kwargs = dict(patient_id="patient-a", secret=SECRET, date_shift_days=2)
+    kwargs = {"patient_id": "patient-a", "secret": SECRET, "date_shift_days": 2}
     result = render(text, spans, options={"type": "synthetic"}, **kwargs)
     legacy = replace(text, spans, mode="synthetic", **kwargs)
     assert result["text"] == legacy["text"]
@@ -529,6 +534,7 @@ def test_prepared_context_builds_global_indexes_once_for_many_fields(monkeypatch
 
 def test_prepared_context_is_immutable_and_keeps_identifiers_out_of_repr():
     from dataclasses import FrozenInstanceError
+
     from clinical_deid.replacement.transform import prepare_context
 
     prepared = prepare_context("Jane Smith", [Entity(0, 10, "NAME")])
@@ -549,11 +555,11 @@ def test_prepared_and_raw_context_render_identically_including_synthetic_aliases
     text = "Jane Smith\nJane"
     spans = [Entity(0, 10, "NAME"), Entity(11, 15, "NAME")]
     prepared = prepare_context(text, spans, secret=SECRET, patient_id="a")
-    kwargs = dict(
-        options={"type": "synthetic", "entity_ids": "keyed"},
-        secret=SECRET,
-        patient_id="a",
-    )
+    kwargs = {
+        "options": {"type": "synthetic", "entity_ids": "keyed"},
+        "secret": SECRET,
+        "patient_id": "a",
+    }
     assert render(
         "Jane", [Entity(0, 4, "NAME")], prepared_context=prepared, **kwargs
     ) == render(
@@ -609,8 +615,8 @@ def test_mapping_creation_does_not_walk_global_context_in_python_per_field(monke
 
 def test_structured_service_prepares_shared_context_exactly_once(monkeypatch):
     import clinical_deid.replacement.transform as module
-    from clinical_deid.service import Deidentifier
     from clinical_deid.formats.structured import process_structured
+    from clinical_deid.service import Deidentifier
 
     class Detector:
         def detect_batch(self, texts):

@@ -59,5 +59,21 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F"]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "PIE", "RET"]
+ignore = [
+    "E501",  # line length is left to the formatter; long literals are allowed
+    "B905",  # zip(strict=...) would change behaviour on length mismatches
+    "SIM102",  # nested ifs often carry a comment per condition
+    "SIM117",  # nested with blocks read more clearly in tests
+    "SIM905",  # "a b c".split() is clearer than a long literal list
+    "C413",  # reversed(sorted(x)) and sorted(x, reverse=True) order ties differently
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Verification scripts and tests build per-case closures they call immediately.
+"scripts/**" = ["B023"]
+"tests/**" = ["B023"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["clinical_deid"]
 

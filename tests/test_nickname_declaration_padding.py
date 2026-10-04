@@ -1,6 +1,7 @@
 """Original adversarial controls for bounded context truncation."""
 
 import pytest
+
 from clinical_deid.detection.context import nickname as nick
 from clinical_deid.types import Span
 

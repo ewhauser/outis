@@ -7,21 +7,22 @@ caller-owned values and are never retained by this module.
 
 from __future__ import annotations
 
-from collections import deque
-from collections.abc import Mapping
-from dataclasses import dataclass, field, replace as replace_entity
 import hashlib
 import hmac
 import json
 import re
+from collections import deque
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from dataclasses import replace as replace_entity
 from string import Formatter
-from typing import Literal
 from types import MappingProxyType
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from clinical_deid.entities import Entity, checked_entities
 from clinical_deid.detection.name_aliases import full_identity_aliases
+from clinical_deid.entities import Entity, checked_entities
 from clinical_deid.replacement.nicknames import NameBinding, nickname_bindings
 from clinical_deid.replacement.surrogates import (
     _canonical,
@@ -327,12 +328,12 @@ def reidentify(text, mappings, *, allowed_types=None, restore_sensitive=False):
     allowlisted CONDITION/MEDICATION labels can restore without that opt-in.
     """
     request = ReidentifyRequest.model_validate(
-        dict(
-            text=text,
-            mappings=mappings,
-            allowed_types=allowed_types,
-            restore_sensitive=restore_sensitive,
-        )
+        {
+            "text": text,
+            "mappings": mappings,
+            "allowed_types": allowed_types,
+            "restore_sensitive": restore_sensitive,
+        }
     )
     matcher = _mapping_matcher(request.mappings)
     # No marker contains another, so match ends and starts have the same
@@ -432,7 +433,7 @@ def render(
             )
             offset = shift_index - 365 if shift_index < 365 else shift_index - 364
     link_kwargs = (
-        dict(secret=key, patient_id=patient) if options.entity_ids == "keyed" else {}
+        {"secret": key, "patient_id": patient} if options.entity_ids == "keyed" else {}
     )
     if prepared_context is None:
         prepared_context = prepare_context(

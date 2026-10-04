@@ -1,11 +1,11 @@
 """Bounded, process-local counters containing no source text or patient IDs."""
 
-from collections import Counter
-from contextlib import contextmanager
 import hashlib
 import platform
-from threading import Lock
 import time
+from collections import Counter
+from contextlib import contextmanager
+from threading import Lock
 
 
 class Usage:

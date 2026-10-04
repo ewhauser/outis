@@ -1,12 +1,12 @@
 import copy
-from collections import Counter
-from datetime import date
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import unicodedata
+from collections import Counter
+from datetime import date
+from pathlib import Path
 
 import pytest
 import tiktoken

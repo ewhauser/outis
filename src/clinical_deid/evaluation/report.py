@@ -11,13 +11,12 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import re
 import tempfile
+from pathlib import Path
 from typing import Any
 
 from clinical_deid.evaluation.report_html import render_report
-
 
 LABELS = frozenset(
     (
@@ -145,7 +144,7 @@ def _hash_manifest(raw: Any, field: str) -> str | None:
     if not raw:
         return None
     # Hash the entire source manifest, but never embed arbitrary filenames.
-    for key, value in raw.items():
+    for value in raw.values():
         if _digest(value, f"{field} digest") is None:
             raise ReportError(f"{field} contains a null digest")
     return hashlib.sha256(

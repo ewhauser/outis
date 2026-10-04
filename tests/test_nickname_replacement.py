@@ -1,21 +1,21 @@
 """Synthetic fixtures for occurrence ownership; no encoder or corpus access."""
 
+import re
 from dataclasses import replace as with_fields
 from datetime import date
-import re
 
 import pytest
 
 from clinical_deid.entities import Entity
-from clinical_deid.replacement.surrogates import replace
 from clinical_deid.replacement.nicknames import nickname_bindings
-from clinical_deid.service import Deidentifier
+from clinical_deid.replacement.surrogates import replace
 from clinical_deid.replacement.transform import (
     link_entities,
     prepare_context,
     reidentify,
     render,
 )
+from clinical_deid.service import Deidentifier
 
 SECRET = b"candidate-nickname-regression-secret-at-least-32-bytes"
 PATIENT = "invented-patient"
@@ -386,6 +386,7 @@ def test_contained_normalized_nickname_token_uses_family_alias(
 
 def test_http_synthetic_response_uses_same_proof_for_ids_and_rendering():
     from fastapi.testclient import TestClient
+
     from clinical_deid.api import create_app
 
     note = marked(DECLARATION)
