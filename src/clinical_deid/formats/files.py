@@ -678,13 +678,18 @@ def _bounded_pdf_content(page, remaining):
 def _pdf(service, raw, options, link_records):
     from xml.sax.saxutils import escape
 
-    import reportlab
-    from pypdf import PdfReader, apply_configuration
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
+    try:
+        import reportlab
+        from pypdf import PdfReader, apply_configuration
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
+    except ImportError:
+        raise ValueError(
+            "PDF support is not installed; install clinical-deid[pdf]"
+        ) from None
 
     try:
         with apply_configuration(

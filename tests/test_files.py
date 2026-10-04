@@ -271,6 +271,13 @@ def test_digital_pdf_extract_redact_rebuild():
     assert "layout" in result["warnings"][0]
 
 
+def test_pdf_without_optional_extra_is_a_clear_validation_error(monkeypatch):
+    pdf = make_pdf()
+    monkeypatch.setitem(__import__("sys").modules, "pypdf", None)
+    with pytest.raises(ValueError, match=r"clinical-deid\[pdf\]"):
+        invoke(pdf, "pdf")
+
+
 def test_blank_encrypted_attached_and_annotated_pdfs_rejected():
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import (

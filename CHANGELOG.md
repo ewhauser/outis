@@ -16,8 +16,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Breaking:** `clinical_deid` is split into subpackages (`detection`,
+  `replacement`, `formats`, `data`, `training`, `evaluation`). For example,
+  `clinical_deid.rules` is now `clinical_deid.detection.rules` and
+  `python -m clinical_deid.train` is now `python -m clinical_deid.training.train`.
+  `from clinical_deid import Deidentifier`, the HTTP API and the CLI are
+  unchanged. Scripts under `reports/` use the old layout; run them from the
+  commit that produced them.
+- **Breaking:** PDF support moved to the optional `pdf` extra
+  (`pip install clinical-deid[pdf]`).
 - Rewrote the README around installation, usage, results and limitations.
   The detailed experiment history moved to `docs/`.
+- Formatted the codebase with `ruff format` and enabled stricter lint rules.
 
 ## [0.1.0] - 2026-10-04
 

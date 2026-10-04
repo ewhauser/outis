@@ -214,10 +214,8 @@ dependencies = [
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "opf" },
     { name = "pydantic" },
-    { name = "pypdf" },
     { name = "python-dateutil" },
     { name = "regex" },
-    { name = "reportlab" },
     { name = "safetensors" },
     { name = "tiktoken" },
     { name = "torch" },
@@ -229,12 +227,19 @@ dependencies = [
 dev = [
     { name = "httpx" },
     { name = "psutil" },
+    { name = "pypdf" },
     { name = "pytest" },
+    { name = "reportlab" },
     { name = "ruff" },
+]
+pdf = [
+    { name = "pypdf" },
+    { name = "reportlab" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "clinical-deid", extras = ["pdf"], marker = "extra == 'dev'" },
     { name = "defusedxml", specifier = ">=0.7" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
@@ -243,11 +248,11 @@ requires-dist = [
     { name = "opf", url = "https://github.com/openai/privacy-filter/archive/f7f00ca7fb869683eb732c010299d901457f19c3.tar.gz" },
     { name = "psutil", marker = "extra == 'dev'", specifier = ">=6" },
     { name = "pydantic", specifier = ">=2.10" },
-    { name = "pypdf", specifier = ">=6.19.0" },
+    { name = "pypdf", marker = "extra == 'pdf'", specifier = ">=6.19.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "python-dateutil", specifier = ">=2.9" },
     { name = "regex", specifier = ">=2024.11" },
-    { name = "reportlab", specifier = ">=4" },
+    { name = "reportlab", marker = "extra == 'pdf'", specifier = ">=4" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11" },
     { name = "safetensors", specifier = ">=0.5" },
     { name = "tiktoken", specifier = ">=0.9" },
@@ -255,7 +260,7 @@ requires-dist = [
     { name = "transformers", specifier = ">=5.6" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["pdf", "dev"]
 
 [[package]]
 name = "colorama"

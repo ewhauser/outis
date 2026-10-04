@@ -330,7 +330,9 @@ silently pass through unsupported binary content. Archives have a 256-member
 and 20 MiB expanded-size limit, with path and compression-ratio checks. XML
 parts are limited to 50,000 nodes and 64 nesting levels.
 
-PDF support extracts text from digital pages and builds a new PDF from the
+PDF support requires the optional `pdf` extra (`pip install -e '.[pdf]'`).
+Without it, PDF requests return HTTP 422, and the Python API raises a
+`ValueError` naming the extra. PDF support extracts text from digital pages and builds a new PDF from the
 transformed text. It does not redact the original PDF in place. Layout, fonts,
 graphics, and source metadata are not preserved, and page count can change.
 Entity locations refer to source page numbers (starting at one) and offsets

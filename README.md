@@ -47,7 +47,8 @@ uv pip install --python .venv/bin/python -e .
 .venv/bin/python scripts/bootstrap.py   # downloads the pinned base encoder
 ```
 
-The trained adapter is included in `models/clinical-adapter`.
+The trained adapter is included in `models/clinical-adapter`. Add the `pdf`
+extra (`-e '.[pdf]'`) for PDF file input.
 
 ### Python
 
