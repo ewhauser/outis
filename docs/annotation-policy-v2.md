@@ -75,8 +75,8 @@ diagnostics do not replace exact typed-span evaluation.
 
 The table above leaves some cases open. In early October 2026, ten independent readers
 were given only the policy, protocol, types and fixtures and asked to choose a
-convention for 35 such cases. They agreed 10 of 10 on every case below except
-the employer case. Training banks were normalised to these choices, and they
+convention for 35 such cases. They agreed 10 of 10 on every case in the table
+below. The one split case, employer names, is decided after the table. Training banks were normalised to these choices, and they
 are in force for all new authoring and annotation. The record is
 [`convention_census_001.json`](../reports/takeover/convention_census_001.json).
 Not every row has an executable fixture yet.
@@ -115,10 +115,10 @@ Not every row has an executable fixture yet.
 | FACILITY | A named ward | FACILITY |
 | FACILITY | A named pharmacy | FACILITY |
 
-**Open case: employer names.** Six readers chose not to annotate an employer
-name and four chose FACILITY. The places addendum leaves employers unchanged.
-Until the owner decides, do not annotate an employer that is not acting as a
-care site, and report employer mentions separately when they affect a result.
+**Employer names.** Do not annotate an employer or other organisation that is
+not acting as a care site. Six census readers chose this and four chose
+FACILITY; the owner decided it on 2026-10-04. An employer that is itself the
+patient's care site is FACILITY under the ordinary rule.
 
 **Known risk.** Independent authors do not always follow the ID and ACCOUNT
 split. One proxy-bank author labelled insurance member and claim numbers
