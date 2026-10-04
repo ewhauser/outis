@@ -5,7 +5,7 @@ import re
 from collections import Counter
 from datetime import datetime
 
-from clinical_deid.narrative_synthetic import (
+from clinical_deid.data.generators.narrative import (
     FRAMES,
     NARRATIVE_FRAMES,
     NEGATIVE_FRAMES,
@@ -16,7 +16,7 @@ from clinical_deid.narrative_synthetic import (
     single_token_words,
     write_dataset,
 )
-from clinical_deid.synthetic import validate_row
+from clinical_deid.data.generators.base import validate_row
 from clinical_deid.types import ENTITY_TYPES
 
 
@@ -116,7 +116,7 @@ def test_narrative_manifests_hashes_and_authored_provenance(tmp_path):
         assert hashlib.sha256(content).hexdigest() == details["sha256"]
         adjacent = json.loads((tmp_path / f"narrative_{split}.jsonl.manifest.json").read_text())
         assert adjacent["sha256"] == details["sha256"] and adjacent["split"] == split
-        from clinical_deid.evaluate import load_verified_corpus
+        from clinical_deid.evaluation.evaluate import load_verified_corpus
         verified, _ = load_verified_corpus(tmp_path / f"narrative_{split}.jsonl")
         assert len(verified) == details["count"]
         assert details["token_counts"]["S-NAME"] and details["token_counts"]["S-LOCATION"]

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from clinical_deid.replacement import replace
+from clinical_deid.replacement.surrogates import replace
 from clinical_deid.types import Span
 
 
@@ -422,7 +422,7 @@ def test_conventional_ascii_suffix_and_punctuation_hmac_outputs_stay_exact(
 def test_name_key_normalization_does_not_change_identifier_or_patient_anchor(
     monkeypatch,
 ):
-    import clinical_deid.replacement as module
+    import clinical_deid.replacement.surrogates as module
 
     calls = []
     original_digest = module._digest
@@ -513,7 +513,7 @@ def test_existing_ascii_hmac_identity_title_order_case_and_alias_outputs_stay_ex
 def test_alias_component_cannot_remain_private_surname_unchanged_after_suffix(
     monkeypatch,
 ):
-    import clinical_deid.replacement as module
+    import clinical_deid.replacement.surrogates as module
 
     monkeypatch.setattr(module, "_FIRST_NAMES", ("Fictional",))
     monkeypatch.setattr(module, "_LAST_NAMES", ("Vale", "FictionalSurname"))

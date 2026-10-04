@@ -27,7 +27,7 @@ from common import PREDICTIONS, RESULTS, ROOT, corpus_path, digest, read_jsonl, 
 from labels import COARSE, project_label
 
 sys.path.insert(0, str(ROOT / "src"))
-from clinical_deid.evaluate import evaluate, load_verified_corpus, wilson_lower  # noqa: E402
+from clinical_deid.evaluation.evaluate import evaluate, load_verified_corpus, wilson_lower  # noqa: E402
 
 
 PUBLISHED = {

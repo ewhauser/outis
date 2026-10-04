@@ -3,7 +3,7 @@
 The V13 clean-context prose is CC0-1.0; implementation is Apache-2.0. Canonical
 TRAIN identity sampling is reused from V12. No development corpus is read.
 Builds 3,000 focused rows and an exact 3,000-row subset of pinned V12 TRAIN.
-Use `python -m clinical_deid.v13_synthetic --check` to verify installed payloads.
+Use `python -m clinical_deid.data.v13.synthetic --check` to verify installed payloads.
 The report packaging script supplies hashed provenance and policy sidecars.
 """
 from __future__ import annotations
@@ -19,12 +19,13 @@ from pathlib import Path
 import random
 from string import Formatter
 
-from clinical_deid.annotation_policy import POLICY_VERSION, annotation_errors, canonical_identity_group, identity_split
-from clinical_deid.v12_synthetic import identity
-from clinical_deid.remediation_synthetic import get_encoding
-from .v13_contexts import FAMILIES, NEGATIVE_FAMILIES, CLINICAL_CONTEXT_PARAGRAPHS, RETENTION_CONTEXTS, validate_families
+from clinical_deid.data.annotation_policy import POLICY_VERSION, annotation_errors, canonical_identity_group, identity_split
+from clinical_deid.data.v12.synthetic import identity
+from clinical_deid.data.generators.remediation import get_encoding
+from clinical_deid.data.v13.contexts import FAMILIES, NEGATIVE_FAMILIES, CLINICAL_CONTEXT_PARAGRAPHS, RETENTION_CONTEXTS, validate_families
+from clinical_deid.paths import PROJECT_ROOT
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = PROJECT_ROOT
 VERSION = '13.0'
 SEED = 13091
 YEAR_MIN, YEAR_MAX = 1970, 2060
@@ -259,7 +260,7 @@ def replay_position_counts(payload):
 
 def build_payloads():
     """Return reviewed corpus bytes without writing or running a model."""
-    from .v13_replay import build_replay
+    from clinical_deid.data.v13.replay import build_replay
     replay, _ = build_replay()
     rows = generate(initial_positions=replay_position_counts(replay))
     focused = ''.join(json.dumps(row, ensure_ascii=False, separators=(',', ':')) + '\n' for row in rows).encode('utf-8')

@@ -27,7 +27,7 @@ SEED = 61004117
 POLICY = "clinical-phi-v2"
 TOKENIZER = ROOT / "models/takeover-mbbase-mix3-001/step-003081/hf/tokenizer.json"
 CONFIG = ROOT / "models/takeover-mbbase-mix3-001/step-003081/config.json"
-RUNTIME = ROOT / "src/clinical_deid/hf_encoder.py"
+RUNTIME = ROOT / "src/clinical_deid/detection/hf_encoder.py"
 CORPUS = ROOT / "data/tk6_train_long_observations.jsonl"
 REPORT = ROOT / "reports/takeover/mix3_001/author6_long_observations/author_report.json"
 LABELS = "NAME DATE ADDRESS PHONE EMAIL MRN SSN ACCOUNT ID URL IP AGE LOCATION FACILITY".split()
@@ -577,9 +577,9 @@ def report_for(rows, author, corpus_sha, source_sha):
         "status_word_positive_and_negative_coverage": words,
         "provenance": {
             "author":"independent_author6", "method":"New context prose and multiword observation clauses composed in this source; deterministic variation and literal-span construction.",
-            "allowed_reference_reads":["docs/annotation-policy-v2.md","src/clinical_deid/annotation_policy.py",
+            "allowed_reference_reads":["docs/annotation-policy-v2.md","src/clinical_deid/data/annotation_policy.py",
                 "scripts/takeover/prepare_training_mixture.py","scripts/takeover/normalize_conventions.py",
-                "scripts/audit_corpus_quality.py","src/clinical_deid/hf_encoder.py",str(TOKENIZER.relative_to(ROOT)),str(CONFIG.relative_to(ROOT))],
+                "scripts/audit_corpus_quality.py","src/clinical_deid/detection/hf_encoder.py",str(TOKENIZER.relative_to(ROOT)),str(CONFIG.relative_to(ROOT))],
             "dataset_or_prediction_reads":[], "model_weights_loaded":False,"inference_performed":False,"network_used":False,
             "reserved_identifier_schemes":{"PHONE":"+1 (202) 555-0100 through 555-0199; invented extensions",
                 "EMAIL":"notes.example reserved domain", "URL":"rounds.test reserved domain", "IP":"198.51.100.0/24 TEST-NET-2",

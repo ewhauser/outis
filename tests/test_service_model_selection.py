@@ -7,7 +7,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 import pytest
 
-from clinical_deid import hf_encoder, model
+from clinical_deid.detection import hf_encoder
+from clinical_deid.detection import adapter as model
 from clinical_deid.api import create_app
 from clinical_deid.service import Deidentifier
 from clinical_deid.types import Span

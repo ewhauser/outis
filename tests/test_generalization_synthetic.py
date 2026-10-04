@@ -11,7 +11,7 @@ import unicodedata
 import pytest
 import tiktoken
 
-from clinical_deid import generalization_synthetic as generator
+from clinical_deid.data.generators import generalization as generator
 from clinical_deid.types import ENTITY_TYPES
 
 

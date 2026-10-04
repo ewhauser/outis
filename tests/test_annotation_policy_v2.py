@@ -2,7 +2,7 @@ import unicodedata
 
 import pytest
 
-from clinical_deid.annotation_policy import (
+from clinical_deid.data.annotation_policy import (
     ANNOTATION_POLICY, POLICY_FIXTURES, POLICY_VERSION, annotation_errors,
     canonical_identity_group, identity_split,
 )

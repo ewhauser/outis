@@ -23,7 +23,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Iterable, Literal
 
-from .types import ENTITY_TYPES
+from clinical_deid.types import ENTITY_TYPES
 
 Split = Literal["train", "validation"]
 SCHEMA_VERSION = 1

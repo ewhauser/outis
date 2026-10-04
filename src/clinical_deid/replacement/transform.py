@@ -20,10 +20,10 @@ from types import MappingProxyType
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .entities import Entity, checked_entities
-from .name_aliases import full_identity_aliases
-from .replacement_identity import NameBinding, nickname_bindings
-from .replacement import (
+from clinical_deid.entities import Entity, checked_entities
+from clinical_deid.detection.name_aliases import full_identity_aliases
+from clinical_deid.replacement.nicknames import NameBinding, nickname_bindings
+from clinical_deid.replacement.surrogates import (
     _canonical,
     _digest,
     _name_aliases,
@@ -32,7 +32,7 @@ from .replacement import (
     _synthetic_value,
     _validated_secret,
 )
-from .types import ENTITY_TYPES
+from clinical_deid.types import ENTITY_TYPES
 
 _MAX_TEXT = 100_000
 _MAX_OUTPUT = 1_000_000

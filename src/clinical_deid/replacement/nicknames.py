@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 import re
 from types import MappingProxyType
 
-from .nickname_context import _complete_identity, contextual_person_names
-from .record_context import (
+from clinical_deid.detection.context.nickname import _complete_identity, contextual_person_names
+from clinical_deid.detection.context.record import (
     _OTHER_RECORD, _PATIENT_HEADER, _RECORD_HEADER, excluded_ranges,
 )
 
@@ -49,7 +49,7 @@ def nickname_bindings(text, spans):
     legacy aliases and all unproved occurrences retain their prior behavior.
     """
     # Deferred import avoids a module cycle while preserving legacy name keys.
-    from .replacement import _name_identity
+    from clinical_deid.replacement.surrogates import _name_identity
 
     if not _RELATION_CUE.search(text):
         return MappingProxyType({})

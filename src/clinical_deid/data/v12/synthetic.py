@@ -17,10 +17,11 @@ import random
 import re
 import time
 
-from .annotation_policy import POLICY_VERSION, annotation_errors, canonical_identity_group, identity_split
-from .remediation_synthetic import NAME_POOLS, COMMON_GIVEN, EPONYMS, UNUSUAL_NAMES, TextBuilder, get_encoding, token_metadata
-from .types import ENTITY_TYPES
-from .v12_contexts import CLINICAL_CONTEXTS, NEGATIVE_CONTEXTS, PUBLIC_CONTEXT_TEMPLATES
+from clinical_deid.data.annotation_policy import POLICY_VERSION, annotation_errors, canonical_identity_group, identity_split
+from clinical_deid.data.generators.remediation import NAME_POOLS, COMMON_GIVEN, EPONYMS, UNUSUAL_NAMES, TextBuilder, get_encoding, token_metadata
+from clinical_deid.types import ENTITY_TYPES
+from clinical_deid.data.v12.contexts import CLINICAL_CONTEXTS, NEGATIVE_CONTEXTS, PUBLIC_CONTEXT_TEMPLATES
+from clinical_deid.paths import PACKAGE_ROOT
 
 
 VERSION = "12.0"
@@ -493,9 +494,9 @@ def write_corpus(path: Path | str, rows: list[dict], *, config: dict | None = No
                 date_years.update(re.findall(r"\b(?:19|20)\d{2}\b", value))
         for loc in row["phenomenon_evidence"].get("public_dates", []):
             public_years.update(re.findall(r"\b(?:19|20)\d{2}\b", row["text"][loc["start"]:loc["end"]]))
-    source_files = (Path(__file__), Path(__file__).with_name("v12_contexts.py"), Path(__file__).with_name("remediation_synthetic.py"), Path(__file__).with_name("annotation_policy.py"), Path(__file__).with_name("types.py"))
+    source_files = tuple(PACKAGE_ROOT / name for name in ("data/v12/synthetic.py", "data/v12/contexts.py", "data/generators/remediation.py", "data/annotation_policy.py", "types.py"))
     manifest = {
-        "schema_version": 1, "generator": "clinical_deid.v12_synthetic", "generator_version": VERSION,
+        "schema_version": 1, "generator": "clinical_deid.data.v12.synthetic", "generator_version": VERSION,
         "sha256": hashlib.sha256(payload).hexdigest(), "annotation_policy": POLICY_VERSION,
         "split": "train", "suite": "training", "rows": len(rows), "config": config or {},
         "used_for_training": True, "used_for_checkpoint_selection": False, "independent_final": False,

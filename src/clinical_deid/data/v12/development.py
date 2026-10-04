@@ -17,9 +17,9 @@ from pathlib import Path
 import random
 import re
 
-from .annotation_policy import POLICY_VERSION, annotation_errors, canonical_identity_group, identity_split
-from .corpus_quality import audit_corpora
-from .types import ENTITY_TYPES
+from clinical_deid.data.annotation_policy import POLICY_VERSION, annotation_errors, canonical_identity_group, identity_split
+from clinical_deid.data.corpus_quality import audit_corpora
+from clinical_deid.types import ENTITY_TYPES
 
 
 TOTAL_DOCUMENTS = 1280
@@ -627,7 +627,7 @@ def write_bank(root: Path, cache_dir: Path):
         "split": "validation", "suite": "development", "annotation_policy": POLICY_VERSION,
         "sha256": digest, "documents": len(rows), "independent_final": False,
         "used_for_training": False, "used_for_checkpoint_selection": True,
-        "generator": "src/clinical_deid/v12_development.py", "generator_sha256": generator_hash,
+        "generator": "src/clinical_deid/data/v12/development.py", "generator_sha256": generator_hash,
         "author_declaration": "data/v12_validation.author_declaration.json",
         "author_declaration_sha256": hashlib.sha256(declaration_path.read_bytes()).hexdigest(),
         "predeclaration_sha256": hashlib.sha256(predeclaration_bytes).hexdigest(),

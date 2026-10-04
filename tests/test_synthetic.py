@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from clinical_deid.synthetic import (
+from clinical_deid.data.generators.base import (
     MarkedValue,
     TRAIN_TEMPLATES,
     VALIDATION_TEMPLATES,

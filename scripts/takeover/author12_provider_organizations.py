@@ -270,12 +270,12 @@ def load_function_module(path, name):
 
 def load_windows():
     # Compile only the pure window function; never import inference machinery.
-    source = (ROOT / "src/clinical_deid/hf_encoder.py").read_text()
+    source = (ROOT / "src/clinical_deid/detection/hf_encoder.py").read_text()
     parsed = ast.parse(source)
     functions = [n for n in parsed.body if isinstance(n, ast.FunctionDef) and n.name == "window_jobs"]
     assert len(functions) == 1
     namespace = {}
-    exec(compile(ast.Module(body=functions, type_ignores=[]), str(ROOT / "src/clinical_deid/hf_encoder.py"), "exec"), namespace)
+    exec(compile(ast.Module(body=functions, type_ignores=[]), str(ROOT / "src/clinical_deid/detection/hf_encoder.py"), "exec"), namespace)
     return namespace["window_jobs"]
 
 def main():

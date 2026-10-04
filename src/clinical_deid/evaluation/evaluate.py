@@ -7,7 +7,6 @@ before loading a detector and separates model-only from hybrid results.
 from __future__ import annotations
 
 import argparse
-import ast
 from collections import Counter
 import hashlib
 import json
@@ -16,7 +15,7 @@ from pathlib import Path
 import time
 from typing import Any, Callable, Iterable
 
-from .types import ENTITY_TYPES, Span
+from clinical_deid.types import ENTITY_TYPES, Span
 
 
 def _ratio(numerator: int, denominator: int) -> float:
@@ -240,22 +239,9 @@ def model_manifest(path: str | Path) -> dict[str, str]:
 
 def detector_source_manifest() -> dict[str, str]:
     """Pin transitive package-local detector helpers as well as entry points."""
-    directory = Path(__file__).parent
-    pending = [directory / name for name in ("model.py", "rules.py", "types.py")]
-    result = {}
-    while pending:
-        path = pending.pop()
-        name = str(path.relative_to(directory))
-        if name in result:
-            continue
-        payload = path.read_bytes()
-        result[name] = hashlib.sha256(payload).hexdigest()
-        for node in ast.walk(ast.parse(payload.decode("utf-8"))):
-            if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module:
-                dependency = directory / (node.module.replace(".", "/") + ".py")
-                if dependency.is_file():
-                    pending.append(dependency)
-    return dict(sorted(result.items()))
+    from clinical_deid.paths import source_manifest
+
+    return source_manifest("detection/adapter.py", "detection/rules.py", "types.py")
 
 
 def main() -> None:
@@ -271,7 +257,7 @@ def main() -> None:
     rows, manifest = load_verified_corpus(args.data)
     before = model_manifest(args.model_dir)
     source_before = detector_source_manifest()
-    from .model import Detector
+    from clinical_deid.detection.adapter import Detector
     detector = Detector(args.model_dir, backend=args.backend, device=args.device, batch_size=args.batch_size)
     result = evaluate(rows, detector, backend=args.backend, max_failures=args.max_failures, batch_size=args.batch_size)
     after = model_manifest(args.model_dir)

@@ -4,10 +4,10 @@ torch = pytest.importorskip("torch")
 transformers = pytest.importorskip("transformers")
 tokenizers = pytest.importorskip("tokenizers")
 
-from clinical_deid.hf_encoder import (  # noqa: E402
+from clinical_deid.detection.hf_encoder import (  # noqa: E402
     ENCODER_KIND, HFTokenDetector, refine_boundaries, special_layout, window_jobs,
 )
-from clinical_deid.model import TAGS  # noqa: E402
+from clinical_deid.detection.adapter import TAGS  # noqa: E402
 from clinical_deid.types import Span  # noqa: E402
 
 
@@ -87,7 +87,7 @@ def test_emissions_cover_long_documents_across_windows():
 
 
 def test_trim_merged_punctuation_balances_parentheses_and_periods():
-    from clinical_deid.hf_encoder import trim_merged_punctuation
+    from clinical_deid.detection.hf_encoder import trim_merged_punctuation
 
     text = "call ((717) 555-0185) or (+1 509 555 0126) and Samira O.. Next (617) 555-0101"
     a = text.index("((")
@@ -101,7 +101,7 @@ def test_trim_merged_punctuation_balances_parentheses_and_periods():
 
 
 def test_apply_label_modes_prefers_raw_for_selected_labels():
-    from clinical_deid.hf_encoder import apply_label_modes
+    from clinical_deid.detection.hf_encoder import apply_label_modes
 
     raw = [(0, 5, "NAME"), (10, 20, "FACILITY")]
     hybrid = [(0, 9, "NAME"), (10, 14, "FACILITY"), (15, 20, "LOCATION"), (30, 40, "DATE")]
@@ -124,7 +124,7 @@ def test_invalid_batch_size_rejected(batch_size):
 
 def test_model_root_errors_are_clear_and_publication_fails_closed(tmp_path):
     import json
-    from clinical_deid.hf_encoder import load_detector
+    from clinical_deid.detection.hf_encoder import load_detector
 
     (tmp_path / "config.json").write_text(json.dumps({"model_type": "modernbert"}))
     with pytest.raises(ValueError, match="nested Hugging Face"):

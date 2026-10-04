@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from clinical_deid.annotation_policy import POLICY_FIXTURES
+from clinical_deid.data.annotation_policy import POLICY_FIXTURES
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/takeover/normalize_facility_at.py"

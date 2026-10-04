@@ -11,8 +11,8 @@ import unicodedata
 import pytest
 import tiktoken
 
-from clinical_deid import nominal_alias_synthetic as generator
-from clinical_deid.evaluate import load_verified_corpus
+from clinical_deid.data.generators import nominal_alias as generator
+from clinical_deid.evaluation.evaluate import load_verified_corpus
 
 
 @pytest.fixture(scope="module")

@@ -25,8 +25,8 @@ POLICY = "clinical-phi-v2"
 LABELS = ("NAME", "DATE", "ADDRESS", "PHONE", "EMAIL", "MRN", "SSN", "ACCOUNT", "ID", "URL", "IP", "AGE", "LOCATION", "FACILITY")
 MODEL = ROOT / "models/takeover-mbbase-mix3-001/step-003081"
 REFERENCE_PATHS = [
-    "docs/annotation-policy-v2.md", "src/clinical_deid/annotation_policy.py",
-    "src/clinical_deid/types.py", "src/clinical_deid/hf_encoder.py",
+    "docs/annotation-policy-v2.md", "src/clinical_deid/data/annotation_policy.py",
+    "src/clinical_deid/types.py", "src/clinical_deid/detection/hf_encoder.py",
     "scripts/takeover/normalize_conventions.py", "scripts/takeover/normalize_date_intervals.py",
     "models/takeover-mbbase-mix3-001/step-003081/hf/tokenizer.json",
     "models/takeover-mbbase-mix3-001/step-003081/hf/tokenizer_config.json",
@@ -342,7 +342,7 @@ def load_allowed_module(relative, module_name):
 
 
 def load_window_jobs():
-    path = ROOT / "src/clinical_deid/hf_encoder.py"
+    path = ROOT / "src/clinical_deid/detection/hf_encoder.py"
     tree = ast.parse(path.read_text())
     function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "window_jobs")
     namespace = {}

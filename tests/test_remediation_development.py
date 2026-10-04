@@ -6,8 +6,8 @@ import json
 import pytest
 import tiktoken
 
-from clinical_deid.evaluate import load_verified_corpus
-from clinical_deid.remediation_development import (
+from clinical_deid.evaluation.evaluate import load_verified_corpus
+from clinical_deid.data.generators.remediation_development import (
     ENTITY_TYPES, POLICY, _Text, _negative, _short_positive, build_rows, generate_corpus, identity_group,
 )
 

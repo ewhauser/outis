@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from clinical_deid.challenge import FRAGMENTS, SCENARIOS, generate, unmark, write_corpus
-from clinical_deid.evaluate import evaluate, load_verified_corpus, wilson_lower
+from clinical_deid.data.challenge import FRAGMENTS, SCENARIOS, generate, unmark, write_corpus
+from clinical_deid.evaluation.evaluate import evaluate, load_verified_corpus, wilson_lower
 from clinical_deid.types import ENTITY_TYPES, Span
 
 
@@ -112,21 +112,23 @@ def test_duplicate_corpus_identifiers_are_rejected():
     with pytest.raises(ValueError, match="Duplicate corpus"):
         evaluate([row(), row()], lambda text: [])
 def test_detector_source_manifest_includes_changed_transitive_helpers(tmp_path, monkeypatch):
-    import clinical_deid.evaluate as evaluation
+    import clinical_deid.evaluation.evaluate as evaluation
+    import clinical_deid.paths as paths
 
     for name, text in {
-        "model.py": "from .types import Span\n",
-        "rules.py": "from .helper import refine\n",
-        "helper.py": "from .types import Span\ndef refine(): pass\n",
+        "detection/adapter.py": "from clinical_deid.types import Span\n",
+        "detection/rules.py": "from clinical_deid.detection.helper import refine\n",
+        "detection/helper.py": "from clinical_deid.types import Span\ndef refine(): pass\n",
         "types.py": "class Span: pass\n",
     }.items():
+        (tmp_path / name).parent.mkdir(exist_ok=True)
         (tmp_path / name).write_text(text)
-    monkeypatch.setattr(evaluation, "__file__", str(tmp_path / "evaluate.py"))
+    monkeypatch.setattr(paths, "PACKAGE_ROOT", tmp_path)
     before = evaluation.detector_source_manifest()
-    assert set(before) == {"model.py", "rules.py", "helper.py", "types.py"}
-    (tmp_path / "helper.py").write_text("def refine(): return 1\n")
+    assert set(before) == {"detection/adapter.py", "detection/rules.py", "detection/helper.py", "types.py"}
+    (tmp_path / "detection/helper.py").write_text("def refine(): return 1\n")
     after = evaluation.detector_source_manifest()
-    assert before["helper.py"] != after["helper.py"]
+    assert before["detection/helper.py"] != after["detection/helper.py"]
 
 
 def test_phi_bearing_document_metric_excludes_automatically_safe_negatives():

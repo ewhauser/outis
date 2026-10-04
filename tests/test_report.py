@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.report import ReportError, build_report, load_report
+from clinical_deid.evaluation.report import ReportError, build_report, load_report
 
 
 ADAPTER = "a" * 64

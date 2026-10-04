@@ -16,7 +16,7 @@ import re
 import tempfile
 from typing import Any
 
-from .report_html import render_report
+from clinical_deid.evaluation.report_html import render_report
 
 
 LABELS = frozenset(

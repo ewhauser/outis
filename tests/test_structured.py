@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from clinical_deid.structured import process_structured
+from clinical_deid.formats.structured import process_structured
 
 
 class StubService:

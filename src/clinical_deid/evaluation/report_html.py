@@ -11,7 +11,7 @@ import json
 import math
 from typing import Any
 
-from .report_progress import benchmark_progress
+from clinical_deid.evaluation.report_progress import benchmark_progress
 
 
 def _text(value: Any, fallback: str = "Unavailable") -> str:

@@ -6,7 +6,7 @@ span boundaries from the [evaluation protocol](../reports/evaluation_protocol.md
 It does not establish clinical accuracy, clinical truth, or legal compliance.
 
 The executable contract and exact character-offset examples are
-[`annotation_policy.py`](../src/clinical_deid/annotation_policy.py). The original
+[`annotation_policy.py`](../src/clinical_deid/data/annotation_policy.py). The original
 corpora, annotations, generators, checkpoints, manifests and reports remain
 historical evidence. Legacy generators are superseded for new remediation
 training, but retained to reproduce their original artifacts. Corrected labels

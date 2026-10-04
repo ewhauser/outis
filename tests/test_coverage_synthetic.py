@@ -2,8 +2,8 @@ import hashlib
 import json
 import re
 
-from clinical_deid.coverage_synthetic import CARE_SUFFIXES, FRAMES, ROLE_RELATIONSHIPS, VOCAB, generate_rows, write_dataset
-from clinical_deid.synthetic import validate_row
+from clinical_deid.data.generators.coverage import CARE_SUFFIXES, FRAMES, ROLE_RELATIONSHIPS, VOCAB, generate_rows, write_dataset
+from clinical_deid.data.generators.base import validate_row
 from clinical_deid.types import ENTITY_TYPES
 
 

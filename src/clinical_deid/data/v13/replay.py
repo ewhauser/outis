@@ -12,9 +12,10 @@ import json
 from pathlib import Path
 import re
 import unicodedata
+from clinical_deid.paths import PROJECT_ROOT
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = PROJECT_ROOT
 SOURCE = ROOT / "data/v12_train.jsonl"
 SOURCE_MANIFEST = ROOT / "data/v12_train.jsonl.manifest.json"
 SOURCE_SHA = "b6487cbefd57e912680002e67c86526b7e4b3f4dfa97e897917107d2e54d64e0"

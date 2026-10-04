@@ -11,8 +11,8 @@ import unicodedata
 import pytest
 import tiktoken
 
-from clinical_deid import name_contrastive_synthetic as generator
-from clinical_deid.evaluate import load_verified_corpus
+from clinical_deid.data.generators import name_contrastive as generator
+from clinical_deid.evaluation.evaluate import load_verified_corpus
 from clinical_deid.types import ENTITY_TYPES
 
 

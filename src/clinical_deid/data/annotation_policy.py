@@ -10,7 +10,7 @@ import hashlib
 import re
 import unicodedata
 
-from .types import ENTITY_TYPES
+from clinical_deid.types import ENTITY_TYPES
 
 
 POLICY_VERSION = "clinical-phi-v2"

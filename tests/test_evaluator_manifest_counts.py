@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-import clinical_deid.evaluate as evaluation
+import clinical_deid.evaluation.evaluate as evaluation
 from clinical_deid.types import ENTITY_TYPES
 
 

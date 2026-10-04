@@ -23,7 +23,7 @@ from pathlib import Path
 
 import tiktoken
 
-from .synthetic import MarkedValue, render_marked, validate_row
+from clinical_deid.data.generators.base import MarkedValue, render_marked, validate_row
 
 CONSONANTS = "bcdfghjklmnprstvwyz"
 VOWELS = "aeiou"
@@ -412,8 +412,8 @@ def generate_rows(count=4000, *, split="train", seed=630429):
 def _token_statistics(row, encoding):
     # Use the production offset and BIOES alignment functions. This only runs
     # local tokenization; no encoder weights or GPU computation are loaded.
-    from .model import TAGS, tokenize
-    from .train import align_labels
+    from clinical_deid.detection.adapter import TAGS, tokenize
+    from clinical_deid.training.train import align_labels
 
     ids, offsets = tokenize(row["text"], encoding)
     tags = Counter(TAGS[index] for index in align_labels(row, offsets))
@@ -454,7 +454,7 @@ def write_dataset(output="data", train_count=4000, val_count=1000, seed=630429):
     if overlaps or family_sets["train"] & family_sets["validation"]:
         raise ValueError("Training and development narrative identities or families overlap")
     manifest = {
-        "schema_version": 1, "generator": "clinical_deid.narrative_synthetic", "seed": seed,
+        "schema_version": 1, "generator": "clinical_deid.data.generators.narrative", "seed": seed,
         "license": "CC0-1.0", "generator_code_license": "Apache-2.0", "offset_unit": "unicode_code_points",
         "provenance": {"source": "Locally authored clinical narratives and procedural fictitious identities.",
                        "external_datasets": False, "external_patient_records": False,

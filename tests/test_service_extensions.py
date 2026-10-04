@@ -9,8 +9,8 @@ import pytest
 from clinical_deid.entities import Entity
 from clinical_deid.policy import DetectionPolicy
 from clinical_deid.service import Deidentifier
-from clinical_deid.structured import process_structured
-from clinical_deid.transform import ReplacementOptions, reidentify
+from clinical_deid.formats.structured import process_structured
+from clinical_deid.replacement.transform import ReplacementOptions, reidentify
 from clinical_deid.types import ENTITY_TYPES, Span
 
 
@@ -312,7 +312,7 @@ def test_explicit_empty_replacement_uses_configured_defaults(service):
 
 
 def test_shared_segments_prepare_full_context_only_once(service, monkeypatch):
-    import clinical_deid.transform as transform
+    import clinical_deid.replacement.transform as transform
     prepare = transform.prepare_context
     calls = []
 

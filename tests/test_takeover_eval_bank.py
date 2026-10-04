@@ -8,7 +8,8 @@ import sys
 
 import pytest
 
-from clinical_deid import hf_encoder, rules
+from clinical_deid.detection import hf_encoder
+from clinical_deid.detection import rules
 from clinical_deid.types import ENTITY_TYPES, Span
 
 

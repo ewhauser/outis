@@ -3,7 +3,7 @@
 from copy import deepcopy
 import unittest
 
-from clinical_deid.report_html import _timing
+from clinical_deid.evaluation.report_html import _timing
 
 
 COMPLETE_NOTE = (

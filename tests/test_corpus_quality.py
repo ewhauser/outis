@@ -8,8 +8,8 @@ import sys
 
 import pytest
 
-from clinical_deid.annotation_policy import POLICY_VERSION, canonical_identity_group, identity_split
-from clinical_deid.corpus_quality import ProtectedCorpusError, audit_corpora, read_development_bytes
+from clinical_deid.data.annotation_policy import POLICY_VERSION, canonical_identity_group, identity_split
+from clinical_deid.data.corpus_quality import ProtectedCorpusError, audit_corpora, read_development_bytes
 
 
 def row(identifier="one", role="train", *, negative=False, name=None):
@@ -195,7 +195,7 @@ def test_malformed_empty_and_non_utf8_corpora_fail(tmp_path):
 
 
 def test_manifest_preflight_rejects_hidden_protected_corpus_before_payload_read(tmp_path, monkeypatch):
-    import clinical_deid.corpus_quality as module
+    import clinical_deid.data.corpus_quality as module
     path = write(tmp_path / "development.jsonl", [row()])
     manifest(path, suite="final", independent_final=True)
     original = module._read_scoped_bytes
@@ -208,7 +208,7 @@ def test_manifest_preflight_rejects_hidden_protected_corpus_before_payload_read(
 
 
 def test_all_manifests_preflight_before_any_payload_and_hash_mismatch_fails(tmp_path, monkeypatch):
-    import clinical_deid.corpus_quality as module
+    import clinical_deid.data.corpus_quality as module
     train = write(tmp_path / "training.jsonl", [row()])
     development = write(tmp_path / "development.jsonl", [row("two", "validation")])
     manifest(development, "validation", independent_final=True)

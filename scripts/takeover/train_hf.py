@@ -33,11 +33,11 @@ os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(ROOT / ".cache" / "tiktoken"))
 
 import torch  # noqa: E402
 
-from clinical_deid.annotation_policy import POLICY_VERSION  # noqa: E402
-from clinical_deid.evaluate import evaluate, load_verified_corpus  # noqa: E402
-from clinical_deid.hf_encoder import (ENCODER_KIND, LEADING_SEPARATORS, TRAILING_SEPARATORS, HFTokenDetector,  # noqa: E402
+from clinical_deid.data.annotation_policy import POLICY_VERSION  # noqa: E402
+from clinical_deid.evaluation.evaluate import evaluate, load_verified_corpus  # noqa: E402
+from clinical_deid.detection.hf_encoder import (ENCODER_KIND, LEADING_SEPARATORS, TRAILING_SEPARATORS, HFTokenDetector,  # noqa: E402
                                       encode_text, special_layout, trim_merged_punctuation, window_jobs)
-from clinical_deid.model import TAGS  # noqa: E402
+from clinical_deid.detection.adapter import TAGS  # noqa: E402
 from clinical_deid.types import ENTITY_TYPES  # noqa: E402
 
 TAG_INDEX = {tag: i for i, tag in enumerate(TAGS)}
@@ -302,7 +302,7 @@ class Precomputed:
 
 
 def evaluate_banks(model, tokenizer, config, banks, device, eval_batch):
-    from clinical_deid.rules import augment
+    from clinical_deid.detection.rules import augment
 
     model.eval()
     detector = HFTokenDetector(None, backend="model", device=device, batch_size=eval_batch,

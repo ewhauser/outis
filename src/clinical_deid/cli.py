@@ -29,7 +29,7 @@ def main():
             "clinical_deid.api:app", host=args.host, port=args.port, access_log=False
         )
         return
-    from .service import Deidentifier
+    from clinical_deid.service import Deidentifier
 
     text = args.input.read_text(encoding="utf-8") if args.input else sys.stdin.read()
     deid = Deidentifier(

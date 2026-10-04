@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import date
 import re
 
-from .entities import checked_entities
+from clinical_deid.entities import checked_entities
 
 ANALYSIS_VERSION = "1"
 SUPPORTED_LOCALES = ("en-US", "en-GB")

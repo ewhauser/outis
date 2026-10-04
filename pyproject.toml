@@ -63,5 +63,5 @@ select = ["E4", "E7", "E9", "F"]
 [tool.ruff.lint.per-file-ignores]
 # Preserve the source bytes pinned by the immutable v12 and v13 training manifests.
 # This exception covers statement layout only; all other checks still apply.
-"src/clinical_deid/v12_synthetic.py" = ["E702"]
-"src/clinical_deid/v13_synthetic.py" = ["E702", "F401"]
+"src/clinical_deid/data/v12/synthetic.py" = ["E702"]
+"src/clinical_deid/data/v13/synthetic.py" = ["E702", "F401"]

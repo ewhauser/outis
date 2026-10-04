@@ -15,9 +15,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from .policy import DetectionPolicy
-from .service import Deidentifier
-from .transform import ReidentifyRequest, ReplacementOptions
+from clinical_deid.policy import DetectionPolicy
+from clinical_deid.service import Deidentifier
+from clinical_deid.replacement.transform import ReidentifyRequest, ReplacementOptions
 
 MAX_REQUEST_BYTES = 16 * 1024 * 1024
 _FAILURE = "Deidentification failed; no output released"
@@ -386,7 +386,7 @@ def create_app(service=None, *, api_key=None):
     @app.get("/ready", dependencies=[Depends(authorize)])
     def ready(request: Request):
         instance = request.app.state.service
-        from .replacement import _validated_secret
+        from clinical_deid.replacement.surrogates import _validated_secret
         try:
             _validated_secret(instance.secret)
             synthetic_enabled = True
@@ -396,7 +396,7 @@ def create_app(service=None, *, api_key=None):
 
     def single(instance, operation, payload):
         if operation == "reidentify":
-            from .transform import reidentify
+            from clinical_deid.replacement.transform import reidentify
             return _validated_result(ReidentifyResponse, reidentify(**_payload(payload)))
         model = {"deidentify": DeidentifyResponse, "detect": DetectResponse, "analyze": AnalyzeResponse}[operation]
         return _validated_result(model, getattr(instance, operation)(**_payload(payload)))
@@ -435,18 +435,18 @@ def create_app(service=None, *, api_key=None):
     # Omit optional defaults while retaining a required data:null response.
     @app.post("/v1/structured", response_model=StructuredResponse, response_model_exclude_defaults=True, dependencies=[Depends(authorize)])
     def structured(payload: StructuredRequest, request: Request):
-        from .structured import process_structured
+        from clinical_deid.formats.structured import process_structured
         return _safe_call(lambda: _validated_result(StructuredResponse, process_structured(request.app.state.service, **_payload(payload))))
 
     @app.post("/v1/files", response_model=FileResponse, response_model_exclude_none=True, dependencies=[Depends(authorize)])
     def files(payload: FileRequest, request: Request):
-        from .files import process_file
+        from clinical_deid.formats.files import process_file
         return _safe_call(lambda: _validated_result(FileResponse, process_file(request.app.state.service, **_payload(payload))))
 
     @app.get("/v1/policies", dependencies=[Depends(authorize)])
     def policies():
-        from .policy import POLICY_VERSION, EXTENDED_TYPES, MEDICAL_TYPES
-        from .types import ENTITY_TYPES
+        from clinical_deid.policy import POLICY_VERSION, EXTENDED_TYPES, MEDICAL_TYPES
+        from clinical_deid.types import ENTITY_TYPES
         return {"version": POLICY_VERSION, "profiles": ["clinical_default", "identifiers_only", "extended"], "entity_types": list(ENTITY_TYPES), "extended_types": list(EXTENDED_TYPES), "medical_types": list(MEDICAL_TYPES), "language_scope": ["en"], "limits": {"text_characters": 100_000, "batch_items": 16, "request_bytes": MAX_REQUEST_BYTES, "custom_entities": 32}}
 
     @app.get("/v1/usage", dependencies=[Depends(authorize)])
@@ -468,7 +468,7 @@ def create_app(service=None, *, api_key=None):
 
     @app.get("/diagnostics", dependencies=[Depends(authorize)])
     def diagnostics(request: Request):
-        from .operations import diagnostics as diagnose
+        from clinical_deid.operations import diagnostics as diagnose
         def result():
             value = diagnose(request.app.state.service)
             _plain_json(value)

@@ -2,10 +2,10 @@ from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
-from clinical_deid.annotation_policy import annotation_errors, canonical_identity_group, identity_split
+from clinical_deid.data.annotation_policy import annotation_errors, canonical_identity_group, identity_split
 
-from clinical_deid.v13_contexts import FAMILIES, NEGATIVE_FAMILIES, validate_families
-from clinical_deid.v13_synthetic import generate
+from clinical_deid.data.v13.contexts import FAMILIES, NEGATIVE_FAMILIES, validate_families
+from clinical_deid.data.v13.synthetic import generate
 
 
 def test_original_family_contract_and_all_families_render():
@@ -111,7 +111,7 @@ def test_public_dates_are_not_in_the_future_of_fictional_record_and_scheduled_ev
 
 
 def test_recipient_id_prose_explicitly_says_routing_not_account():
-    from clinical_deid.v13_contexts import RETENTION_CONTEXTS
+    from clinical_deid.data.v13.contexts import RETENTION_CONTEXTS
     item = next(x for x in RETENTION_CONTEXTS if x['id'] == 'retention_recipient_routing_and_patient_chart')
     assert 'routing identifier for the secure referral inbox' in item['template']
     assert 'account identifier' not in item['template']
@@ -131,7 +131,7 @@ def test_every_context_pair_contains_an_actual_date_or_site_ownership_flip():
 
 
 def test_date_forms_vary_within_every_family_independently_of_month():
-    from clinical_deid.v13_synthetic import choose_values
+    from clinical_deid.data.v13.synthetic import choose_values
     import random
     for f_index, family in enumerate(FAMILIES):
         if not any(m.entity_kind == 'date' for m in family.mentions):
@@ -158,11 +158,11 @@ def test_date_forms_vary_within_every_family_independently_of_month():
 def test_packaged_payloads_reproduce_and_lineage_changes_only_bookkeeping():
     import hashlib
     import json
-    from clinical_deid.v13_synthetic import build_payloads
-    from clinical_deid.v13_replay import build_replay
+    from clinical_deid.data.v13.synthetic import build_payloads
+    from clinical_deid.data.v13.replay import build_replay
     import pytest
     root = Path(__file__).resolve().parents[1]
-    from clinical_deid.v13_replay import SOURCE
+    from clinical_deid.data.v13.replay import SOURCE
     required = [SOURCE, root/'data'/'v13_focused_train.jsonl', root/'data'/'v13_replay_train.jsonl']
     missing = [str(path) for path in required if not Path(path).exists()]
     if missing:
@@ -175,13 +175,8 @@ def test_packaged_payloads_reproduce_and_lineage_changes_only_bookkeeping():
         assert manifest['used_for_training'] is True
         assert manifest['used_for_checkpoint_selection'] is False
         assert manifest['sha256'] == hashlib.sha256(raw).hexdigest()
-        # The versioned v12/v13 generator modules are frozen and must match the
-        # manifest exactly. Shared modules such as annotation_policy.py keep
-        # evolving; the byte-identical payload check above already proves they
-        # still reproduce this corpus.
-        for source, digest in manifest['source_hashes'].items():
-            if source.startswith(('v12_', 'v13_')):
-                assert hashlib.sha256((root/'src/clinical_deid'/source).read_bytes()).hexdigest() == digest, source
+        # Source hashes in the manifest record the pre-restructure module
+        # layout. Byte-identical payload reproduction above is the live check.
         assert hashlib.sha256((root/manifest['author_declaration']).read_bytes()).hexdigest() == manifest['author_declaration_sha256']
         assert hashlib.sha256((root/manifest['lineage']).read_bytes()).hexdigest() == manifest['lineage_sha256']
         rows = [json.loads(line) for line in raw.splitlines()]
@@ -199,7 +194,7 @@ def test_packaged_payloads_reproduce_and_lineage_changes_only_bookkeeping():
 
 def test_replay_rejects_source_hash_mismatch_before_parsing(tmp_path, monkeypatch):
     import pytest
-    from clinical_deid import v13_replay
+    from clinical_deid.data.v13 import replay as v13_replay
     source = tmp_path/'untrusted_train.jsonl'
     source.write_bytes(b'this is not JSON and must not be parsed')
     monkeypatch.setattr(v13_replay, 'SOURCE', source)

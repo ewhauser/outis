@@ -8,9 +8,9 @@ from pathlib import Path
 import re
 from threading import Lock
 
-from .entities import checked_entities
-from .operations import Usage
-from .replacement import replace, _validated_secret
+from clinical_deid.entities import checked_entities
+from clinical_deid.operations import Usage
+from clinical_deid.replacement.surrogates import replace, _validated_secret
 
 
 def _model_version(model_dir, detector):
@@ -37,7 +37,7 @@ class Deidentifier:
     def __init__(self, model_dir="models/clinical-adapter", *, secret=None,
                  device="auto", backend="hybrid", detector=None, base_dir=None):
         if detector is None:
-            from .hf_encoder import load_detector
+            from clinical_deid.detection.hf_encoder import load_detector
             detector = load_detector(model_dir, device=device, backend=backend, base_dir=base_dir)
         self.detector = detector
         self.secret = secret
@@ -46,8 +46,8 @@ class Deidentifier:
         self.version = _model_version(model_dir, detector)
 
     def _requests(self, requests, *, detect=False, limit=16):
-        from .policy import KNOWN_LABELS, validate_policy
-        from .transform import ReplacementOptions
+        from clinical_deid.policy import KNOWN_LABELS, validate_policy
+        from clinical_deid.replacement.transform import ReplacementOptions
         if not isinstance(requests, (list, tuple)) or not 1 <= len(requests) <= limit:
             raise ValueError("Invalid batch size")
         normalized = []
@@ -126,8 +126,8 @@ class Deidentifier:
         return predictions
 
     def _detect(self, requests, *, link_batch=False, shared_entities=False):
-        from .policy import apply_policy
-        from .transform import link_entities
+        from clinical_deid.policy import apply_policy
+        from clinical_deid.replacement.transform import link_entities
         if type(link_batch) is not bool or type(shared_entities) is not bool:
             raise ValueError("Invalid context options")
         texts = [req["text"] for req in requests]
@@ -188,7 +188,7 @@ class Deidentifier:
         return self.detect_batch([{"text": text, "policy": policy, "project_id": project_id}])[0]
 
     def detect_batch(self, requests, *, link_batch=False, shared_entities=False):
-        from .policy import policy_metadata
+        from clinical_deid.policy import policy_metadata
         requests = self._requests(requests, detect=True)
         with self.usage.track([r["project_id"] for r in requests], [len(r["text"]) for r in requests], "detect"):
             predictions, _, _ = self._detect(requests, link_batch=link_batch, shared_entities=shared_entities)
@@ -212,8 +212,8 @@ class Deidentifier:
         return self._process(requests, link_batch=link_batch, shared_entities=shared_entities, limit=4096)
 
     def _process(self, requests, *, link_batch, shared_entities, limit):
-        from .policy import policy_metadata
-        from .transform import prepare_context, render, reidentify
+        from clinical_deid.policy import policy_metadata
+        from clinical_deid.replacement.transform import prepare_context, render, reidentify
         requests = self._requests(requests, limit=limit)
         with self.usage.track([r["project_id"] for r in requests], [len(r["text"]) for r in requests], "deidentify"):
             predictions, context, context_spans = self._detect(requests, link_batch=link_batch, shared_entities=shared_entities)
@@ -261,8 +261,8 @@ class Deidentifier:
             return results
 
     def analyze(self, text, *, policy=None, project_id="main", locale="en-US", include_sensitive=False):
-        from .analysis import analyze_entities
-        from .policy import policy_metadata
+        from clinical_deid.analysis import analyze_entities
+        from clinical_deid.policy import policy_metadata
         if locale not in {"en-US", "en-GB"} or type(include_sensitive) is not bool:
             raise ValueError("Invalid analysis options")
         requests = self._requests([{"text": text, "policy": policy, "project_id": project_id}], detect=True)

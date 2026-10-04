@@ -6,10 +6,10 @@ import re
 import pytest
 
 from clinical_deid.entities import Entity
-from clinical_deid.replacement import replace
-from clinical_deid.replacement_identity import nickname_bindings
+from clinical_deid.replacement.surrogates import replace
+from clinical_deid.replacement.nicknames import nickname_bindings
 from clinical_deid.service import Deidentifier
-from clinical_deid.transform import link_entities, prepare_context, reidentify, render
+from clinical_deid.replacement.transform import link_entities, prepare_context, reidentify, render
 
 SECRET = b"candidate-nickname-regression-secret-at-least-32-bytes"
 PATIENT = "invented-patient"
@@ -248,7 +248,7 @@ def test_nickname_equal_to_owner_synthetic_first_uses_safe_family_name(extended)
 @pytest.mark.parametrize("first,last", [("Reese", "Reese"), ("Robin Reese", "Reese Fern"),
                                         ("Reese", "")])
 def test_pathological_given_and_family_collision_redacts_with_warning(monkeypatch, extended, first, last):
-    import clinical_deid.replacement as replacement_module
+    import clinical_deid.replacement.surrogates as replacement_module
 
     monkeypatch.setattr(replacement_module, "_fictional_name", lambda *_: (first, last))
     text, spans = marked(DECLARATION.replace("Pip", "Reese"))
@@ -263,7 +263,7 @@ def test_pathological_given_and_family_collision_redacts_with_warning(monkeypatc
 @pytest.mark.parametrize("nickname", ["Reese", "REESE", "Ｒｅｅｓｅ"])
 @pytest.mark.parametrize("extended", [False, True])
 def test_contained_normalized_nickname_token_uses_family_alias(monkeypatch, nickname, extended):
-    import clinical_deid.replacement as replacement_module
+    import clinical_deid.replacement.surrogates as replacement_module
 
     monkeypatch.setattr(replacement_module, "_fictional_name", lambda *_: ("Robin Reese", "Fern"))
     text, spans = marked(DECLARATION.replace("Pip", nickname))
@@ -294,7 +294,7 @@ def test_http_synthetic_response_uses_same_proof_for_ids_and_rendering():
 
 
 def test_structured_shared_fields_preserve_occurrence_offsets_and_nulls():
-    from clinical_deid.structured import process_structured
+    from clinical_deid.formats.structured import process_structured
 
     notes = [marked(DECLARATION), marked("The nurse asked {{NAME|Pip}} to choose the next activity.")]
     service = Deidentifier(detector=Injected([("first", []), notes[0], ("second", []), notes[1],

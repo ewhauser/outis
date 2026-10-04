@@ -41,6 +41,29 @@ explicit path, list them in the cleanup manifests, and never commit sealed or
 blind qualification banks. `scripts/check_data_tracking.py` enforces this in
 CI.
 
+## Code layout
+
+```
+src/clinical_deid/
+  service.py, api.py, cli.py   Deidentifier facade, HTTP API and CLI
+  policy.py, entities.py, types.py, analysis.py, operations.py
+  detection/                   adapter model, hf_encoder, structural rules
+    context/                   context guards (names, dates, records, places, …)
+  replacement/                 surrogates, nickname identities, transforms
+  formats/                     structured data and native files
+  data/                        annotation policy, corpus checks, generators
+    generators/  v12/  v13/
+  training/                    adapter training
+  evaluation/                  metrics and HTML reports
+```
+
+Runtime code (`detection`, `replacement`, `formats` and the top-level
+modules) must not import from `data`, `training` or `evaluation`.
+
+Scripts under `reports/` and `experiments/` are frozen records of past runs.
+They import the module layout that existed when they ran, so run them from
+the commit that produced them.
+
 ## Pull requests
 
 - Keep each PR focused, and describe the behaviour change and how you
@@ -51,10 +74,6 @@ CI.
   development bank, and say which bank. Never tune on a sealed qualification
   bank.
 - Add user-visible changes under `Unreleased` in [CHANGELOG.md](CHANGELOG.md).
-- Do not edit files whose hashes are pinned by a frozen manifest, such as
-  `src/clinical_deid/v12_synthetic.py` and `v13_synthetic.py`. Changing them
-  breaks reproduction of the recorded corpora.
-
 ## Training and evaluation work
 
 See [training](docs/training.md) and the

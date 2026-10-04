@@ -14,8 +14,8 @@ from typing import Literal
 import regex
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .entities import Entity
-from .types import ENTITY_TYPES
+from clinical_deid.entities import Entity
+from clinical_deid.types import ENTITY_TYPES
 
 POLICY_VERSION = "1"
 MAX_POLICY_TEXT = 1_000_000

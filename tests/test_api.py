@@ -60,7 +60,7 @@ def test_python_redaction_and_http_response_schema(service):
 @pytest.mark.parametrize("separator", ["\t", "\u00a0\t\u2009", "\u2009\t\u00a0"])
 @pytest.mark.parametrize("endpoint", ["whole_email", "first_char", "after_at"])
 def test_http_contact_primitives_survive_ner_extension_overlap(phone, email, mode, separator, endpoint):
-    from clinical_deid.rules import augment
+    from clinical_deid.detection.rules import augment
 
     text = f"Telecare details\n{phone}{separator}{email}\nGlucose 109 mg/dL; metformin 500 mg."
     phone_start = text.index(phone)

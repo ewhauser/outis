@@ -9,10 +9,10 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from clinical_deid.annotation_policy import annotation_errors, identity_split
-from clinical_deid.corpus_quality import audit_corpora
+from clinical_deid.data.annotation_policy import annotation_errors, identity_split
+from clinical_deid.data.corpus_quality import audit_corpora
 from clinical_deid.types import ENTITY_TYPES
-from clinical_deid.v12_development import (
+from clinical_deid.data.v12.development import (
     CACHE_FILE, CACHE_SHA256, LONG_PASSAGES, Case, build_rows,
     identity_pool, local_tokenizer, mark, render, token_span_positions, write_bank,
 )

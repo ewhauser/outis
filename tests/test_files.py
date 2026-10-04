@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from clinical_deid.files import A, C, MIME_TYPES, P, R, S, W, process_file
+from clinical_deid.formats.files import A, C, MIME_TYPES, P, R, S, W, process_file
 
 
 class StubService:
@@ -264,7 +264,7 @@ def test_deep_office_xml_rejected():
 
 
 def test_pdf_compressed_content_is_bounded_before_extraction():
-    from clinical_deid.files import MAX_ZIP_BYTES
+    from clinical_deid.formats.files import MAX_ZIP_BYTES
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import DecodedStreamObject, NameObject
     writer = PdfWriter()

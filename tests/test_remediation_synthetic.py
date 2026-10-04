@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from clinical_deid import remediation_synthetic as generator
+from clinical_deid.data.generators import remediation as generator
 from clinical_deid.types import ENTITY_TYPES
 
 
@@ -201,7 +201,7 @@ def test_natural_long_notes_are_separate_from_join_alignment(target):
 
 
 def test_immutable_writer_is_loader_compatible_and_refuses_existing_artifacts(tmp_path):
-    from clinical_deid.evaluate import load_verified_corpus
+    from clinical_deid.evaluation.evaluate import load_verified_corpus
 
     rows = generator.build_corpus(short_count=30, long_count=0)
     path = tmp_path / "train.jsonl"

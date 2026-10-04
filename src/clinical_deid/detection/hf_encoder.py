@@ -2,8 +2,8 @@
 
 The encoder emits one score per BIOES tag for every tokenizer token. Windows
 overlap and each token's emissions come from the window that owns it, exactly
-like :class:`clinical_deid.model.Detector`; the whole document is then decoded
-once with :func:`clinical_deid.model.decode_bioes` and, for the hybrid backend,
+like :class:`clinical_deid.detection.adapter.Detector`; the whole document is then decoded
+once with :func:`clinical_deid.detection.adapter.decode_bioes` and, for the hybrid backend,
 passed through the same deterministic rules.
 """
 
@@ -14,8 +14,8 @@ from pathlib import Path
 
 import torch
 
-from .model import TAGS, choose_device, decode_bioes
-from .types import ENTITY_TYPES
+from clinical_deid.detection.adapter import TAGS, choose_device, decode_bioes
+from clinical_deid.types import ENTITY_TYPES
 
 ENCODER_KIND = "hf_token_classifier"
 # Separators that subword tokenizers sometimes merge into a PHI token ("=(617)")
@@ -45,7 +45,7 @@ def trim_merged_punctuation(text, start, end):
 
 def refine_boundaries(spans, text):
     """Trim merged separator characters from decoded span edges."""
-    from .types import Span
+    from clinical_deid.types import Span
 
     refined = []
     for span in spans:
@@ -193,7 +193,7 @@ class HFTokenDetector:
     def detect_batch(self, texts):
         results = self.raw_batch(texts)
         if self.backend == "hybrid":
-            from .rules import augment
+            from clinical_deid.detection.rules import augment
 
             model_labels = self.config.get("model_labels", [])
             results = [apply_label_modes(s, augment(t, s), model_labels) for t, s in zip(texts, results)]
@@ -212,6 +212,6 @@ def load_detector(model_dir, *, backend="hybrid", device="auto", batch_size=8, b
         raise ValueError("Pass the detector checkpoint directory containing hf/, not the nested Hugging Face directory")
     if config.get("encoder") is not None:
         raise ValueError("Unsupported detector encoder kind")
-    from .model import Detector
+    from clinical_deid.detection.adapter import Detector
 
     return Detector(model_dir, backend=backend, device=device, base_dir=base_dir, batch_size=batch_size)

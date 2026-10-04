@@ -16,7 +16,8 @@ from torch import nn
 from torch.nn import functional as F
 import tiktoken
 
-from .types import ENTITY_TYPES, Span
+from clinical_deid.types import ENTITY_TYPES, Span
+from clinical_deid.paths import PROJECT_ROOT
 
 BASE_REVISION = "7ffa9a043d54d1be65afb281eddf0ffbe629385b"
 BASE_WEIGHTS_SHA256 = "9c262cbe68a0c8a50590a648ef8341a2b7d3be1fa11dfb79893fe0b03ce57b5c"
@@ -27,7 +28,7 @@ def get_encoding(base_dir=None):
     root = (
         Path(base_dir).resolve().parent.parent
         if base_dir
-        else Path(__file__).resolve().parents[2]
+        else PROJECT_ROOT
     )
     os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(root / ".cache" / "tiktoken"))
     return tiktoken.get_encoding("o200k_base")
@@ -502,7 +503,7 @@ class Detector:
             for logits, offsets, text in zip(document_logits, document_offsets, texts)
         ]
         if self.backend == "hybrid":
-            from .rules import augment
+            from clinical_deid.detection.rules import augment
 
             results = [augment(t, s) for t, s in zip(texts, results)]
         return results

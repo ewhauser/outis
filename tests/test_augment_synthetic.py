@@ -2,8 +2,8 @@ import hashlib
 import json
 import re
 
-from clinical_deid.augment_synthetic import CLAUSES, EPONYMS, IDENTITIES, generate_rows, write_dataset
-from clinical_deid.synthetic import validate_row
+from clinical_deid.data.generators.augment import CLAUSES, EPONYMS, IDENTITIES, generate_rows, write_dataset
+from clinical_deid.data.generators.base import validate_row
 from clinical_deid.types import ENTITY_TYPES
 
 

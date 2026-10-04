@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from clinical_deid.evaluate import model_manifest
+from clinical_deid.evaluation.evaluate import model_manifest
 from clinical_deid.types import Span
 from test_hf_encoder import tiny_detector
 
@@ -47,7 +47,7 @@ def test_runtime_pins_hf_code_versions_and_actual_tokenizer(hf_candidate, cache_
 
 
 def test_hf_detector_uses_saved_local_files(hf_candidate):
-    from clinical_deid.hf_encoder import load_detector
+    from clinical_deid.detection.hf_encoder import load_detector
 
     directory, detector, _ = hf_candidate
     actual = load_detector(directory, backend="model", device="cpu", batch_size=8)
@@ -78,7 +78,7 @@ def test_paired_hf_policy_and_cache_match_the_served_detector(hf_candidate, cach
     detector.config = config
     monkeypatch.setattr(detector, "detect_batch", lambda texts: predictions[:len(texts)])
     monkeypatch.setattr(paired, "load_detector", lambda *args, **kwargs: detector)
-    from clinical_deid import rules
+    from clinical_deid.detection import rules
 
     monkeypatch.setattr(rules, "augment", lambda text, spans: [Span(0, 7, "NAME", 0.9, "rules")])
     prefix, output = tmp_path / "paired", tmp_path / "predictions.json"

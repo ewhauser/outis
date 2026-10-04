@@ -4,8 +4,8 @@ from copy import deepcopy
 
 import pytest
 
-from clinical_deid.report_progress import benchmark_progress
-from clinical_deid.report_html import render_report
+from clinical_deid.evaluation.report_progress import benchmark_progress
+from clinical_deid.evaluation.report_html import render_report
 
 
 LABELS = (

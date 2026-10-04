@@ -145,7 +145,7 @@ the scorer.
 | Exact span P/R/F1 | Predicted boundaries equal to gold boundaries, ignoring labels. |
 | Leak-free PHI documents | Documents with PHI in which every gold character is covered. |
 | Clean hard negatives | Documents without PHI that receive no prediction at all. |
-| Coarse typed P/R/F1 | Exact boundaries and coarse group, scored by `clinical_deid.evaluate.evaluate`, with per-group recall and Wilson bounds. |
+| Coarse typed P/R/F1 | Exact boundaries and coarse group, scored by `clinical_deid.evaluation.evaluate.evaluate`, with per-group recall and Wilson bounds. |
 
 Every prediction counts towards the label-agnostic metrics, including labels
 that map to no project type (for example MedDeID's `Profession`), because the

@@ -21,7 +21,7 @@ from xml.etree import ElementTree as ET
 
 from defusedxml import ElementTree as SafeET
 
-from .structured import _entity_result, _process_texts, process_structured
+from clinical_deid.formats.structured import _entity_result, _process_texts, process_structured
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_ZIP_BYTES = 20 * 1024 * 1024
