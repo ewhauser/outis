@@ -29,7 +29,7 @@ dictionary of common names.
 | DATE | Complete patient-specific dates, partial dates and patient-specific years; `October 2, 2024`, `March 2021`, `1930` in `born in 1930` | Public study years, publication dates, durations, doses and clinical stages |
 | AGE | Only the numeric or spelled-out age value when greater than 89 | Prefixes, units, suffixes, sex markers and ages at or below 89 |
 | LOCATION | The maximal authored locality expression, e.g. `Cedar Haven, UT` or `North Cedar Haven` | Prepositions and adjacent facility/address fields |
-| FACILITY | The authored facility name, e.g. `Silver Finch Medical Center` | An adjacent locality introduced by `in` or an adjacent address |
+| FACILITY | The authored facility name, e.g. `Silver Finch Medical Center`, including an `at <name>` continuation such as `Lakeshore Family Medicine at Ellery Falls` | An adjacent locality introduced by `in` or a comma; an `at` locality with a state or postal qualifier (`Brackenwheel Health Center` at `Brackenford, NM`); an adjacent address; the parent facility of a named unit (`Larkspur Ward` at `Mossmere Health Hub` is two FACILITY spans) |
 | ADDRESS | The complete authored address as one span | Nested LOCATION annotations, field labels, trailing sentence punctuation |
 
 AGE boundaries are deliberately consistent across surface forms: annotate

@@ -53,6 +53,14 @@ def test_date_and_location_fixtures_retain_complete_authored_expression():
         ("LOCATION", "Cedar Haven, UT"), ("FACILITY", "Silver Finch Medical Center"), ("LOCATION", "North Cedar Haven")]
 
 
+
+def test_facility_at_fixture_keeps_continuation_and_separates_qualified_geography():
+    row = {r["id"]: r for r in POLICY_FIXTURES}["facility_at_continuation"]
+    assert [(span["label"], row["text"][span["start"]:span["end"]]) for span in row["spans"]] == [
+        ("FACILITY", "Lakeshore Family Medicine at Ellery Falls"), ("FACILITY", "Larkspur Ward"),
+        ("FACILITY", "Mossmere Health Hub"), ("FACILITY", "Brackenwheel Health Center"),
+        ("LOCATION", "Brackenford, NM")]
+
 def test_identity_group_normalizes_equivalent_unicode_and_case():
     name = "Zoë Núñez"
     assert canonical_identity_group(name) == canonical_identity_group(unicodedata.normalize("NFD", name).upper())

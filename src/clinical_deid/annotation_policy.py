@@ -30,7 +30,7 @@ ANNOTATION_POLICY = {
         "DATE": "Annotate patient-specific dates, including partial dates and years; exclude public publication dates and durations.",
         "AGE": "Annotate only the age value when greater than 89, including words and compact forms; exclude units, sex markers and suffixes.",
         "LOCATION": "Annotate the maximal authored locality expression, retaining internal commas; keep facility names separate.",
-        "FACILITY": "Annotate the authored facility name, separately from adjacent locality/address spans.",
+        "FACILITY": "Annotate the authored facility name, including an 'at <name>' continuation; keep separate a locality introduced by 'in' or a comma, an 'at' locality with a state or postal qualifier, an adjacent address, and the parent facility of a named unit.",
         "ADDRESS": "Annotate the complete authored address as one span without nesting LOCATION.",
         "IDENTIFIERS": "Use reserved synthetic network identifiers and fictional US phone blocks; IDs are invented, never copied from records.",
     },
@@ -84,6 +84,7 @@ POLICY_FIXTURES = (
     _example("age_word_boundaries", "A [[AGE|ninety-two]] year old and an eighty-nine-year-old discussed care.", ["word_age", "ordinary_age"]),
     _example("age_compact_boundaries", "[[AGE|92]]F; [[AGE|93]]yo; [[AGE|94]] y/o; 89M.", ["compact_age", "ordinary_age"]),
     _example("maximal_location", "Lives in [[LOCATION|Cedar Haven, UT]]; transferred to [[FACILITY|Silver Finch Medical Center]] in [[LOCATION|North Cedar Haven]].", ["location_boundary", "facility_boundary"]),
+    _example("facility_at_continuation", "Seen at [[FACILITY|Lakeshore Family Medicine at Ellery Falls]]; moved to [[FACILITY|Larkspur Ward]] at [[FACILITY|Mossmere Health Hub]], then [[FACILITY|Brackenwheel Health Center]] at [[LOCATION|Brackenford, NM]].", ["facility_boundary", "location_boundary"]),
     _example("complete_address", "Address: [[ADDRESS|418 Imaginary Lane, Cedar Haven, UT 84000]].", ["address_boundary"]),
     _example("reserved_identifiers", "Contact [[EMAIL|mira@care.example]] or [[PHONE|+1 (202) 555-0148]]; portal [[URL|https://clinic.test/visit]]; host [[IP|192.0.2.17]].", ["reserved_identifiers"]),
 )
