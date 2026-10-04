@@ -322,7 +322,7 @@ def _numeric_date(value: str, offset: int) -> tuple[str | None, str | None]:
         r"(?P<y>\d{4})(?P<s>[-/.])(?P<m>\d{1,2})(?P=s)(?P<d>\d{1,2})", value
     )
     american = re.fullmatch(
-        r"(?P<m>\d{1,2})(?P<s>[-/.])(?P<d>\d{1,2})(?P=s)(?P<y>\d{4})", value
+        r"(?P<m>\d{1,2})(?P<s>[-/.])(?P<d>\d{1,2})(?P=s)(?P<y>\d{4}|\d{2})", value
     )
     match = iso or american
     if not match:
@@ -332,10 +332,28 @@ def _numeric_date(value: str, offset: int) -> tuple[str | None, str | None]:
     day_first = american is not None and int(match["m"]) > 12
     month = int(match["d"] if day_first else match["m"])
     day = int(match["m"] if day_first else match["d"])
-    try:
-        shifted = date(int(match["y"]), month, day) + timedelta(days=offset)
-    except (ValueError, OverflowError):
-        return None, "Invalid or out-of-range date was redacted"
+    two_digit_year = len(match["y"]) == 2
+    if two_digit_year:
+        # The century is unknown, but shifting only needs the calendar. Leap
+        # years agree in the 1900s and 2000s except for year 00, so accept the
+        # shift only when both centuries give the same two-digit result.
+        results = set()
+        for century in (1900, 2000):
+            try:
+                shifted = date(century + int(match["y"]), month, day) + timedelta(days=offset)
+            except (ValueError, OverflowError):
+                results.add(None)
+                continue
+            results.add((shifted.year % 100, shifted.month, shifted.day))
+        if len(results) != 1 or None in results:
+            return None, "Two-digit year date is ambiguous across centuries and was redacted"
+        year, shifted_month, shifted_day = results.pop()
+        shifted = date(2000 + year, shifted_month, shifted_day)
+    else:
+        try:
+            shifted = date(int(match["y"]), month, day) + timedelta(days=offset)
+        except (ValueError, OverflowError):
+            return None, "Invalid or out-of-range date was redacted"
     month_width = len(match["d"] if day_first else match["m"])
     source_day = match["m"] if day_first else match["d"]
     day_width = (
@@ -344,7 +362,7 @@ def _numeric_date(value: str, offset: int) -> tuple[str | None, str | None]:
         else 1
     )
     values = {
-        "y": str(shifted.year).zfill(4),
+        "y": str(shifted.year % 100).zfill(2) if two_digit_year else str(shifted.year).zfill(4),
         "m": str(shifted.month).zfill(month_width),
         "d": str(shifted.day).zfill(day_width),
     }
@@ -352,6 +370,9 @@ def _numeric_date(value: str, offset: int) -> tuple[str | None, str | None]:
         ("y", "m", "d") if iso else ("d", "m", "y") if day_first else ("m", "d", "y")
     )
     warning = None
+    if day_first and shifted.day <= 12 and shifted.day != shifted.month and two_digit_year:
+        # Year-first output is not readable with a two-digit year.
+        return None, "Shifted day/month date with a two-digit year would be ambiguous and was redacted"
     if day_first and shifted.day <= 12 and shifted.day != shifted.month:
         # A D/M input can be unambiguous while the shifted D/M output is not.
         # The documented M/D default would then change its calendar meaning.

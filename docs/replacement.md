@@ -39,7 +39,10 @@ supported. A date range detected as one span (`03/02/2024 to 03/09/2024`,
 same offset, keeping its connector; a compressed range stays compressed only
 while both shifted endpoints share a month and year. A range whose endpoints
 cannot both be read, or one written with a single year that crosses a year
-boundary, is redacted. Date-times retain the original time of day and timezone text.
+boundary, is redacted. Numeric dates with a two-digit year (`3/20/26`) are
+shifted and keep two digits; the century is not needed except for year `00`
+around February 29, which is redacted, as is a day/month date whose shifted
+form would be ambiguous. Date-times retain the original time of day and timezone text.
 Date shifting changes calendar/seasonal context even when intervals are preserved.
 
 ## Names, identifiers and other types
