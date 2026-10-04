@@ -38,3 +38,9 @@ logs/
 # Sealed qualification bank author artifacts (generators, seal scripts, ledgers).
 # Never commit; they can reproduce sealed content. Kept only on local disk.
 data/qualification_v9*_author_artifacts/
+
+# Blind places banks: only the sealing record is tracked. The corpus,
+# generator, source lists, QA, manifest and reviews can reveal or reproduce
+# sealed content. Kept in the private deidentifier-data repository.
+data/blind_places_*/*
+!data/blind_places_*/sealing_record.json
