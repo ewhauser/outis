@@ -32,6 +32,7 @@ eponym false positives. See [external verification](external-verification.md).
 | P3. Care site named without a care-type word | FACILITY | `followed at [Mt. Sinai]`; `admitted to [Cedars-Sinai]`; `ED visit at [Houston Memorial]` |
 | P4. Full care-site name | FACILITY, including a leading `St.`, `Ste.`, `Mt.` or `Ft.` | `[St. Francis Hospital]`; `[Mt. Sinai Hospital]` |
 | P5. Locality after a care site | Separate FACILITY and LOCATION spans, preposition outside (unchanged v2 rule) | `[Mayo Clinic] in [Rochester, MN]`; `[Brigham and Women's Hospital], [Boston]` |
+| P5a. Care site followed by `at` | The v2 FACILITY rule: `at <name>` continues the FACILITY; an `at` locality with a state or postal qualifier is a separate LOCATION; a named unit `at` its parent is two FACILITY spans | `[Lakeshore Family Medicine at Ellery Falls]`; `[Brackenwheel Health Center] at [Brackenford, NM]` |
 | P6. Clinician affiliation in the patient's care | FACILITY | `Dr. Patel from [UCSF] reviewed the scan` |
 | N1. Place inside a named instrument, criterion, classification, score, rule or trial | Not PHI | `Chicago Classification`; `Boston criteria`; `Seattle Heart Failure Model`; `Ottawa ankle rules`; `San Francisco Syncope Rule`; `Framingham Risk Score` |
 | N2. Place inside a disease, pathogen or eponymous condition | Not PHI | `Lyme disease`; `West Nile virus`; `Rocky Mountain spotted fever`; `Norwalk virus` |
@@ -52,6 +53,10 @@ Rules for mixed and ambiguous text:
   expression stays inside the LOCATION span (`[Tacoma, WA]`), as in v2.
 - **Out of scope.** Employer and other organisation names not acting as a care
   site are unchanged by this addendum.
+- **P5a was added on 2026-10-04** to point at the v2 `at` rule adopted in commit
+  `d9bbd85`. A content-free check found no conflicting gold in the places
+  curriculum (no FACILITY `at` place pairs) or in `blind_places_v1`
+  (`atrule_check.json`).
 
 Decision N4 was confirmed with the addendum. The current detector is not yet
 consistent with it: a spot check on 2026-10-04 redacted `Ohio` in
