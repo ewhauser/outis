@@ -1,9 +1,32 @@
-# Clinical PHI annotation policy v2
+# Clinical PHI annotation policy
 
-Policy identifier: `clinical-phi-v2`. This is the authoring contract for the new
-development and training corpora. It clarifies occurrence-level annotation and
-span boundaries from the [evaluation protocol](../reports/evaluation_protocol.md).
-It does not establish clinical accuracy, clinical truth, or legal compliance.
+**This is the project's only annotation policy.** Every labelling decision in
+force is on this page or in the [places addendum](annotation-policy-v2-places.md),
+which is part of it. If another document, prompt or older corpus disagrees with
+this page, this page wins.
+
+Policy identifier: `clinical-phi-v2`. There is no v1 document. The "v2" in the
+identifier and filename distinguishes this written policy from the unwritten
+conventions of the earliest corpora; see
+[Corpora that predate this policy](#corpora-that-predate-this-policy). The
+identifier is stamped into corpus rows and manifests, so it is not renamed.
+
+This is the authoring contract for development and training corpora and for
+new evaluation banks. It defines occurrence-level annotation and span
+boundaries. It does not establish clinical accuracy, clinical truth, or legal
+compliance.
+
+## What this policy consists of
+
+| Part | Role |
+| --- | --- |
+| This page | Span conventions, cohorts, provenance, metadata and audit rules |
+| [Places addendum](annotation-policy-v2-places.md) (`clinical-phi-v2-places`) | Real localities, care-site abbreviations and public references to places |
+| [`annotation_policy.py`](../src/clinical_deid/annotation_policy.py) and [`annotation_policy_places.py`](../src/clinical_deid/annotation_policy_places.py) | Executable contract with exact character-offset examples |
+
+Not part of the annotation policy: the API's request policies in
+`src/clinical_deid/policy.py`, whose own version is `"1"`. They control what a
+caller redacts and have nothing to do with how gold spans are annotated.
 
 The executable contract and exact character-offset examples are
 [`annotation_policy.py`](../src/clinical_deid/annotation_policy.py). The original
@@ -47,6 +70,60 @@ the authored value. Nested or overlapping gold spans are invalid. The remaining
 labels retain the protocol's vocabulary: PHONE, EMAIL, MRN, SSN, ACCOUNT, ID,
 URL and IP. Preserve typed distinctions in the primary metrics; merged-type
 diagnostics do not replace exact typed-span evaluation.
+
+## Conventions settled by the convention census
+
+The table above leaves some cases open. In early October 2026, ten independent readers
+were given only the policy, protocol, types and fixtures and asked to choose a
+convention for 35 such cases. They agreed 10 of 10 on every case below except
+the employer case. Training banks were normalised to these choices, and they
+are in force for all new authoring and annotation. The record is
+[`convention_census_001.json`](../reports/takeover/convention_census_001.json).
+Not every row has an executable fixture yet.
+
+| Label | Case | Convention |
+| --- | --- | --- |
+| ID | Insurance member, policy, group and claim numbers | ID |
+| ID | Encounter, visit and CSN numbers | ID |
+| ID | Accession and specimen numbers | ID |
+| ID | Device serial numbers | ID |
+| ID | Driver's licence, passport and similar licence numbers | ID |
+| ID | Clinician NPI and licence numbers | ID |
+| ACCOUNT | Billing, patient and guarantor account numbers | ACCOUNT |
+| MRN | A record number written with a prefix, such as `QX-0041122` | One MRN span including the prefix |
+| NAME | Generational suffix, such as `Jr.` | Inside the span |
+| NAME | Possessive `'s` | Outside the span |
+| NAME | Initials | Inside the span |
+| NAME | Clinician names | NAME, without the honorific or credentials |
+| NAME | Nickname written in quote marks | NAME, without the quote marks |
+| DATE | A weekday written before a date | Inside the span |
+| DATE | A clock time next to a date | Outside the span |
+| DATE | Relative expressions, such as `three days ago` | Not annotated |
+| DATE | A patient-specific year alone | DATE |
+| DATE | A written date range | One DATE span, as in the table above |
+| AGE | A decade over 89, such as `nineties` | AGE |
+| PHONE | Extension | Inside the span |
+| PHONE | Leading `+1` country code | Inside the span |
+| PHONE | Fax numbers | PHONE |
+| ADDRESS | Street, unit, city, state and postal code written together | One ADDRESS span |
+| URL | Scheme, such as `https://` | Inside the span |
+| LOCATION | City with its state | One LOCATION span including the state |
+| LOCATION | A ZIP code alone | LOCATION |
+| LOCATION | A state or a country alone | Not annotated |
+| FACILITY | A leading `the` | Outside the span |
+| FACILITY | A department word next to an institution name | Outside the span; FACILITY covers the institution name |
+| FACILITY | A named ward | FACILITY |
+| FACILITY | A named pharmacy | FACILITY |
+
+**Open case: employer names.** Six readers chose not to annotate an employer
+name and four chose FACILITY. The places addendum leaves employers unchanged.
+Until the owner decides, do not annotate an employer that is not acting as a
+care site, and report employer mentions separately when they affect a result.
+
+**Known risk.** Independent authors do not always follow the ID and ACCOUNT
+split. One proxy-bank author labelled insurance member and claim numbers
+ACCOUNT. A bank that does so will show ID and ACCOUNT type errors that are not
+detector misses. Under [GOALS.md](../GOALS.md) such a span is still masked.
 
 ## Realistic and stress cohorts
 
@@ -107,6 +184,32 @@ note inherits the same identity and pair keys even if the negative member has
 no NAME annotation. Report lengths, scripts, punctuation, case, tokenization,
 families and layouts to assess comparable distributions. Development authors
 must independently author their contexts rather than import training templates.
+
+## Corpora that predate this policy
+
+A corpus follows this policy only if its rows and manifest declare
+`annotation_policy` as `clinical-phi-v2`. Corpora without that declaration were
+written before the policy existed and follow older, unwritten conventions. That
+includes the original training, validation and challenge corpora, the early
+coverage, context, narrative and contrastive corpora, and the qualification
+banks v4, v5 and v6. Banks from v7 onward were authored with this policy as
+their contract.
+
+Rules for those corpora:
+
+- They remain valid historical evidence and are kept to reproduce recorded
+  results. Do not relabel them in place.
+- Do not treat their annotations as examples of the current conventions. Where
+  they disagree with this page, this page is correct for new work.
+- A known difference is AGE boundaries, described above. Others include the
+  census cases, which older corpora decided inconsistently.
+- Banks whose filename carries a `__census1` suffix were rewritten to the
+  census conventions by `scripts/takeover/normalize_conventions.py`. Use those
+  versions, not the originals, when training.
+
+The short convention summary that used to sit in the
+[evaluation protocol](../reports/evaluation_protocol.md) was removed on
+2026-10-04 in favour of this page.
 
 ## Audit and qualification boundary
 

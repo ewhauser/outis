@@ -21,10 +21,11 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
   limitations.
 - [Training](training.md): reproducing the default adapter and generating
   synthetic corpora.
-- [Annotation policy v2](annotation-policy-v2.md): the span conventions for
-  development and training corpora.
-- [Places and institutions addendum](annotation-policy-v2-places.md): real
-  localities, care-site abbreviations and public references.
+- [Annotation policy](annotation-policy-v2.md): the only annotation policy.
+  Span conventions for every corpus and bank, including the conventions
+  settled by the convention census.
+- [Places and institutions addendum](annotation-policy-v2-places.md): part of
+  the policy. Real localities, care-site abbreviations and public references.
 
 ## Evaluation
 

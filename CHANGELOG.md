@@ -22,6 +22,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The annotation policy now states that it is the only policy, includes the
+  conventions settled by the convention census, and lists which corpora
+  predate it. The duplicate convention summary in the evaluation protocol was
+  replaced by a link.
 - Promotion is now gated by the privacy targets in GOALS.md. The 99% exact
   typed-span checks are unchanged and reported as a stretch target.
 - Rewrote the README around installation, usage, results and limitations.
