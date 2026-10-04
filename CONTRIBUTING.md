@@ -11,6 +11,8 @@ Thanks for your interest in improving Clinical Deidentifier.
   See the rules in [external verification](docs/external-verification.md).
 - **Report results honestly.** Report model-only and hybrid results
   separately. Do not merge development and qualification numbers.
+- **Privacy first.** The [project goal](GOALS.md) is that identifiers stay
+  masked. A wrong type on a masked span is an engineering cost, not a leak.
 
 ## Development setup
 
@@ -71,12 +73,16 @@ the commit that produced them.
 - Add or update tests with synthetic examples for detector, rule or
   replacement changes.
 - If a change alters detection output, include before-and-after metrics on a
-  development bank, and say which bank. Never tune on a sealed qualification
-  bank.
+  development bank from authors the training data never saw, and say which
+  bank. Include the `privacy` block figures: any-label recall for direct and
+  indirect identifiers, any-label precision and exact typed-span F1. Check the
+  change against the [regression rules](GOALS.md#regression-rules). Never tune
+  on a sealed qualification bank.
 - Add user-visible changes under `Unreleased` in [CHANGELOG.md](CHANGELOG.md).
 ## Training and evaluation work
 
-See [training](docs/training.md) and the
-[evaluation protocol](reports/evaluation_protocol.md). Put new experiments in
+See [GOALS.md](GOALS.md), [training](docs/training.md) and the
+[evaluation protocol](reports/evaluation_protocol.md). New candidates use
+ModernBERT. Put new experiments in
 new, versioned output directories. Never overwrite a historical protocol or
 report.

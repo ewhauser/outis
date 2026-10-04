@@ -87,6 +87,34 @@ def test_facility_at_fixture_keeps_continuation_and_separates_qualified_geograph
     ]
 
 
+def test_date_range_fixture_is_one_span_and_listed_dates_stay_separate():
+    row = {r["id"]: r for r in POLICY_FIXTURES}["date_range_one_span"]
+    assert [row["text"][span["start"] : span["end"]] for span in row["spans"]] == [
+        "03/02/2024 to 03/09/2024",
+        "March 11-15, 2024",
+        "04/01/2024",
+        "04/08/2024",
+    ]
+
+
+def test_every_fixture_date_range_survives_synthetic_shifting():
+    from clinical_deid.replacement.surrogates import replace
+    from clinical_deid.types import Span
+
+    row = {r["id"]: r for r in POLICY_FIXTURES}["date_range_one_span"]
+    spans = [Span(s["start"], s["end"], s["label"]) for s in row["spans"]]
+    result = replace(
+        row["text"],
+        spans,
+        mode="synthetic",
+        patient_id="fixture",
+        secret=bytes(range(32)),
+        date_shift_days=10,
+    )
+    assert result["preservation"]["exact_dates_shifted"] == 4
+    assert result["preservation"]["date_intervals_preserved"] is True
+
+
 def test_identity_group_normalizes_equivalent_unicode_and_case():
     name = "Zoë Núñez"
     assert canonical_identity_group(name) == canonical_identity_group(

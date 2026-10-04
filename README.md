@@ -15,11 +15,11 @@ is sent to a hosted service. It ships as a Python library, a CLI and a FastAPI
 server.
 
 > [!IMPORTANT]
-> This is research software. It has **not** met its own 99% qualification
-> target, and it has been evaluated only on synthetic and public benchmark
-> text, never on real clinical records. It does not by itself provide HIPAA
-> Safe Harbor or Expert Determination de-identification. See
-> [Limitations](#limitations).
+> This is research software. It has **not** met its [project goal](GOALS.md)
+> or its 99% exact-span qualification target, and it has been evaluated only on
+> synthetic and public benchmark text, never on real clinical records. It does
+> not by itself provide HIPAA Safe Harbor or Expert Determination
+> de-identification. See [Limitations](#limitations).
 
 ## Features
 
@@ -168,6 +168,7 @@ any output.
 
 | Guide | Contents |
 |---|---|
+| [Goals](GOALS.md) | The accepted project goal, targets and regression rules |
 | [API guide](docs/api.md) | Endpoints, policies, masks, structured data, files, WebSockets |
 | [Synthetic replacement](docs/replacement.md) | Secrets, patient anchors, date shifting, identity linking |
 | [Deployment](docs/deployment.md) | Launcher, backends, batch limits, security controls |
@@ -176,6 +177,7 @@ any output.
 | [Evaluation history](docs/evaluation-history.md) | All qualification and development results |
 | [External verification](docs/external-verification.md) | Public benchmark protocol and results |
 | [Annotation policy](docs/annotation-policy-v2.md) | Span conventions for every entity type |
+| [Places addendum](docs/annotation-policy-v2-places.md) | Real localities, care-site abbreviations and public references |
 
 ## Contributing
 

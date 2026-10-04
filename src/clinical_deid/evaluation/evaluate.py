@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import math
+import random
 import time
 from collections import Counter
 from collections.abc import Callable, Iterable
@@ -18,6 +19,30 @@ from pathlib import Path
 from typing import Any
 
 from clinical_deid.types import ENTITY_TYPES, Span
+
+# Identifier classes and targets from GOALS.md. Direct identifiers identify a
+# person alone; indirect identifiers carry risk mainly in combination.
+DIRECT_IDENTIFIERS = (
+    "NAME",
+    "SSN",
+    "MRN",
+    "ACCOUNT",
+    "ID",
+    "PHONE",
+    "EMAIL",
+    "ADDRESS",
+    "URL",
+    "IP",
+)
+INDIRECT_IDENTIFIERS = ("DATE", "AGE", "LOCATION", "FACILITY")
+PRIVACY_TARGETS = {
+    "direct_any_label_recall": 0.99,
+    "indirect_any_label_recall": 0.97,
+    "name_recall_cluster_lower_95": 0.98,
+    "any_label_precision": 0.90,
+    "typed_span_f1": 0.95,
+}
+MISS_KINDS = ("wrong_type", "boundary_differs", "partly_covered", "not_detected")
 
 
 def _ratio(numerator: int, denominator: int) -> float:
@@ -50,6 +75,26 @@ def wilson_lower(successes: int, trials: int, z: float = 1.959963984540054) -> f
         proportion * (1 - proportion) / trials + z * z / (4 * trials * trials)
     )
     return max(0.0, (centre - adjustment) / denominator)
+
+
+def cluster_lower(
+    documents: list[tuple[int, int]], *, resamples: int = 500, seed: int = 20261004
+) -> float | None:
+    """Lower 95% bound on a ratio, resampling whole documents.
+
+    Each item is (successes, trials) for one document. Errors cluster inside
+    template-like documents, so a span-level binomial bound is too narrow.
+    """
+    documents = [item for item in documents if item[1]]
+    if not documents:
+        return None
+    rng = random.Random(seed)
+    ratios = []
+    for _ in range(resamples):
+        sample = rng.choices(documents, k=len(documents))
+        ratios.append(sum(hit for hit, _ in sample) / sum(total for _, total in sample))
+    ratios.sort()
+    return ratios[int(0.025 * (resamples - 1))]
 
 
 def _canonical(raw: Any, length: int) -> tuple[int, int, str]:
@@ -109,6 +154,16 @@ def evaluate(
     typed_character = Counter(tp=0, fp=0, fn=0)
     per_label = {label: Counter(tp=0, fp=0, fn=0) for label in ENTITY_TYPES}
     label_characters = {label: Counter(covered=0, exposed=0) for label in ENTITY_TYPES}
+    masked = {
+        label: Counter(support=0, masked=0, **dict.fromkeys(MISS_KINDS, 0))
+        for label in ENTITY_TYPES
+    }
+    masked_documents: dict[str, list[tuple[int, int]]] = {
+        "NAME": [],
+        "direct": [],
+        "indirect": [],
+    }
+    any_label = Counter(predicted=0, on_phi=0)
     per_family: dict[str, Counter] = {}
     failures = []
     documents = leak_free = negative_documents = negative_clean = 0
@@ -181,6 +236,39 @@ def evaluate(
             fp=len(predicted_typed - expected_typed),
             fn=len(expected_typed - predicted_typed),
         )
+        predicted_bounds = {(start, end) for start, end, _ in predicted}
+        document = Counter()
+        for start, end, label in gold:
+            extent = set(range(start, end))
+            covered = extent <= predicted_characters
+            group = "direct" if label in DIRECT_IDENTIFIERS else "indirect"
+            masked[label].update(support=1, masked=covered)
+            document.update({group: 1, f"{group}_masked": covered})
+            if label == "NAME":
+                document.update(NAME=1, NAME_masked=covered)
+            if (start, end, label) in predicted:
+                continue
+            if covered:
+                masked[label][
+                    "wrong_type"
+                    if (start, end) in predicted_bounds
+                    else "boundary_differs"
+                ] += 1
+            else:
+                masked[label][
+                    "partly_covered"
+                    if extent & predicted_characters
+                    else "not_detected"
+                ] += 1
+        for key, values in masked_documents.items():
+            values.append((document[f"{key}_masked"], document[key]))
+        any_label.update(
+            predicted=len(predicted),
+            on_phi=sum(
+                any(offset in expected_characters for offset in range(start, end))
+                for start, end, _ in predicted
+            ),
+        )
         safe = expected_characters <= predicted_characters
         documents += 1
         leak_free += safe
@@ -242,11 +330,81 @@ def evaluate(
             stats["recall"] >= 0.99 for stats in label_result.values()
         ),
     }
+
+    def group_result(labels, key):
+        support = sum(masked[label]["support"] for label in labels)
+        hits = sum(masked[label]["masked"] for label in labels)
+        return {
+            "labels": list(labels),
+            "support": support,
+            "masked": hits,
+            "recall": hits / support if support else None,
+            "recall_cluster_lower_95": cluster_lower(masked_documents[key]),
+        }
+
+    direct = group_result(DIRECT_IDENTIFIERS, "direct")
+    indirect = group_result(INDIRECT_IDENTIFIERS, "indirect")
+    name_lower = cluster_lower(masked_documents["NAME"])
+    any_precision = (
+        any_label["on_phi"] / any_label["predicted"] if any_label["predicted"] else None
+    )
+
+    def meets(value, target):
+        return value is not None and value >= PRIVACY_TARGETS[target]
+
+    privacy_checks = {
+        "direct_any_label_recall_at_least_99_percent": meets(
+            direct["recall"], "direct_any_label_recall"
+        ),
+        "indirect_any_label_recall_at_least_97_percent": meets(
+            indirect["recall"], "indirect_any_label_recall"
+        ),
+        "name_recall_cluster_lower_95_at_least_98_percent": meets(
+            name_lower, "name_recall_cluster_lower_95"
+        ),
+        "any_label_precision_at_least_90_percent": meets(
+            any_precision, "any_label_precision"
+        ),
+        "typed_span_f1_at_least_95_percent": span_result["f1"]
+        >= PRIVACY_TARGETS["typed_span_f1"],
+    }
+    privacy = {
+        "definition": (
+            "A gold span is masked when every one of its characters lies inside some predicted span, "
+            "whatever the predicted label. A predicted span counts toward any-label precision when "
+            "it overlaps at least one gold PHI character. Lower bounds resample whole documents."
+        ),
+        "targets": dict(PRIVACY_TARGETS),
+        "direct": direct,
+        "indirect": indirect,
+        "name_recall_cluster_lower_95": name_lower,
+        "any_label_precision": {
+            "predicted_spans": any_label["predicted"],
+            "overlapping_gold_phi": any_label["on_phi"],
+            "precision": any_precision,
+        },
+        "per_label": {
+            label: {
+                "support": c["support"],
+                "masked": c["masked"],
+                "recall": c["masked"] / c["support"] if c["support"] else None,
+                "exact_misses": {kind: c[kind] for kind in MISS_KINDS},
+            }
+            for label, c in masked.items()
+        },
+        "checks": privacy_checks,
+        "passed": all(privacy_checks.values()),
+        "scope": (
+            "GOALS.md targets apply to hand-annotated real notes. On a synthetic bank these checks are "
+            "development evidence only."
+        ),
+    }
     return {
         "schema_version": 1,
         "backend": backend,
         "documents": documents,
         "typed_span": span_result,
+        "privacy": privacy,
         "character": _metrics(character["tp"], character["fp"], character["fn"]),
         "typed_character": _metrics(
             typed_character["tp"], typed_character["fp"], typed_character["fn"]

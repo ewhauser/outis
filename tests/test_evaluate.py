@@ -218,3 +218,57 @@ def test_empty_phi_support_is_not_reported_as_perfect_diagnostic_coverage():
 def test_minimum_support_for_possible_99_percent_wilson_bound_is_381():
     assert wilson_lower(380, 380) < 0.99
     assert wilson_lower(381, 381) >= 0.99
+
+
+def test_privacy_block_separates_masking_from_exact_typing():
+    text = "Ann Lee MRN 12345 seen 2024-01-02 at Elm Clinic. Call 555-0100."
+    rows = [
+        {
+            "id": "p1",
+            "text": text,
+            "spans": [
+                {"start": 0, "end": 7, "label": "NAME"},  # exact hit
+                {"start": 12, "end": 17, "label": "MRN"},  # right span, wrong type
+                {"start": 23, "end": 33, "label": "DATE"},  # covered by a wider span
+                {"start": 37, "end": 47, "label": "FACILITY"},  # only partly covered
+                {"start": 54, "end": 62, "label": "PHONE"},  # not detected
+            ],
+        }
+    ]
+    predictions = [
+        Span(0, 7, "NAME"),
+        Span(12, 17, "ID"),
+        Span(18, 33, "DATE"),
+        Span(37, 40, "FACILITY"),
+        Span(8, 11, "ID"),
+    ]
+    privacy = evaluate(rows, lambda _: predictions)["privacy"]
+    assert privacy["direct"]["support"] == 3 and privacy["direct"]["masked"] == 2
+    assert privacy["indirect"]["support"] == 2 and privacy["indirect"]["masked"] == 1
+    assert privacy["per_label"]["MRN"]["exact_misses"]["wrong_type"] == 1
+    assert privacy["per_label"]["DATE"]["exact_misses"]["boundary_differs"] == 1
+    assert privacy["per_label"]["FACILITY"]["exact_misses"]["partly_covered"] == 1
+    assert privacy["per_label"]["PHONE"]["exact_misses"]["not_detected"] == 1
+    assert privacy["per_label"]["NAME"]["exact_misses"] == {
+        "wrong_type": 0,
+        "boundary_differs": 0,
+        "partly_covered": 0,
+        "not_detected": 0,
+    }
+    assert privacy["any_label_precision"] == {
+        "predicted_spans": 5,
+        "overlapping_gold_phi": 4,
+        "precision": 0.8,
+    }
+    assert privacy["name_recall_cluster_lower_95"] == 1.0
+    assert privacy["passed"] is False
+
+
+def test_cluster_lower_resamples_documents_and_is_deterministic():
+    from clinical_deid.evaluation.evaluate import cluster_lower
+
+    documents = [(10, 10)] * 9 + [(0, 10)]
+    lower = cluster_lower(documents)
+    assert lower == cluster_lower(documents)
+    assert 0.6 <= lower < 0.9
+    assert cluster_lower([(0, 0)]) is None

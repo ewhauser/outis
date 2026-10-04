@@ -204,6 +204,81 @@ def test_incomplete_unsupported_or_invalid_dates_fail_closed(value):
     assert result["preservation"]["date_intervals_preserved"] is False
 
 
+@pytest.mark.parametrize(
+    ("original", "shift", "expected"),
+    [
+        ("03/02/2024 to 03/09/2024", 1, "03/03/2024 to 03/10/2024"),
+        ("03/02/2024-03/09/2024", 1, "03/03/2024-03/10/2024"),
+        ("2024-03-02 - 2024-03-09", 1, "2024-03-03 - 2024-03-10"),
+        ("Jan 5, 2024 until Feb 1, 2024", 1, "Jan 6, 2024 until Feb 2, 2024"),
+        ("March 2-9, 2024", 1, "March 3-10, 2024"),
+        ("Mar 2 – 9 2024", 1, "Mar 3 – 10 2024"),
+        ("March 2nd through 9th, 2024", 1, "March 3rd through 10th, 2024"),
+        ("2-9 March 2024", 1, "3-10 March 2024"),
+        ("March 28 - April 4, 2024", 1, "March 29 - April 5, 2024"),
+        ("28 March - 4 April 2024", 1, "29 March - 5 April 2024"),
+        # A compressed range stays compressed when both shifted endpoints share
+        # a month; otherwise each endpoint is written out so it stays unambiguous.
+        ("March 25-30, 2024", 7, "April 1-6, 2024"),
+        ("March 25-30, 2024", 4, "March 29-April 3, 2024"),
+        ("25-30 March 2024", 4, "29 March-3 April 2024"),
+        ("Dec 20-27, 2024", 7, "Dec 27, 2024-Jan 3, 2025"),
+    ],
+)
+def test_date_range_span_shifts_both_endpoints(original, shift, expected):
+    result = synthetic(
+        original, [Span(0, len(original), "DATE")], date_shift_days=shift
+    )
+    assert result["text"] == expected
+    assert result["preservation"]["exact_dates_shifted"] == 1
+    assert result["preservation"]["date_intervals_preserved"] is True
+
+
+def test_date_range_and_single_dates_share_one_patient_shift():
+    text = "Admitted 03/02/2024; rehab March 4-9, 2024; seen 03/20/2024 to 03/22/2024."
+    spans = spans_for(
+        text,
+        [
+            ("03/02/2024", "DATE"),
+            ("March 4-9, 2024", "DATE"),
+            ("03/20/2024 to 03/22/2024", "DATE"),
+        ],
+    )
+    result = synthetic(text, spans, date_shift_days=-30)
+    assert result["text"] == (
+        "Admitted 02/01/2024; rehab February 3-8, 2024; seen 02/19/2024 to 02/21/2024."
+    )
+    assert result["preservation"]["exact_dates_shifted"] == 3
+    assert result["preservation"]["date_intervals_preserved"] is True
+
+
+def test_date_range_uses_the_patient_offset_without_an_explicit_shift():
+    single, ranged = "03/02/2024", "03/02/2024 to 03/09/2024"
+    alone = synthetic(single, [Span(0, len(single), "DATE")])["text"]
+    both = synthetic(ranged, [Span(0, len(ranged), "DATE")])["text"]
+    start, end = both.split(" to ")
+    assert start == alone
+    parse = [
+        date(int(y), int(m), int(d)) for m, d, y in (v.split("/") for v in (start, end))
+    ]
+    assert (parse[1] - parse[0]).days == 7
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "December 28 - January 4, 2024",
+        "March 30-February 31, 2024",
+        "03/02/2024 to soon",
+        "2019-2021",
+    ],
+)
+def test_unshiftable_date_ranges_fail_closed(value):
+    result = synthetic(value, [Span(0, len(value), "DATE")], date_shift_days=10)
+    assert result["text"] == "[DATE]"
+    assert result["preservation"]["unshiftable_dates_redacted"] == 1
+
+
 def test_unrepresentable_shifted_date_fails_closed():
     result = synthetic("9999-12-31", [Span(0, 10, "DATE")], date_shift_days=1)
     assert result["text"] == "[DATE]"

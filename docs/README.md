@@ -3,6 +3,9 @@
 Start with the [project README](../README.md) for installation, usage and
 current results.
 
+The [project goal](../GOALS.md) defines what the detector must achieve and how
+candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
+
 ## Using the detector
 
 - [Clinical text API](api.md): requests, policies, masks, structured inputs,
@@ -20,16 +23,20 @@ current results.
   synthetic corpora.
 - [Annotation policy v2](annotation-policy-v2.md): the span conventions for
   development and training corpora.
+- [Places and institutions addendum](annotation-policy-v2-places.md): real
+  localities, care-site abbreviations and public references.
 
 ## Evaluation
 
 - [Evaluation history](evaluation-history.md): every qualification and
   development result, and the HTML report.
-- [Evaluation protocol](../reports/evaluation_protocol.md): internal
-  qualification gates and blind-bank rules.
+- [Evaluation protocol](../reports/evaluation_protocol.md): privacy and
+  labelling gates, and blind-bank rules.
 - [External verification](external-verification.md): public benchmarks,
   comparisons with other open models, and the rules that keep that data out of
   training.
+- [Blind places bank brief](blind-places-bank-brief.md): the isolated
+  diagnostic bank for place-recognition work.
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 

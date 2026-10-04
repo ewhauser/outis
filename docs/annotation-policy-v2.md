@@ -26,7 +26,7 @@ dictionary of common names.
 | Explicit naming | `He` in `Patient name: He`; `Care` in `the patient named Care` | `He` used subsequently as a pronoun; `Care` in `Care history` |
 | Plausible personal names | `Zoë O’Rían-Soto`, `Ana María de la Cruz`, the personal `Wilson` in a named person | Honorifics such as `Dr.`, credentials such as `MD`, a disease eponym such as `Wilson disease` |
 | Aliases | A preferred or otherwise explicitly established personal alias, including an occurrence before its full identity when the document establishes the relationship | Ambiguous ordinary words without personal naming evidence |
-| DATE | Complete patient-specific dates, partial dates and patient-specific years; `October 2, 2024`, `March 2021`, `1930` in `born in 1930` | Public study years, publication dates, durations, doses and clinical stages |
+| DATE | Complete patient-specific dates, partial dates and patient-specific years; `October 2, 2024`, `March 2021`, `1930` in `born in 1930`. A written date range is one span including its connector: `03/02/2024 to 03/09/2024`, `March 2-9, 2024`, `March 28 - April 4, 2024` | Public study years, publication dates, durations, doses and clinical stages; a leading `from` or `between` before a range; dates written as a separate list (`on 03/02/2024 and 03/09/2024`) are separate spans |
 | AGE | Only the numeric or spelled-out age value when greater than 89 | Prefixes, units, suffixes, sex markers and ages at or below 89 |
 | LOCATION | The maximal authored locality expression, e.g. `Cedar Haven, UT` or `North Cedar Haven` | Prepositions and adjacent facility/address fields |
 | FACILITY | The authored facility name, e.g. `Silver Finch Medical Center`, including an `at <name>` continuation such as `Lakeshore Family Medicine at Ellery Falls` | An adjacent locality introduced by `in` or a comma; an `at` locality with a state or postal qualifier (`Brackenwheel Health Center` at `Brackenford, NM`); an adjacent address; the parent facility of a named unit (`Larkspur Ward` at `Mossmere Health Hub` is two FACILITY spans) |
@@ -70,7 +70,10 @@ positive and negative notes are audit diagnostics requiring review.
 ## Synthetic provenance
 
 Use independently invented people, scenarios, facilities and addresses; do not
-copy real clinical records. Retain reserved network identifiers while varying
+copy real clinical records. Real public place and care-site names are permitted
+as surface values only under the
+[places addendum](annotation-policy-v2-places.md), which defines their sources,
+held-out value pools and matched negatives. Retain reserved network identifiers while varying
 formats: `.test`, `.example`, and example.com/example.net/example.org domains,
 TEST-NET IPv4 addresses, and fictional US 555-0100 through 555-0199 phone lines.
 Other supported identifier families require an explicitly documented reserved

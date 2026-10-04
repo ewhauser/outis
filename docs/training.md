@@ -99,8 +99,11 @@ default for historical reproduction.
 `scripts/evaluate_remediation.py` evaluates explicit development banks through
 the complete Detector and saves model-only/hybrid predictions, cohort metrics,
 PHI-bearing document leakage, per-label exposure and long-document batch checks.
-It never launches qualification or promotes a model. Exact typed gates remain
-unchanged; small slices and synthetic results do not establish clinical readiness.
+It never launches qualification or promotes a model. Promotion is decided by
+the privacy gates and regression rules in [GOALS.md](../GOALS.md). The exact
+typed gates are unchanged in definition and are reported as a stretch target.
+Small slices and synthetic results do not establish clinical readiness.
+New candidates use ModernBERT; see [AGENTS.md](../AGENTS.md).
 
 Original experiment protocols and outputs are immutable. The retained
 `reports/v11_remediation_frozen_sources/` snapshot preserves their source state.
@@ -125,6 +128,25 @@ this experiment alone cannot establish that context composition caused a gain.
 .venv/bin/python scripts/retire_final_to_development.py \
   --source data/challenge_final.jsonl --output data/retired_v4_development.jsonl
 ```
+
+## Places addendum curriculum
+
+`places_synthetic` writes terse and ordinary training rows for the
+[places addendum](annotation-policy-v2-places.md): real localities, care-site
+abbreviations and short names, matched public-reference negatives and mixed
+care/citation rows. Real names come only from pinned Census Gazetteer and CMS
+Hospital General Information files plus `data/care_site_names.json`, only from
+the addendum's `train` value pool, and never from the blind places bank's
+hashed exclusion list.
+
+```sh
+PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.place_sources fetch
+PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.places generate
+PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.places check
+```
+
+`check` regenerates both splits and confirms they are byte-identical to the
+manifests.
 
 ## Development evaluation
 
