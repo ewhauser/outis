@@ -54,14 +54,17 @@ The trained adapter is included in `models/clinical-adapter`.
 ```python
 from clinical_deid import Deidentifier
 
-deid = Deidentifier("models/clinical-adapter", secret=b"application-secret-at-least-32-bytes")
+deid = Deidentifier(
+    "models/clinical-adapter", secret=b"application-secret-at-least-32-bytes"
+)
 
 result = deid.deidentify("Mara Calder was seen on 2024-02-28.", mode="redact")
 print(result["text"])
 
 synthetic = deid.deidentify(
     "Mara Calder was seen on 2024-02-28.",
-    mode="synthetic", patient_id="internal-patient-42",
+    mode="synthetic",
+    patient_id="internal-patient-42",
 )
 print(synthetic["text"])
 ```

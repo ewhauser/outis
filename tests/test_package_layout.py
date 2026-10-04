@@ -29,6 +29,9 @@ def test_package_uses_absolute_imports():
     relative = [
         str(path.relative_to(PACKAGE_ROOT))
         for path in PACKAGE_ROOT.rglob("*.py")
-        if any(isinstance(node, ast.ImportFrom) and node.level for node in ast.walk(ast.parse(path.read_text())))
+        if any(
+            isinstance(node, ast.ImportFrom) and node.level
+            for node in ast.walk(ast.parse(path.read_text()))
+        )
     ]
     assert relative == []

@@ -22,9 +22,11 @@ def test_context_generation_valid_and_covers_all_labels():
         if row["family"].endswith("negative"):
             assert row["spans"] == []
         else:
-            assert {"AGE", "LOCATION", "EMAIL", "PHONE", "URL", "IP"}.issubset(span["label"] for span in row["spans"])
+            assert {"AGE", "LOCATION", "EMAIL", "PHONE", "URL", "IP"}.issubset(
+                span["label"] for span in row["spans"]
+            )
         for span in row["spans"]:
-            value = row["text"][span["start"]:span["end"]]
+            value = row["text"][span["start"] : span["end"]]
             if span["label"] == "AGE":
                 assert value.isdigit() and int(value) > 89
             if span["label"] == "EMAIL":
@@ -41,7 +43,9 @@ def test_context_splits_have_separate_geographies_and_frames():
     assert train == list(generate_rows(20, seed=22))
     assert train != list(generate_rows(20, seed=23))
     validation = list(generate_rows(20, split="validation", seed=22))
-    assert {row["family"] for row in train}.isdisjoint(row["family"] for row in validation)
+    assert {row["family"] for row in train}.isdisjoint(
+        row["family"] for row in validation
+    )
 
 
 def test_context_manifest_has_hashes_and_authored_provenance(tmp_path):
@@ -52,4 +56,7 @@ def test_context_manifest_has_hashes_and_authored_provenance(tmp_path):
     assert json.loads((tmp_path / "context_manifest.json").read_text()) == manifest
     for split in ("train", "validation"):
         contents = (tmp_path / f"context_{split}.jsonl").read_bytes()
-        assert hashlib.sha256(contents).hexdigest() == manifest["datasets"][split]["sha256"]
+        assert (
+            hashlib.sha256(contents).hexdigest()
+            == manifest["datasets"][split]["sha256"]
+        )

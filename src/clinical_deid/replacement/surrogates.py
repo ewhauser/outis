@@ -511,7 +511,9 @@ def _synthetic_value(
     secret: bytes,
     patient: str,
     aliases: dict[str, tuple[str, str]],
-    *, name_binding=None, name_warnings=None,
+    *,
+    name_binding=None,
+    name_warnings=None,
 ) -> str:
     canonical = _canonical(value)
     # Opaque identifiers, email local parts and URL paths can distinguish case,
@@ -521,7 +523,8 @@ def _synthetic_value(
     if label == "NAME":
         title, identity = _name_identity(value)
         full_identity, role = (
-            (name_binding.owner, name_binding.role) if name_binding is not None
+            (name_binding.owner, name_binding.role)
+            if name_binding is not None
             else aliases.get(identity, (identity, "full"))
         )
         first, last = _fictional_name(secret, patient, full_identity)
@@ -534,10 +537,14 @@ def _synthetic_value(
             def safe_nickname(candidate):
                 tokens = _name_words(_name_identity(candidate)[1])
                 width = len(original_tokens)
-                return bool(tokens and width and not any(
-                    tokens[i:i + width] == original_tokens
-                    for i in range(len(tokens) - width + 1)
-                ))
+                return bool(
+                    tokens
+                    and width
+                    and not any(
+                        tokens[i : i + width] == original_tokens
+                        for i in range(len(tokens) - width + 1)
+                    )
+                )
 
             if not safe_nickname(rendered):
                 # Keep the canonical person's key/mapping unchanged. Its family
@@ -546,7 +553,9 @@ def _synthetic_value(
                 rendered = title + last
             if not safe_nickname(rendered):
                 if name_warnings is not None:
-                    name_warnings.append("Synthetic owner name contains the original nickname; NAME redacted.")
+                    name_warnings.append(
+                        "Synthetic owner name contains the original nickname; NAME redacted."
+                    )
                 return "[NAME]"
         return rendered
     if label == "AGE":
@@ -652,11 +661,17 @@ def replace(
         else:
             name_warnings = []
             replacement = _synthetic_value(
-                original, label, key, patient, aliases,
+                original,
+                label,
+                key,
+                patient,
+                aliases,
                 name_binding=bindings.get((span.start, span.end)),
                 name_warnings=name_warnings,
             )
-            warnings.extend(f"Entity {entity_index} (NAME): {warning}" for warning in name_warnings)
+            warnings.extend(
+                f"Entity {entity_index} (NAME): {warning}" for warning in name_warnings
+            )
         parts.extend((text[cursor : span.start], replacement))
         entities.append(
             {

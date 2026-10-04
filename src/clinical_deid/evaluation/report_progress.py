@@ -123,9 +123,7 @@ def benchmark_progress(run: dict) -> dict:
             }
         )
     evaluable = complete_checks and all(gate["passed"] is not None for gate in gates)
-    status = (
-        ("met" if goal["passed"] else "not_met") if evaluable else "unavailable"
-    )
+    status = ("met" if goal["passed"] else "not_met") if evaluable else "unavailable"
 
     documents = _count(run.get("documents"))
     leak_free = _count((run.get("document_leak_free") or {}).get("count"))

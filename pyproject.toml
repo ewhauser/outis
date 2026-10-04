@@ -47,7 +47,8 @@ pythonpath = ["src"]
 [tool.ruff]
 target-version = "py311"
 # Experiment records and frozen one-off generators are kept byte-for-byte as
-# evidence; their hashes are pinned by manifests, so they are not linted.
+# evidence; their hashes are pinned by manifests, so they are neither linted
+# nor formatted.
 extend-exclude = [
     "data",
     "reports",
@@ -60,8 +61,3 @@ extend-exclude = [
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
 
-[tool.ruff.lint.per-file-ignores]
-# Preserve the source bytes pinned by the immutable v12 and v13 training manifests.
-# This exception covers statement layout only; all other checks still apply.
-"src/clinical_deid/data/v12/synthetic.py" = ["E702"]
-"src/clinical_deid/data/v13/synthetic.py" = ["E702", "F401"]

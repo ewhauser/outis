@@ -32,7 +32,9 @@ def main():
         if len(secret.encode("utf-8")) < 32:
             raise ValueError("Local replacement key must contain at least 32 bytes")
         os.environ["DEID_SECRET"] = secret
-    uvicorn.run("clinical_deid.api:app", host="127.0.0.1", port=args.port, access_log=False)
+    uvicorn.run(
+        "clinical_deid.api:app", host="127.0.0.1", port=args.port, access_log=False
+    )
 
 
 if __name__ == "__main__":

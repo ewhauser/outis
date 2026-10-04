@@ -21,14 +21,23 @@ class FakeDetector:
         self.options = options
 
     def detect_batch(self, texts):
-        return [[Span(0, 11, "NAME")] if text.startswith("Mara Calder") else [] for text in texts]
+        return [
+            [Span(0, 11, "NAME")] if text.startswith("Mara Calder") else []
+            for text in texts
+        ]
 
 
 @pytest.fixture
 def hf_bundle(tmp_path):
-    (tmp_path / "config.json").write_text(json.dumps({
-        "encoder": hf_encoder.ENCODER_KIND, "max_length": 512, "model_labels": ["NAME"],
-    }))
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                "encoder": hf_encoder.ENCODER_KIND,
+                "max_length": 512,
+                "model_labels": ["NAME"],
+            }
+        )
+    )
     hf = tmp_path / "hf"
     hf.mkdir()
     (hf / "config.json").write_text('{"model_type": "modernbert"}')
@@ -41,12 +50,18 @@ def test_explicit_hf_service_uses_factory_and_preserves_options(hf_bundle, monke
     monkeypatch.setattr(hf_encoder, "HFTokenDetector", FakeDetector)
     service = Deidentifier(hf_bundle, backend="model", device="cpu")
     assert isinstance(service.detector, FakeDetector)
-    assert service.detector.options == {"backend": "model", "device": "cpu", "batch_size": 8}
+    assert service.detector.options == {
+        "backend": "model",
+        "device": "cpu",
+        "batch_size": 8,
+    }
     assert len(service.version) == 16 and service.version != "injected-detector"
     assert service.deidentify("Mara Calder arrived.")["text"] == "[NAME] arrived."
 
 
-def test_legacy_default_directory_options_and_adapter_version_are_unchanged(tmp_path, monkeypatch):
+def test_legacy_default_directory_options_and_adapter_version_are_unchanged(
+    tmp_path, monkeypatch
+):
     monkeypatch.chdir(tmp_path)
     root = tmp_path / "models" / "clinical-adapter"
     root.mkdir(parents=True)
@@ -56,15 +71,26 @@ def test_legacy_default_directory_options_and_adapter_version_are_unchanged(tmp_
     service = Deidentifier(device="cpu", base_dir="local-base")
     assert service.detector.model_dir == Path("models/clinical-adapter")
     assert service.detector.options == {
-        "backend": "hybrid", "device": "cpu", "base_dir": "local-base", "batch_size": 8,
+        "backend": "hybrid",
+        "device": "cpu",
+        "base_dir": "local-base",
+        "batch_size": 8,
     }
     assert service.version == hashlib.sha256(b"legacy-adapter").hexdigest()[:16]
 
 
-@pytest.mark.parametrize("artifact", [
-    "config.json", "hf/config.json", "hf/tokenizer.json", "hf/model.safetensors",
-])
-def test_hf_version_changes_with_each_inference_artifact(hf_bundle, monkeypatch, artifact):
+@pytest.mark.parametrize(
+    "artifact",
+    [
+        "config.json",
+        "hf/config.json",
+        "hf/tokenizer.json",
+        "hf/model.safetensors",
+    ],
+)
+def test_hf_version_changes_with_each_inference_artifact(
+    hf_bundle, monkeypatch, artifact
+):
     monkeypatch.setattr(hf_encoder, "HFTokenDetector", FakeDetector)
     original = Deidentifier(hf_bundle, device="cpu").version
     assert Deidentifier(hf_bundle, device="cpu").version == original
@@ -78,7 +104,9 @@ def test_hf_version_changes_with_each_inference_artifact(hf_bundle, monkeypatch,
     assert Deidentifier(hf_bundle, device="cpu").version != original
 
 
-def test_hf_version_includes_shards_and_is_independent_of_directory(hf_bundle, tmp_path, monkeypatch):
+def test_hf_version_includes_shards_and_is_independent_of_directory(
+    hf_bundle, tmp_path, monkeypatch
+):
     import shutil
 
     monkeypatch.setattr(hf_encoder, "HFTokenDetector", FakeDetector)
@@ -91,7 +119,9 @@ def test_hf_version_includes_shards_and_is_independent_of_directory(hf_bundle, t
     assert Deidentifier(copy, device="cpu").version == sharded
 
 
-def test_http_model_environment_selects_hf_and_exposes_bundle_version(hf_bundle, monkeypatch):
+def test_http_model_environment_selects_hf_and_exposes_bundle_version(
+    hf_bundle, monkeypatch
+):
     monkeypatch.setattr(hf_encoder, "HFTokenDetector", FakeDetector)
     monkeypatch.setenv("DEID_MODEL_DIR", str(hf_bundle))
     monkeypatch.setenv("DEID_DEVICE", "cpu")

@@ -25,11 +25,7 @@ TAGS = ["O"] + [f"{boundary}-{label}" for label in ENTITY_TYPES for boundary in 
 
 
 def get_encoding(base_dir=None):
-    root = (
-        Path(base_dir).resolve().parent.parent
-        if base_dir
-        else PROJECT_ROOT
-    )
+    root = Path(base_dir).resolve().parent.parent if base_dir else PROJECT_ROOT
     os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(root / ".cache" / "tiktoken"))
     return tiktoken.get_encoding("o200k_base")
 
@@ -68,8 +64,11 @@ def grouped_moe(self, x):
     # changes floating-point summation order and can change later expert routes.
     # Store MPS contributions by each token's own top-k rank before reducing.
     output = (
-        torch.empty((expert_ids.numel(), t.shape[-1]), device=x.device, dtype=torch.float32)
-        if stable_mps else torch.zeros_like(t, dtype=torch.float32)
+        torch.empty(
+            (expert_ids.numel(), t.shape[-1]), device=x.device, dtype=torch.float32
+        )
+        if stable_mps
+        else torch.zeros_like(t, dtype=torch.float32)
     )
     for capacity, experts in buckets.items():
         ids = torch.tensor([e[0] for e in experts], device=x.device)
@@ -252,19 +251,27 @@ def decode_bioes(logits, offsets, text):
                 def letter(char):
                     return unicodedata.category(char)[0] in {"L", "M"}
 
-                left_limit = offsets[start - 1][1] if start > 0 and labels[start - 1] != 0 else 0
-                right_limit = offsets[i + 1][0] if i + 1 < n and labels[i + 1] != 0 else len(text)
+                left_limit = (
+                    offsets[start - 1][1] if start > 0 and labels[start - 1] != 0 else 0
+                )
+                right_limit = (
+                    offsets[i + 1][0] if i + 1 < n and labels[i + 1] != 0 else len(text)
+                )
                 while a > left_limit and a < b:
                     if letter(text[a - 1]) and letter(text[a]):
                         a -= 1
                     elif (
-                        text[a] in "'’-" and a + 1 < b
-                        and letter(text[a - 1]) and letter(text[a + 1])
+                        text[a] in "'’-"
+                        and a + 1 < b
+                        and letter(text[a - 1])
+                        and letter(text[a + 1])
                     ):
                         a -= 1
                     elif (
-                        text[a - 1] in "'’-" and a - 2 >= left_limit
-                        and letter(text[a - 2]) and letter(text[a])
+                        text[a - 1] in "'’-"
+                        and a - 2 >= left_limit
+                        and letter(text[a - 2])
+                        and letter(text[a])
                     ):
                         a -= 2
                     else:
@@ -273,13 +280,17 @@ def decode_bioes(logits, offsets, text):
                     if letter(text[b - 1]) and letter(text[b]):
                         b += 1
                     elif (
-                        text[b - 1] in "'’-" and b - 2 >= a
-                        and letter(text[b - 2]) and letter(text[b])
+                        text[b - 1] in "'’-"
+                        and b - 2 >= a
+                        and letter(text[b - 2])
+                        and letter(text[b])
                     ):
                         b += 1
                     elif (
-                        text[b] in "'’-" and b + 1 < right_limit
-                        and letter(text[b - 1]) and letter(text[b + 1])
+                        text[b] in "'’-"
+                        and b + 1 < right_limit
+                        and letter(text[b - 1])
+                        and letter(text[b + 1])
                     ):
                         b += 2
                     else:
@@ -294,16 +305,17 @@ def decode_bioes(logits, offsets, text):
                     possessive_end = b
                     while possessive_end > a and text[possessive_end - 1] in ".!?":
                         possessive_end -= 1
-                    terminal = (
-                        possessive_end == len(text)
-                        or not (
-                            text[possessive_end].isalnum() or letter(text[possessive_end]) or text[possessive_end] == "_"
-                            or (
-                                text[possessive_end] in "'’-\u2010\u2011" and possessive_end + 1 < len(text)
-                                and letter(text[possessive_end + 1])
-                            )
+                    terminal = possessive_end == len(text) or not (
+                        text[possessive_end].isalnum()
+                        or letter(text[possessive_end])
+                        or text[possessive_end] == "_"
+                        or (
+                            text[possessive_end] in "'’-\u2010\u2011"
+                            and possessive_end + 1 < len(text)
+                            and letter(text[possessive_end + 1])
                         )
                     )
+
                     def period_ends_name(value):
                         if re.search(r"\b(?:Jr|Sr)\.$", value, re.I):
                             return True
@@ -313,52 +325,96 @@ def decode_bioes(logits, offsets, text):
                         if not value.endswith("."):
                             return False
                         index = len(value) - 2
-                        while index >= 0 and unicodedata.category(value[index])[0] == "M":
+                        while (
+                            index >= 0 and unicodedata.category(value[index])[0] == "M"
+                        ):
                             index -= 1
                         return (
-                            index >= 0 and unicodedata.category(value[index])[0] == "L"
-                            and (index == 0 or value[index - 1].isspace() or value[index - 1] == ".")
+                            index >= 0
+                            and unicodedata.category(value[index])[0] == "L"
+                            and (
+                                index == 0
+                                or value[index - 1].isspace()
+                                or value[index - 1] == "."
+                            )
                         )
 
-                    suffix_before_possessive = period_ends_name(text[a:possessive_end - 2])
-                    if terminal and possessive_end - a > 2 and text[possessive_end - 2] in "'’" and text[possessive_end - 1] in "sS" and (letter(text[possessive_end - 3]) or suffix_before_possessive):
+                    suffix_before_possessive = period_ends_name(
+                        text[a : possessive_end - 2]
+                    )
+                    if (
+                        terminal
+                        and possessive_end - a > 2
+                        and text[possessive_end - 2] in "'’"
+                        and text[possessive_end - 1] in "sS"
+                        and (
+                            letter(text[possessive_end - 3]) or suffix_before_possessive
+                        )
+                    ):
                         b = possessive_end - 2
                     elif (
-                        b > a and text[b - 1] in "'’"
-                        and period_ends_name(text[a:b - 1])
-                        and text[b:b + 1] in {"s", "S"}
-                        and (b + 1 == len(text) or not (
-                            letter(text[b + 1]) or text[b + 1].isalnum() or text[b + 1] == "_"
-                            or (text[b + 1] in "'’\u2010\u2011-" and b + 2 < len(text) and letter(text[b + 2]))
-                        ))
+                        b > a
+                        and text[b - 1] in "'’"
+                        and period_ends_name(text[a : b - 1])
+                        and text[b : b + 1] in {"s", "S"}
+                        and (
+                            b + 1 == len(text)
+                            or not (
+                                letter(text[b + 1])
+                                or text[b + 1].isalnum()
+                                or text[b + 1] == "_"
+                                or (
+                                    text[b + 1] in "'’\u2010\u2011-"
+                                    and b + 2 < len(text)
+                                    and letter(text[b + 2])
+                                )
+                            )
+                        )
                     ):
                         # BPE can end immediately after the apostrophe in
                         # "Jr.'s" or "M.'s". Keep the period, excluding possessive
                         # grammar only when the complete following s is proven.
                         b -= 1
-                    elif terminal and possessive_end - a > 1 and text[possessive_end - 1] in "'’" and text[possessive_end - 2] in "sS":
+                    elif (
+                        terminal
+                        and possessive_end - a > 1
+                        and text[possessive_end - 1] in "'’"
+                        and text[possessive_end - 2] in "sS"
+                    ):
                         # Plural possessives such as James' retain the final s.
                         b = possessive_end - 1
                     # An edge apostrophe can be a quotation delimiter or part
                     # of a name. Require a paired quote in this paragraph and
                     # preserve ambiguous leading elisions such as 't Hooft.
-                    opening = a if text[a:a + 1] in {"'", "‘"} else a - 1
+                    opening = a if text[a : a + 1] in {"'", "‘"} else a - 1
                     if (
-                        opening >= 0 and text[opening] in "'‘"
-                        and (opening == 0 or not (
-                            letter(text[opening - 1]) or text[opening - 1].isalnum()
-                            or text[opening - 1] == "_"
-                        ))
+                        opening >= 0
+                        and text[opening] in "'‘"
+                        and (
+                            opening == 0
+                            or not (
+                                letter(text[opening - 1])
+                                or text[opening - 1].isalnum()
+                                or text[opening - 1] == "_"
+                            )
+                        )
                     ):
                         close_char = "’" if text[opening] == "‘" else "'"
                         first = opening + 1
                         after_initial = first + 1
-                        while after_initial < len(text) and unicodedata.category(text[after_initial])[0] == "M":
+                        while (
+                            after_initial < len(text)
+                            and unicodedata.category(text[after_initial])[0] == "M"
+                        ):
                             after_initial += 1
                         leading_elision = (
-                            first < len(text) and unicodedata.category(text[first])[0] == "L"
+                            first < len(text)
+                            and unicodedata.category(text[first])[0] == "L"
                             and after_initial < len(text)
-                            and (text[after_initial].isspace() or text[after_initial] in "-\u2010\u2011")
+                            and (
+                                text[after_initial].isspace()
+                                or text[after_initial] in "-\u2010\u2011"
+                            )
                         )
                         if not leading_elision:
                             for closing in range(first, len(text)):
@@ -368,23 +424,39 @@ def decode_bioes(logits, offsets, text):
                                 if char not in {close_char, text[opening]}:
                                     continue
                                 before = text[closing - 1] if closing > first else " "
-                                after = text[closing + 1:closing + 2]
+                                after = text[closing + 1 : closing + 2]
                                 after_is_word = bool(after) and (
-                                    letter(after) or after.isalnum() or after == "_"
-                                    or (after in "-\u2010\u2011" and closing + 2 < len(text) and letter(text[closing + 2]))
+                                    letter(after)
+                                    or after.isalnum()
+                                    or after == "_"
+                                    or (
+                                        after in "-\u2010\u2011"
+                                        and closing + 2 < len(text)
+                                        and letter(text[closing + 2])
+                                    )
                                 )
-                                if char == close_char and not before.isspace() and not after_is_word:
+                                if (
+                                    char == close_char
+                                    and not before.isspace()
+                                    and not after_is_word
+                                ):
                                     # A distant apostrophe after a word could
                                     # instead be a plural possessive. Only a
                                     # punctuated utterance establishes a pair
                                     # beyond the name's own closing edge.
-                                    if closing in {b - 1, b} or (closing > b and before in ".,!?"):
+                                    if closing in {b - 1, b} or (
+                                        closing > b and before in ".,!?"
+                                    ):
                                         if a == opening:
                                             a += 1
                                         if b - 1 == closing:
                                             b -= 1
                                     break
-                                if char == text[opening] and (before.isspace() or before in "([{=:;") and after_is_word:
+                                if (
+                                    char == text[opening]
+                                    and (before.isspace() or before in "([{=:;")
+                                    and after_is_word
+                                ):
                                     # A new opener means the original mark was
                                     # not demonstrably paired; keep it intact.
                                     break

@@ -250,7 +250,9 @@ def prepare_context(text, spans, *, secret=None, patient_id=None) -> PreparedCon
         ),
         aliases=MappingProxyType(_name_aliases(text, linked)),
         bindings=nickname_bindings(text, linked),
-        occurrence_ids=MappingProxyType({(s.start, s.end, s.label): s.entity_id for s in linked}),
+        occurrence_ids=MappingProxyType(
+            {(s.start, s.end, s.label): s.entity_id for s in linked}
+        ),
     )
 
 
@@ -444,9 +446,10 @@ def render(
     if context_offset is None and context == text:
         context_offset = 0
     if context_offset is not None and (
-        type(context_offset) is not int or context_offset < 0
+        type(context_offset) is not int
+        or context_offset < 0
         or context_offset + len(text) > len(context)
-        or context[context_offset:context_offset + len(text)] != text
+        or context[context_offset : context_offset + len(text)] != text
     ):
         raise ValueError("context_offset must identify the exact text segment")
     bindings = prepared_context.bindings if context_offset is not None else {}
@@ -459,7 +462,11 @@ def render(
                 _, value = _name_identity(value)
                 value = aliases.get(value, (value, "full"))[0]
             if context_offset is not None:
-                global_key = (span.start + context_offset, span.end + context_offset, span.label)
+                global_key = (
+                    span.start + context_offset,
+                    span.end + context_offset,
+                    span.label,
+                )
                 exact_id = prepared_context.occurrence_ids.get(global_key)
                 ids = {exact_id} if exact_id is not None else set()
             else:
@@ -499,18 +506,32 @@ def render(
             if warning:
                 warnings.append(f"Entity {index} (DATE): {warning}")
         elif span.label in ENTITY_TYPES:
-            binding = bindings.get((span.start + (context_offset or 0),
-                                    span.end + (context_offset or 0)))
+            binding = bindings.get(
+                (span.start + (context_offset or 0), span.end + (context_offset or 0))
+            )
             # A supplied conflicting local ID cannot borrow a global proof.
             expected_id = prepared_context.occurrence_ids.get(
-                (span.start + (context_offset or 0), span.end + (context_offset or 0), span.label)
+                (
+                    span.start + (context_offset or 0),
+                    span.end + (context_offset or 0),
+                    span.label,
+                )
             )
             if binding is not None and span.entity_id != expected_id:
                 binding = None
             name_warnings = []
-            replacement = _synthetic_value(original, span.label, key, patient, aliases,
-                                           name_binding=binding, name_warnings=name_warnings)
-            warnings.extend(f"Entity {index} (NAME): {warning}" for warning in name_warnings)
+            replacement = _synthetic_value(
+                original,
+                span.label,
+                key,
+                patient,
+                aliases,
+                name_binding=binding,
+                name_warnings=name_warnings,
+            )
+            warnings.extend(
+                f"Entity {index} (NAME): {warning}" for warning in name_warnings
+            )
         else:
             replacement = marker
         if span.label == "DATE" and (action != "synthetic" or not shifted):

@@ -2,17 +2,34 @@ import json
 
 import pytest
 
-from clinical_deid.data.challenge import FRAGMENTS, SCENARIOS, generate, unmark, write_corpus
-from clinical_deid.evaluation.evaluate import evaluate, load_verified_corpus, wilson_lower
+from clinical_deid.data.challenge import (
+    FRAGMENTS,
+    SCENARIOS,
+    generate,
+    unmark,
+    write_corpus,
+)
+from clinical_deid.evaluation.evaluate import (
+    evaluate,
+    load_verified_corpus,
+    wilson_lower,
+)
 from clinical_deid.types import ENTITY_TYPES, Span
 
 
 def row(text="Zoë has fever", start=0, end=3, label="NAME"):
-    return {"id": "1", "text": text, "spans": [{"start": start, "end": end, "label": label}], "family": "test"}
+    return {
+        "id": "1",
+        "text": text,
+        "spans": [{"start": start, "end": end, "label": label}],
+        "family": "test",
+    }
 
 
 def test_exact_typed_span_and_character_metrics_distinguish_partial_leaks():
-    result = evaluate([row()], lambda text: [Span(0, 2, "NAME")], minimum_label_support=1)
+    result = evaluate(
+        [row()], lambda text: [Span(0, 2, "NAME")], minimum_label_support=1
+    )
     assert result["typed_span"]["recall"] == 0
     assert result["typed_span"]["precision"] == 0
     assert result["character"]["recall"] == pytest.approx(2 / 3)
@@ -29,7 +46,15 @@ def test_type_error_redacts_characters_but_is_not_exact_typed_match():
 
 
 def test_negative_documents_and_duplicate_predictions():
-    rows = [{"id": "negative", "text": "5 mg for 14 days", "spans": [], "family": "negative"}, row()]
+    rows = [
+        {
+            "id": "negative",
+            "text": "5 mg for 14 days",
+            "spans": [],
+            "family": "negative",
+        },
+        row(),
+    ]
     result = evaluate(rows, lambda text: [Span(0, 3, "NAME"), Span(0, 3, "NAME")])
     assert result["typed_span"]["true_positives"] == 1
     assert result["typed_span"]["false_positives"] == 1
@@ -39,8 +64,8 @@ def test_negative_documents_and_duplicate_predictions():
 
 def test_unicode_annotation_offsets_are_character_offsets():
     text, spans = unmark("Hello [[NAME|Zoë Núñez]], DOB [[DATE|2024-10-03]].")
-    assert text[spans[0]["start"]:spans[0]["end"]] == "Zoë Núñez"
-    assert text[spans[1]["start"]:spans[1]["end"]] == "2024-10-03"
+    assert text[spans[0]["start"] : spans[0]["end"]] == "Zoë Núñez"
+    assert text[spans[1]["start"] : spans[1]["end"]] == "2024-10-03"
 
 
 def test_synthetic_challenge_is_reproducible_and_has_all_labels():
@@ -58,9 +83,13 @@ def test_synthetic_challenge_is_reproducible_and_has_all_labels():
 def test_final_context_templates_are_disjoint_from_tuning_suites():
     final = {phrase for variants in FRAGMENTS["final"].values() for phrase in variants}
     for suite in ("development", "adversarial"):
-        tuning = {phrase for variants in FRAGMENTS[suite].values() for phrase in variants}
+        tuning = {
+            phrase for variants in FRAGMENTS[suite].values() for phrase in variants
+        }
         assert not final & tuning
-        assert not {item[0] for item in SCENARIOS["final"]} & {item[0] for item in SCENARIOS[suite]}
+        assert not {item[0] for item in SCENARIOS["final"]} & {
+            item[0] for item in SCENARIOS[suite]
+        }
 
 
 def test_frozen_manifest_rejects_tampering_and_overwrite(tmp_path):
@@ -79,7 +108,7 @@ def test_frozen_manifest_rejects_tampering_and_overwrite(tmp_path):
 
 
 def test_wilson_interval_and_empty_evaluation():
-    assert wilson_lower(1000, 1000) == pytest.approx(.9961732415)
+    assert wilson_lower(1000, 1000) == pytest.approx(0.9961732415)
     assert wilson_lower(0, 0) == 0
     with pytest.raises(ValueError, match="empty"):
         evaluate([], lambda text: [])
@@ -91,6 +120,7 @@ def test_model_and_hybrid_reports_are_explicitly_separate():
     class Detector:
         def detect(self, text):
             return [Span(0, 3, "NAME")]
+
     assert evaluate([row()], Detector(), backend="model")["backend"] == "model"
     assert evaluate([row()], Detector(), backend="hybrid")["backend"] == "hybrid"
 
@@ -102,6 +132,7 @@ def test_batch_predictions_use_fast_path_and_validate_batch_size():
 
         def detect_batch(self, texts):
             return [[Span(0, 3, "NAME")] for text in texts]
+
     result = evaluate([row()], Detector(), backend="model")
     assert result["typed_span"]["f1"] == 1
     with pytest.raises(ValueError, match="batch_size"):
@@ -111,7 +142,11 @@ def test_batch_predictions_use_fast_path_and_validate_batch_size():
 def test_duplicate_corpus_identifiers_are_rejected():
     with pytest.raises(ValueError, match="Duplicate corpus"):
         evaluate([row(), row()], lambda text: [])
-def test_detector_source_manifest_includes_changed_transitive_helpers(tmp_path, monkeypatch):
+
+
+def test_detector_source_manifest_includes_changed_transitive_helpers(
+    tmp_path, monkeypatch
+):
     import clinical_deid.evaluation.evaluate as evaluation
     import clinical_deid.paths as paths
 
@@ -125,7 +160,12 @@ def test_detector_source_manifest_includes_changed_transitive_helpers(tmp_path, 
         (tmp_path / name).write_text(text)
     monkeypatch.setattr(paths, "PACKAGE_ROOT", tmp_path)
     before = evaluation.detector_source_manifest()
-    assert set(before) == {"detection/adapter.py", "detection/rules.py", "detection/helper.py", "types.py"}
+    assert set(before) == {
+        "detection/adapter.py",
+        "detection/rules.py",
+        "detection/helper.py",
+        "types.py",
+    }
     (tmp_path / "detection/helper.py").write_text("def refine(): return 1\n")
     after = evaluation.detector_source_manifest()
     assert before["detection/helper.py"] != after["detection/helper.py"]
@@ -134,9 +174,12 @@ def test_detector_source_manifest_includes_changed_transitive_helpers(tmp_path, 
 def test_phi_bearing_document_metric_excludes_automatically_safe_negatives():
     rows = [row(), {"id": "negative", "text": "Vitals normal", "spans": []}]
     result = evaluate(rows, lambda text: [])
-    assert result["document_leak_free"]["rate"] == .5
+    assert result["document_leak_free"]["rate"] == 0.5
     assert result["phi_bearing_documents"] == {
-        "count": 1, "leak_free_count": 0, "leak_free_rate": 0.0, "wilson_lower_95": 0.0,
+        "count": 1,
+        "leak_free_count": 0,
+        "leak_free_rate": 0.0,
+        "wilson_lower_95": 0.0,
     }
     assert result["per_label_character_exposure"]["NAME"]["exposed_characters"] == 3
 
@@ -153,11 +196,19 @@ def test_character_exposure_tracks_gold_label_even_with_wrong_prediction_type():
 
 
 def test_empty_phi_support_is_not_reported_as_perfect_diagnostic_coverage():
-    result = evaluate([{"id": "negative", "text": "Vitals normal", "spans": []}], lambda text: [])
+    result = evaluate(
+        [{"id": "negative", "text": "Vitals normal", "spans": []}], lambda text: []
+    )
     assert result["phi_bearing_documents"] == {
-        "count": 0, "leak_free_count": 0, "leak_free_rate": None, "wilson_lower_95": None,
+        "count": 0,
+        "leak_free_count": 0,
+        "leak_free_rate": None,
+        "wilson_lower_95": None,
     }
-    assert all(stats["recall"] is None for stats in result["per_label_character_exposure"].values())
+    assert all(
+        stats["recall"] is None
+        for stats in result["per_label_character_exposure"].values()
+    )
     # Existing report semantics and admission gates remain backward compatible.
     assert result["negative_documents"]["clean_rate"] == 1
     assert result["schema_version"] == 1
@@ -165,5 +216,5 @@ def test_empty_phi_support_is_not_reported_as_perfect_diagnostic_coverage():
 
 
 def test_minimum_support_for_possible_99_percent_wilson_bound_is_381():
-    assert wilson_lower(380, 380) < .99
-    assert wilson_lower(381, 381) >= .99
+    assert wilson_lower(380, 380) < 0.99
+    assert wilson_lower(381, 381) >= 0.99

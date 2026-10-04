@@ -9,12 +9,58 @@ from __future__ import annotations
 import re
 import unicodedata
 
-_PARTICLES = {"de", "del", "da", "van", "von", "der", "al", "bin", "dos", "du", "la", "le", "den", "des"}
+_PARTICLES = {
+    "de",
+    "del",
+    "da",
+    "van",
+    "von",
+    "der",
+    "al",
+    "bin",
+    "dos",
+    "du",
+    "la",
+    "le",
+    "den",
+    "des",
+}
 _SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v", "vi"}
 _FUNCTION_WORDS = {
-    "a", "an", "the", "for", "to", "in", "on", "of", "as", "at", "by", "from",
-    "have", "has", "had", "do", "does", "did", "be", "is", "are", "was", "were",
-    "will", "may", "can", "no", "not", "but", "and", "or", "na", "if", "so",
+    "a",
+    "an",
+    "the",
+    "for",
+    "to",
+    "in",
+    "on",
+    "of",
+    "as",
+    "at",
+    "by",
+    "from",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "be",
+    "is",
+    "are",
+    "was",
+    "were",
+    "will",
+    "may",
+    "can",
+    "no",
+    "not",
+    "but",
+    "and",
+    "or",
+    "na",
+    "if",
+    "so",
 }
 
 
@@ -24,15 +70,23 @@ def alias_function_word(value: str) -> bool:
 
 
 def _word(value: str) -> bool:
-    return bool(value) and value[0].isalpha() and all(
-        c.isalpha() or unicodedata.category(c).startswith("M") or c in "'’‐‑-"
-        for c in value
+    return (
+        bool(value)
+        and value[0].isalpha()
+        and all(
+            c.isalpha() or unicodedata.category(c).startswith("M") or c in "'’‐‑-"
+            for c in value
+        )
     )
 
 
 def _initial(value: str) -> bool:
-    return value.endswith(".") and sum(c.isalpha() for c in value[:-1]) == 1 and all(
-        c.isalpha() or unicodedata.category(c).startswith("M") for c in value[:-1]
+    return (
+        value.endswith(".")
+        and sum(c.isalpha() for c in value[:-1]) == 1
+        and all(
+            c.isalpha() or unicodedata.category(c).startswith("M") for c in value[:-1]
+        )
     )
 
 
@@ -55,7 +109,10 @@ def full_identity_aliases(value: str) -> tuple[str, ...]:
     if value != value.strip() or "\n" in value or "\r" in value or value.count(",") > 1:
         return ()
     comma_parts = value.split(",")
-    if len(comma_parts) == 2 and comma_parts[1].strip().rstrip(".").casefold() in _SUFFIXES:
+    if (
+        len(comma_parts) == 2
+        and comma_parts[1].strip().rstrip(".").casefold() in _SUFFIXES
+    ):
         comma_parts = comma_parts[:1]
     parts = [re.split(r"[ \t]+", part.strip()) for part in comma_parts]
     for words in parts:
@@ -63,7 +120,11 @@ def full_identity_aliases(value: str) -> tuple[str, ...]:
             words.pop()
     if len(parts) == 2:
         family_words, given_words = parts
-        if not given_words or not _word(given_words[0]) or any(not _initial(word) for word in given_words[1:]):
+        if (
+            not given_words
+            or not _word(given_words[0])
+            or any(not _initial(word) for word in given_words[1:])
+        ):
             return ()
         first, family = given_words[0], _family(family_words)
     else:

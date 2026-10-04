@@ -10,9 +10,15 @@ from dataclasses import dataclass, field
 import re
 from types import MappingProxyType
 
-from clinical_deid.detection.context.nickname import _complete_identity, contextual_person_names
+from clinical_deid.detection.context.nickname import (
+    _complete_identity,
+    contextual_person_names,
+)
 from clinical_deid.detection.context.record import (
-    _OTHER_RECORD, _PATIENT_HEADER, _RECORD_HEADER, excluded_ranges,
+    _OTHER_RECORD,
+    _PATIENT_HEADER,
+    _RECORD_HEADER,
+    excluded_ranges,
 )
 
 
@@ -24,19 +30,23 @@ class NameBinding:
     relation: str
 
 
-_RELATIONS = frozenset({
-    "explicit-personal-alias-declaration",
-    "declared-alias-human-object",
-    "explicit-local-nickname-coreference",
-})
+_RELATIONS = frozenset(
+    {
+        "explicit-personal-alias-declaration",
+        "declared-alias-human-object",
+        "explicit-local-nickname-coreference",
+    }
+)
 _RELATION_CUE = re.compile(r"\b(?:nickname|alias)\b", re.I)
 _IDENTITY_CLAIM = re.compile(r"\b(?:nickname|alias|identity|naming)\b", re.I)
 _CLAIM_REFERENCE = re.compile(
     r"\b(?:this|that|the\s+(?:preceding|previous|above))\s+"
-    r"(?:statement|assertion|declaration|claim|entry|relationship|association)\b", re.I,
+    r"(?:statement|assertion|declaration|claim|entry|relationship|association)\b",
+    re.I,
 )
 _WITHDRAWN_CLAIM = re.compile(
-    r"\b(?:retract(?:ed|ion)?|withdrawn|incorrect|mistaken|false|erroneous|denied)\b", re.I,
+    r"\b(?:retract(?:ed|ion)?|withdrawn|incorrect|mistaken|false|erroneous|denied)\b",
+    re.I,
 )
 
 
@@ -54,8 +64,9 @@ def nickname_bindings(text, spans):
     if not _RELATION_CUE.search(text):
         return MappingProxyType({})
     for clause in re.split(r"[.!?\r\n\u2028\u2029]", text):
-        if ((_IDENTITY_CLAIM.search(clause) or _CLAIM_REFERENCE.search(clause))
-                and _WITHDRAWN_CLAIM.search(clause)):
+        if (
+            _IDENTITY_CLAIM.search(clause) or _CLAIM_REFERENCE.search(clause)
+        ) and _WITHDRAWN_CLAIM.search(clause):
             return MappingProxyType({})
     retained = {(s.start, s.end): s for s in spans if s.label == "NAME"}
     evidence = []
@@ -64,17 +75,21 @@ def nickname_bindings(text, spans):
     supplied_owners = {}
     for bounds, span in retained.items():
         entity_id = getattr(span, "entity_id", None)
-        value = text[bounds[0]:bounds[1]]
+        value = text[bounds[0] : bounds[1]]
         if entity_id is not None and _complete_identity(value):
             supplied_owners.setdefault(entity_id, set()).add(_name_identity(value)[1])
     proofs = []
     for proof in evidence:
         bounds = proof["start"], proof["end"]
         witness = proof["witness_start"], proof["witness_end"]
-        if (proof["relation"] not in _RELATIONS or bounds not in retained
-                or witness not in retained or bounds == witness):
+        if (
+            proof["relation"] not in _RELATIONS
+            or bounds not in retained
+            or witness not in retained
+            or bounds == witness
+        ):
             continue
-        owner = _name_identity(text[witness[0]:witness[1]])[1]
+        owner = _name_identity(text[witness[0] : witness[1]])[1]
         proofs.append((proof, bounds, witness, owner))
         for endpoint in (bounds, witness):
             entity_id = getattr(retained[endpoint], "entity_id", None)
@@ -85,9 +100,12 @@ def nickname_bindings(text, spans):
         left, right = sorted((bounds, witness))
         if any(a < right[1] and left[0] < b for a, b in excluded):
             continue
-        bridge = text[left[1]:right[0]]
-        if (_OTHER_RECORD.search(bridge) or _PATIENT_HEADER.search(bridge)
-                or _RECORD_HEADER.search(bridge)):
+        bridge = text[left[1] : right[0]]
+        if (
+            _OTHER_RECORD.search(bridge)
+            or _PATIENT_HEADER.search(bridge)
+            or _RECORD_HEADER.search(bridge)
+        ):
             # Caller sharing permits one lookup context, not a cross-record
             # identity assertion. Reuse the detection scope boundary contract
             # solely as a veto; never run its extraction or seed its additions.
@@ -99,22 +117,38 @@ def nickname_bindings(text, spans):
         owner_id = getattr(owner_span, "entity_id", None)
         if mention_id is not None and owner_id is not None and mention_id != owner_id:
             continue
-        if any(entity_id is not None and supplied_owners[entity_id] != {owner}
-               for entity_id in (mention_id, owner_id)):
+        if any(
+            entity_id is not None and supplied_owners[entity_id] != {owner}
+            for entity_id in (mention_id, owner_id)
+        ):
             continue
         eligible.append((proof, bounds, witness, owner))
     choices = {}
     for proof, bounds, witness, owner in eligible:
-        same_owner_bounds = {endpoint for _, mention, seed, identity in eligible if identity == owner
-                             for endpoint in (mention, seed)}
+        same_owner_bounds = {
+            endpoint
+            for _, mention, seed, identity in eligible
+            if identity == owner
+            for endpoint in (mention, seed)
+        }
         left, right = sorted((bounds, witness))
-        if any(s.label == "NAME" and left[1] <= s.start < right[0]
-               and (s.start, s.end) not in same_owner_bounds
-               and _name_identity(text[s.start:s.end])[1] != owner for s in spans):
+        if any(
+            s.label == "NAME"
+            and left[1] <= s.start < right[0]
+            and (s.start, s.end) not in same_owner_bounds
+            and _name_identity(text[s.start : s.end])[1] != owner
+            for s in spans
+        ):
             # Unproved intervening people stop inheritance. Independently
             # proved occurrences of this owner do not become new seed evidence.
             continue
-        choices.setdefault(bounds, set()).add(NameBinding(owner, "first", witness, proof["relation"]))
-    return MappingProxyType({bounds: min(options, key=lambda p: (p.witness, p.relation))
-                             for bounds, options in choices.items()
-                             if len({option.owner for option in options}) == 1})
+        choices.setdefault(bounds, set()).add(
+            NameBinding(owner, "first", witness, proof["relation"])
+        )
+    return MappingProxyType(
+        {
+            bounds: min(options, key=lambda p: (p.witness, p.relation))
+            for bounds, options in choices.items()
+            if len({option.owner for option in options}) == 1
+        }
+    )

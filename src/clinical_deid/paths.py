@@ -25,8 +25,12 @@ def source_manifest(*entry_points: str) -> dict[str, str]:
         payload = path.read_bytes()
         result[name] = hashlib.sha256(payload).hexdigest()
         for node in ast.walk(ast.parse(payload.decode("utf-8"))):
-            if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("clinical_deid."):
-                module = PACKAGE_ROOT / node.module.removeprefix("clinical_deid.").replace(".", "/")
+            if isinstance(node, ast.ImportFrom) and (node.module or "").startswith(
+                "clinical_deid."
+            ):
+                module = PACKAGE_ROOT / node.module.removeprefix(
+                    "clinical_deid."
+                ).replace(".", "/")
                 for candidate in (module.with_suffix(".py"), module / "__init__.py"):
                     if candidate.is_file():
                         pending.append(candidate)

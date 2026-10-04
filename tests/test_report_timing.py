@@ -33,7 +33,9 @@ class TimingWordingTests(unittest.TestCase):
         self.assertIn("<strong>Unavailable</strong>", rendered)
 
     def test_explicit_nulls_are_unavailable(self):
-        rendered = _timing({"timing": {"neural_inference_performed": False, **dict.fromkeys(FIELDS)}})
+        rendered = _timing(
+            {"timing": {"neural_inference_performed": False, **dict.fromkeys(FIELDS)}}
+        )
         self.assertIn("No usable timing measurements were recorded", rendered)
         self.assertNotIn("Timing information is incomplete", rendered)
 
@@ -47,10 +49,14 @@ class TimingWordingTests(unittest.TestCase):
         for field in FIELDS:
             for value in (0, 2.0):
                 with self.subTest(field=field, value=value):
-                    rendered = _timing({"timing": {"neural_inference_performed": False, field: value}})
+                    rendered = _timing(
+                        {"timing": {"neural_inference_performed": False, field: value}}
+                    )
                     self.assertIn("Timing information is incomplete", rendered)
                     self.assertIn("Any recorded neural timing is reused", rendered)
-                    self.assertNotIn("No usable timing measurements were recorded", rendered)
+                    self.assertNotIn(
+                        "No usable timing measurements were recorded", rendered
+                    )
                     self.assertNotIn("combine cached neural timing", rendered)
 
     def test_each_missing_field_prevents_complete_composition_claim(self):
@@ -72,7 +78,13 @@ class TimingWordingTests(unittest.TestCase):
         self.assertIn("stage-composition", rendered)
 
     def test_zero_total_without_rate_is_partial_and_no_bar_is_invented(self):
-        timing = {**COMPLETE, "neural_seconds": 0.0, "rules_seconds": 0.0, "total_seconds": 0.0, "documents_per_second": None}
+        timing = {
+            **COMPLETE,
+            "neural_seconds": 0.0,
+            "rules_seconds": 0.0,
+            "total_seconds": 0.0,
+            "documents_per_second": None,
+        }
         rendered = _timing({"timing": timing})
         self.assertIn("Timing information is incomplete", rendered)
         self.assertIn("<strong>Unavailable</strong>", rendered)
@@ -83,13 +95,22 @@ class TimingWordingTests(unittest.TestCase):
         self.assertIn("Neural inference was performed for this evaluation.", rendered)
         self.assertNotIn("Cached timing composition", rendered)
         for timing in ({}, {"neural_inference_performed": None}):
-            self.assertIn("Whether neural inference was performed is unavailable.", _timing({"timing": timing}))
+            self.assertIn(
+                "Whether neural inference was performed is unavailable.",
+                _timing({"timing": timing}),
+            )
 
     def test_other_elapsed_fields_are_not_timing_evidence_and_input_is_unchanged(self):
-        run = {"elapsed_seconds": 9.0, "timing": {"neural_inference_performed": False, "device": "cpu", "elapsed_seconds": 9.0}}
+        run = {
+            "elapsed_seconds": 9.0,
+            "timing": {
+                "neural_inference_performed": False,
+                "device": "cpu",
+                "elapsed_seconds": 9.0,
+            },
+        }
         before = deepcopy(run)
         rendered = _timing(run)
         self.assertIn("No usable timing measurements were recorded", rendered)
         self.assertNotIn("9.000", rendered)
         self.assertEqual(run, before)
-

@@ -4,6 +4,7 @@ Token accuracy is intentionally absent: abundant non-PHI tokens can make an
 unsafe detector appear accurate.  The CLI verifies a frozen corpus manifest
 before loading a detector and separates model-only from hybrid results.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,8 +27,15 @@ def _metrics(tp: int, fp: int, fn: int) -> dict[str, int | float]:
     precision = _ratio(tp, tp + fp)
     recall = _ratio(tp, tp + fn)
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-    return {"true_positives": tp, "false_positives": fp, "false_negatives": fn,
-            "precision": precision, "recall": recall, "f1": f1, "support": tp + fn}
+    return {
+        "true_positives": tp,
+        "false_positives": fp,
+        "false_negatives": fn,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "support": tp + fn,
+    }
 
 
 def wilson_lower(successes: int, trials: int, z: float = 1.959963984540054) -> float:
@@ -37,7 +45,9 @@ def wilson_lower(successes: int, trials: int, z: float = 1.959963984540054) -> f
     proportion = successes / trials
     denominator = 1 + z * z / trials
     centre = proportion + z * z / (2 * trials)
-    adjustment = z * math.sqrt(proportion * (1 - proportion) / trials + z * z / (4 * trials * trials))
+    adjustment = z * math.sqrt(
+        proportion * (1 - proportion) / trials + z * z / (4 * trials * trials)
+    )
     return max(0.0, (centre - adjustment) / denominator)
 
 
@@ -46,22 +56,39 @@ def _canonical(raw: Any, length: int) -> tuple[int, int, str]:
         start, end, label = raw["start"], raw["end"], raw["label"]
     else:
         start, end, label = raw.start, raw.end, raw.label
-    if not isinstance(start, int) or not isinstance(end, int) or isinstance(start, bool) or isinstance(end, bool):
+    if (
+        not isinstance(start, int)
+        or not isinstance(end, int)
+        or isinstance(start, bool)
+        or isinstance(end, bool)
+    ):
         raise ValueError("Span offsets must be integer Unicode character offsets")
     if not 0 <= start < end <= length or label not in ENTITY_TYPES:
-        raise ValueError(f"Invalid span: ({start}, {end}, {label}) for text length {length}")
+        raise ValueError(
+            f"Invalid span: ({start}, {end}, {label}) for text length {length}"
+        )
     return start, end, label
 
 
 def _characters(spans: set[tuple[int, int, str]], typed: bool = False) -> set[Any]:
     if typed:
-        return {(offset, label) for start, end, label in spans for offset in range(start, end)}
+        return {
+            (offset, label)
+            for start, end, label in spans
+            for offset in range(start, end)
+        }
     return {offset for start, end, _ in spans for offset in range(start, end)}
 
 
-def evaluate(rows: Iterable[dict[str, Any]], predictor: Callable[[str], list[Span]] | Any,
-             *, backend: str = "unspecified", max_failures: int = 100,
-             minimum_label_support: int = 200, batch_size: int = 16) -> dict[str, Any]:
+def evaluate(
+    rows: Iterable[dict[str, Any]],
+    predictor: Callable[[str], list[Span]] | Any,
+    *,
+    backend: str = "unspecified",
+    max_failures: int = 100,
+    minimum_label_support: int = 200,
+    batch_size: int = 16,
+) -> dict[str, Any]:
     """Measure a frozen corpus with a callable or object exposing detect(text).
 
     A leak-free document has every gold PHI character covered by a predicted
@@ -88,18 +115,22 @@ def evaluate(rows: Iterable[dict[str, Any]], predictor: Callable[[str], list[Spa
     duplicate_predictions = 0
     identifiers: set[str] = set()
     started = time.perf_counter()
+
     def predictions():
         for offset in range(0, len(rows), batch_size):
-            batch = rows[offset:offset + batch_size]
+            batch = rows[offset : offset + batch_size]
             texts = [row["text"] for row in batch]
             if hasattr(predictor, "detect_batch"):
                 predicted_batch = predictor.detect_batch(texts)
                 if len(predicted_batch) != len(batch):
-                    raise ValueError("detect_batch returned a different number of predictions than input texts")
+                    raise ValueError(
+                        "detect_batch returned a different number of predictions than input texts"
+                    )
                 yield from zip(batch, predicted_batch)
             else:
                 for row, text in zip(batch, texts):
                     yield row, detect(text)
+
     for row, prediction in predictions():
         text = row["text"]
         if not isinstance(text, str):
@@ -115,23 +146,40 @@ def evaluate(rows: Iterable[dict[str, Any]], predictor: Callable[[str], list[Spa
         hits, extras, missing = gold & predicted, predicted - gold, gold - predicted
         overall.update(tp=len(hits), fp=len(extras), fn=len(missing))
         family = str(row.get("family", "unspecified"))
-        counts = per_family.setdefault(family, Counter(tp=0, fp=0, fn=0, documents=0, leak_free=0))
+        counts = per_family.setdefault(
+            family, Counter(tp=0, fp=0, fn=0, documents=0, leak_free=0)
+        )
         counts.update(tp=len(hits), fp=len(extras), fn=len(missing), documents=1)
         for label in ENTITY_TYPES:
-            per_label[label].update(tp=sum(span[2] == label for span in hits),
-                                    fp=sum(span[2] == label for span in extras),
-                                    fn=sum(span[2] == label for span in missing))
-        expected_characters, predicted_characters = _characters(gold), _characters(predicted)
-        character.update(tp=len(expected_characters & predicted_characters),
-                         fp=len(predicted_characters - expected_characters),
-                         fn=len(expected_characters - predicted_characters))
+            per_label[label].update(
+                tp=sum(span[2] == label for span in hits),
+                fp=sum(span[2] == label for span in extras),
+                fn=sum(span[2] == label for span in missing),
+            )
+        expected_characters, predicted_characters = (
+            _characters(gold),
+            _characters(predicted),
+        )
+        character.update(
+            tp=len(expected_characters & predicted_characters),
+            fp=len(predicted_characters - expected_characters),
+            fn=len(expected_characters - predicted_characters),
+        )
         for label in ENTITY_TYPES:
             expected = _characters({span for span in gold if span[2] == label})
-            label_characters[label].update(covered=len(expected & predicted_characters),
-                                           exposed=len(expected - predicted_characters))
-        expected_typed, predicted_typed = _characters(gold, True), _characters(predicted, True)
-        typed_character.update(tp=len(expected_typed & predicted_typed),
-                               fp=len(predicted_typed - expected_typed), fn=len(expected_typed - predicted_typed))
+            label_characters[label].update(
+                covered=len(expected & predicted_characters),
+                exposed=len(expected - predicted_characters),
+            )
+        expected_typed, predicted_typed = (
+            _characters(gold, True),
+            _characters(predicted, True),
+        )
+        typed_character.update(
+            tp=len(expected_typed & predicted_typed),
+            fp=len(predicted_typed - expected_typed),
+            fn=len(expected_typed - predicted_typed),
+        )
         safe = expected_characters <= predicted_characters
         documents += 1
         leak_free += safe
@@ -143,61 +191,121 @@ def evaluate(rows: Iterable[dict[str, Any]], predictor: Callable[[str], list[Spa
             phi_documents += 1
             phi_leak_free += safe
         if (missing or extras) and len(failures) < max_failures:
+
             def details(spans):
-                return [{"start": start, "end": end, "label": label, "text": text[start:end]}
-                        for start, end, label in sorted(spans)]
-            failures.append({"id": identifier, "family": family, "text": text,
-                             "missing": details(missing), "extra": details(extras), "leak_free": safe})
+                return [
+                    {
+                        "start": start,
+                        "end": end,
+                        "label": label,
+                        "text": text[start:end],
+                    }
+                    for start, end, label in sorted(spans)
+                ]
+
+            failures.append(
+                {
+                    "id": identifier,
+                    "family": family,
+                    "text": text,
+                    "missing": details(missing),
+                    "extra": details(extras),
+                    "leak_free": safe,
+                }
+            )
     if not documents:
         raise ValueError("Cannot evaluate an empty corpus")
     span_result = _metrics(overall["tp"], overall["fp"], overall["fn"])
     label_result = {}
     for label, counts in per_label.items():
         stats = _metrics(counts["tp"], counts["fp"], counts["fn"])
-        stats["recall_wilson_lower_95"] = wilson_lower(counts["tp"], counts["tp"] + counts["fn"])
+        stats["recall_wilson_lower_95"] = wilson_lower(
+            counts["tp"], counts["tp"] + counts["fn"]
+        )
         stats["sufficient_support"] = stats["support"] >= minimum_label_support
         label_result[label] = stats
     recall_lower = wilson_lower(overall["tp"], overall["tp"] + overall["fn"])
     checks = {
-        "typed_span_precision_at_least_99_percent": span_result["precision"] >= .99,
-        "typed_span_recall_at_least_99_percent": span_result["recall"] >= .99,
-        "typed_span_f1_at_least_99_percent": span_result["f1"] >= .99,
-        "phi_character_recall_at_least_99_percent": _ratio(character["tp"], character["tp"] + character["fn"]) >= .99,
-        "recall_wilson_lower_95_at_least_99_percent": recall_lower >= .99,
-        "all_labels_have_sufficient_support": all(stats["sufficient_support"] for stats in label_result.values()),
-        "every_label_recall_at_least_99_percent": all(stats["recall"] >= .99 for stats in label_result.values()),
+        "typed_span_precision_at_least_99_percent": span_result["precision"] >= 0.99,
+        "typed_span_recall_at_least_99_percent": span_result["recall"] >= 0.99,
+        "typed_span_f1_at_least_99_percent": span_result["f1"] >= 0.99,
+        "phi_character_recall_at_least_99_percent": _ratio(
+            character["tp"], character["tp"] + character["fn"]
+        )
+        >= 0.99,
+        "recall_wilson_lower_95_at_least_99_percent": recall_lower >= 0.99,
+        "all_labels_have_sufficient_support": all(
+            stats["sufficient_support"] for stats in label_result.values()
+        ),
+        "every_label_recall_at_least_99_percent": all(
+            stats["recall"] >= 0.99 for stats in label_result.values()
+        ),
     }
-    return {"schema_version": 1, "backend": backend, "documents": documents,
-            "typed_span": span_result, "character": _metrics(character["tp"], character["fp"], character["fn"]),
-            "typed_character": _metrics(typed_character["tp"], typed_character["fp"], typed_character["fn"]),
-            "recall_wilson_lower_95": recall_lower, "per_label": label_result,
-            "per_family": {family: {**_metrics(c["tp"], c["fp"], c["fn"]), "documents": c["documents"],
-                                     "leak_free_rate": c["leak_free"] / c["documents"]} for family, c in per_family.items()},
-            "document_leak_free": {"count": leak_free, "rate": leak_free / documents,
-                                   "wilson_lower_95": wilson_lower(leak_free, documents)},
-            "phi_bearing_documents": {
-                "count": phi_documents, "leak_free_count": phi_leak_free,
-                "leak_free_rate": phi_leak_free / phi_documents if phi_documents else None,
-                "wilson_lower_95": wilson_lower(phi_leak_free, phi_documents) if phi_documents else None,
-            },
-            "per_label_character_exposure": {
-                label: {
-                    "support": c["covered"] + c["exposed"],
-                    "covered_characters": c["covered"], "exposed_characters": c["exposed"],
-                    "recall": c["covered"] / (c["covered"] + c["exposed"]) if c["covered"] + c["exposed"] else None,
-                } for label, c in label_characters.items()
-            },
-            "negative_documents": {"count": negative_documents, "clean_count": negative_clean,
-                                   "clean_rate": _ratio(negative_clean, negative_documents)},
-            "goal": {"threshold": .99, "minimum_label_support": minimum_label_support,
-                     "checks": checks, "passed": all(checks.values())},
-            "duplicate_predictions_removed": duplicate_predictions,
-            "failures": failures, "failures_truncated": len(failures) >= max_failures,
-            "elapsed_seconds": time.perf_counter() - started,
-            "scope": "Independently authored synthetic clinical challenge only; no production clinical accuracy claim."}
+    return {
+        "schema_version": 1,
+        "backend": backend,
+        "documents": documents,
+        "typed_span": span_result,
+        "character": _metrics(character["tp"], character["fp"], character["fn"]),
+        "typed_character": _metrics(
+            typed_character["tp"], typed_character["fp"], typed_character["fn"]
+        ),
+        "recall_wilson_lower_95": recall_lower,
+        "per_label": label_result,
+        "per_family": {
+            family: {
+                **_metrics(c["tp"], c["fp"], c["fn"]),
+                "documents": c["documents"],
+                "leak_free_rate": c["leak_free"] / c["documents"],
+            }
+            for family, c in per_family.items()
+        },
+        "document_leak_free": {
+            "count": leak_free,
+            "rate": leak_free / documents,
+            "wilson_lower_95": wilson_lower(leak_free, documents),
+        },
+        "phi_bearing_documents": {
+            "count": phi_documents,
+            "leak_free_count": phi_leak_free,
+            "leak_free_rate": phi_leak_free / phi_documents if phi_documents else None,
+            "wilson_lower_95": wilson_lower(phi_leak_free, phi_documents)
+            if phi_documents
+            else None,
+        },
+        "per_label_character_exposure": {
+            label: {
+                "support": c["covered"] + c["exposed"],
+                "covered_characters": c["covered"],
+                "exposed_characters": c["exposed"],
+                "recall": c["covered"] / (c["covered"] + c["exposed"])
+                if c["covered"] + c["exposed"]
+                else None,
+            }
+            for label, c in label_characters.items()
+        },
+        "negative_documents": {
+            "count": negative_documents,
+            "clean_count": negative_clean,
+            "clean_rate": _ratio(negative_clean, negative_documents),
+        },
+        "goal": {
+            "threshold": 0.99,
+            "minimum_label_support": minimum_label_support,
+            "checks": checks,
+            "passed": all(checks.values()),
+        },
+        "duplicate_predictions_removed": duplicate_predictions,
+        "failures": failures,
+        "failures_truncated": len(failures) >= max_failures,
+        "elapsed_seconds": time.perf_counter() - started,
+        "scope": "Independently authored synthetic clinical challenge only; no production clinical accuracy claim.",
+    }
 
 
-def load_verified_corpus(path: str | Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def load_verified_corpus(
+    path: str | Path,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     path = Path(path)
     payload = path.read_bytes()
     manifest_path = path.with_suffix(path.suffix + ".manifest.json")
@@ -207,16 +315,27 @@ def load_verified_corpus(path: str | Path) -> tuple[list[dict[str, Any]], dict[s
     actual = hashlib.sha256(payload).hexdigest()
     if manifest.get("sha256") != actual:
         raise ValueError("Corpus SHA-256 differs from its frozen manifest")
-    rows = [json.loads(line) for line in payload.decode("utf-8").splitlines() if line.strip()]
+    rows = [
+        json.loads(line)
+        for line in payload.decode("utf-8").splitlines()
+        if line.strip()
+    ]
     counts = {key: manifest[key] for key in ("rows", "documents") if key in manifest}
-    if not counts or any(type(count) is not int or count < 0 for count in counts.values()):
-        raise ValueError("Corpus manifest requires a nonnegative integer rows or documents count")
+    if not counts or any(
+        type(count) is not int or count < 0 for count in counts.values()
+    ):
+        raise ValueError(
+            "Corpus manifest requires a nonnegative integer rows or documents count"
+        )
     if len(set(counts.values())) != 1:
         raise ValueError("Corpus manifest has conflicting rows and documents counts")
     if next(iter(counts.values())) != len(rows):
         raise ValueError("Corpus row count differs from its frozen manifest")
     support = Counter(span["label"] for row in rows for span in row["spans"])
-    if any(manifest.get("label_support", {}).get(label) != support[label] for label in ENTITY_TYPES):
+    if any(
+        manifest.get("label_support", {}).get(label) != support[label]
+        for label in ENTITY_TYPES
+    ):
         raise ValueError("Corpus label support differs from its frozen manifest")
     return rows, manifest
 
@@ -228,7 +347,14 @@ def model_manifest(path: str | Path) -> dict[str, str]:
         return {}
     result = {}
     for candidate in sorted(path.rglob("*")):
-        if candidate.is_file() and candidate.suffix in (".json", ".pt", ".bin", ".safetensors", ".txt", ".model"):
+        if candidate.is_file() and candidate.suffix in (
+            ".json",
+            ".pt",
+            ".bin",
+            ".safetensors",
+            ".txt",
+            ".model",
+        ):
             digest = hashlib.sha256()
             with candidate.open("rb") as handle:
                 for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -252,14 +378,28 @@ def main() -> None:
     parser.add_argument("--backend", choices=("model", "hybrid"), default="hybrid")
     parser.add_argument("--max-failures", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--device", choices=("auto", "cpu", "mps", "cuda"), default="auto")
+    parser.add_argument(
+        "--device", choices=("auto", "cpu", "mps", "cuda"), default="auto"
+    )
     args = parser.parse_args()
     rows, manifest = load_verified_corpus(args.data)
     before = model_manifest(args.model_dir)
     source_before = detector_source_manifest()
     from clinical_deid.detection.adapter import Detector
-    detector = Detector(args.model_dir, backend=args.backend, device=args.device, batch_size=args.batch_size)
-    result = evaluate(rows, detector, backend=args.backend, max_failures=args.max_failures, batch_size=args.batch_size)
+
+    detector = Detector(
+        args.model_dir,
+        backend=args.backend,
+        device=args.device,
+        batch_size=args.batch_size,
+    )
+    result = evaluate(
+        rows,
+        detector,
+        backend=args.backend,
+        max_failures=args.max_failures,
+        batch_size=args.batch_size,
+    )
     after = model_manifest(args.model_dir)
     if before != after:
         raise RuntimeError("Model artifacts changed during evaluation")
@@ -273,9 +413,18 @@ def main() -> None:
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
-    print(json.dumps({"output": str(output), "typed_span": result["typed_span"],
-                      "character": result["character"], "document_leak_free": result["document_leak_free"],
-                      "goal": result["goal"]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "output": str(output),
+                "typed_span": result["typed_span"],
+                "character": result["character"],
+                "document_leak_free": result["document_leak_free"],
+                "goal": result["goal"],
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

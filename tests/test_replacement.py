@@ -130,17 +130,41 @@ def test_dotted_dates_share_one_shift_and_preserve_intervals():
 
 @pytest.mark.parametrize("separator", ["/", ".", "-"])
 def test_shifted_day_first_dates_remain_unambiguous_and_preserve_intervals(separator):
-    values = [separator.join(parts) for parts in [
-        ("13", "09", "2024"), ("14", "09", "2024"), ("2024", "09", "15")
-    ]]
-    text = "Admit " + values[0] + "; review " + values[1] + "; discharge " + values[2] + "."
-    result = synthetic(text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=20)
+    values = [
+        separator.join(parts)
+        for parts in [("13", "09", "2024"), ("14", "09", "2024"), ("2024", "09", "15")]
+    ]
+    text = (
+        "Admit "
+        + values[0]
+        + "; review "
+        + values[1]
+        + "; discharge "
+        + values[2]
+        + "."
+    )
+    result = synthetic(
+        text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=20
+    )
     replacements = [entity["replacement"] for entity in result["entities"]]
-    assert replacements == [separator.join(("2024", "10", day)) for day in ("03", "04", "05")]
+    assert replacements == [
+        separator.join(("2024", "10", day)) for day in ("03", "04", "05")
+    ]
     # Read the emitted year-first dates independently of the replacement parser.
-    dates = [date(*(int(part) for part in value.split(separator))) for value in replacements]
+    dates = [
+        date(*(int(part) for part in value.split(separator))) for value in replacements
+    ]
     assert [(value - dates[0]).days for value in dates] == [0, 1, 2]
-    assert result["text"] == "Admit " + replacements[0] + "; review " + replacements[1] + "; discharge " + replacements[2] + "."
+    assert (
+        result["text"]
+        == "Admit "
+        + replacements[0]
+        + "; review "
+        + replacements[1]
+        + "; discharge "
+        + replacements[2]
+        + "."
+    )
     assert result["preservation"]["date_intervals_preserved"] is True
     assert result["preservation"]["exact_dates_shifted"] == 3
     assert len(result["warnings"]) == 2
@@ -151,7 +175,9 @@ def test_shifted_day_first_dates_remain_unambiguous_and_preserve_intervals(separ
 def test_day_first_backward_shift_changes_order_only_when_meaning_would_be_ambiguous():
     values = ["13/09/2024", "14/09/2024", "10/13/2024"]
     text = " | ".join(values)
-    result = synthetic(text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=-1)
+    result = synthetic(
+        text, spans_for(text, [(value, "DATE") for value in values]), date_shift_days=-1
+    )
     assert result["text"] == "2024/09/12 | 13/09/2024 | 10/12/2024"
     assert len(result["warnings"]) == 1
     assert "year/month/day" in result["warnings"][0]
@@ -622,13 +648,23 @@ def test_contact_and_identifier_replacements_are_fictional():
     assert SECRET.hex() not in json.dumps(result)
 
 
-@pytest.mark.parametrize("label,values", [
-    ("MRN", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
-    ("ACCOUNT", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
-    ("ID", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
-    ("EMAIL", ["A@example.org", "a@example.org", "a@example.org "]),
-    ("URL", ["https://example.org/A", "https://example.org/a", "https://example.org/a "]),
-])
+@pytest.mark.parametrize(
+    "label,values",
+    [
+        ("MRN", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
+        ("ACCOUNT", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
+        ("ID", ["AB12", "ab12", "AB12 ", "AB 12", "AB  12", "ＡＢ12"]),
+        ("EMAIL", ["A@example.org", "a@example.org", "a@example.org "]),
+        (
+            "URL",
+            [
+                "https://example.org/A",
+                "https://example.org/a",
+                "https://example.org/a ",
+            ],
+        ),
+    ],
+)
 def test_case_sensitive_identifier_replacements_preserve_exact_identity(label, values):
     text = " | ".join(values)
     spans = spans_for(text, [(value, label) for value in values])

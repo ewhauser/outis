@@ -406,7 +406,12 @@ def _timing(run: dict) -> str:
     performed = timing.get("neural_inference_performed")
     values = (
         _number(timing.get(key))
-        for key in ("neural_seconds", "rules_seconds", "total_seconds", "documents_per_second")
+        for key in (
+            "neural_seconds",
+            "rules_seconds",
+            "total_seconds",
+            "documents_per_second",
+        )
     )
     available = [value is not None and value >= 0 for value in values]
     if performed is False and all(available):
