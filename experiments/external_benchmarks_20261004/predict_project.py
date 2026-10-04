@@ -23,7 +23,11 @@ def main() -> None:
     parser.add_argument("--backend", choices=("model", "hybrid"), default="hybrid")
     parser.add_argument("--device", choices=("auto", "cpu", "mps", "cuda"), default="auto")
     parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--system", default=None,
+                        help="system key; defaults to project (hybrid) or project-model, and must start with project")
     args = parser.parse_args()
+    if args.system is not None and not args.system.startswith("project"):
+        parser.error("--system must start with 'project'")
     rows, _ = load_corpus(args.benchmark)
     artifacts, sources = model_manifest(args.model_dir), detector_source_manifest()
     from clinical_deid.model import Detector
@@ -39,7 +43,7 @@ def main() -> None:
     finished = time.perf_counter()
     if artifacts != model_manifest(args.model_dir) or sources != detector_source_manifest():
         raise RuntimeError("Detector artifacts or sources changed during prediction")
-    system = "project" if args.backend == "hybrid" else "project-model"
+    system = args.system or ("project" if args.backend == "hybrid" else "project-model")
     path = write_predictions(args.benchmark, system, rows, predictions,
                              {"backend": args.backend, "device": args.device, "batch_size": args.batch_size,
                               "model_artifacts": artifacts, "detector_sources": sources},

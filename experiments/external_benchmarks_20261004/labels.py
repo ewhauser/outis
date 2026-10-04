@@ -123,7 +123,7 @@ def contact_type(text: str) -> str:
 
 def project_label(system: str, native: str, text: str) -> str | None:
     """Map a system's native label to a project entity type, or None."""
-    if system in ("project", "project-model"):
+    if system.startswith("project"):
         return native
     if system.startswith("gliner-"):
         mapping = GLINER_ARMS[system.removeprefix("gliner-")]

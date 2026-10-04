@@ -42,7 +42,7 @@ These rules hold for every benchmark and every system.
 
 | Benchmark | Content | Licence | Commercial use | Status |
 |---|---|---|---|---|
-| [ASQ-PHI](https://doi.org/10.17632/csz5dzp7nx.1) | 1,051 synthetic clinical search queries, 2,973 PHI values, 219 hard negatives | MIT | Yes | Converted and scored |
+| [ASQ-PHI](https://doi.org/10.17632/csz5dzp7nx.1) | 1,051 synthetic clinical search queries, 2,973 PHI values, 219 hard negatives | MIT | Yes | Scored; development evidence since 2026-10-04 (guided a hybrid fix) |
 | [SPY](https://huggingface.co/datasets/mks-logic/SPY) medical | 4,491 synthetic medical consultations, 7 PII types | CC BY 4.0 | Yes, with attribution | Planned |
 | [n2c2 2014](https://portal.dbmi.hms.harvard.edu/projects/n2c2-2014/) de-identification | Real clinical notes with surrogate PHI | Harvard DBMI data use agreement | Evaluation only, under the commercial agreement | Planned; access required |
 | [SHIELD](https://stanford.redivis.com/datasets/ee4n-6gv2f84et) | 1,381 Stanford notes, 9 PHI categories | Stanford DRUA | Unconfirmed | Blocked on licence review |
