@@ -259,6 +259,51 @@ Run the tests after any change to the harness:
 5. If the model card prescribes a configuration (a threshold, a label list),
    that is the primary arm. Additional arms get distinct system keys.
 
+## Results: ASQ-PHI, 2026-10-04
+
+ASQ-PHI v1 (MIT), 1,051 synthetic clinical search queries, 2,973 gold spans.
+One run per system. The project and MedDeID have both now been looked at on
+this set, so treat it as development evidence for both. The full tables are in
+`experiments/external_benchmarks_20261004/results/asq_phi.summary.md`.
+
+| System | Char recall | Non-PII redaction | Exact-span F1 | Leak-free PHI docs | Clean hard negatives |
+|---|---:|---:|---:|---:|---:|
+| `project-mix5` (default, model-only) | 97.49% | 0.33% | 92.13% | 79.57% | 73.06% |
+| `project-model` (removed adapter, model-only) | 94.70% | 1.05% | 88.20% | 69.35% | 84.02% |
+| `project` (removed adapter, hybrid) | 95.25% | 1.03% | 83.19% | 58.89% | 84.47% |
+| `meddeid` | 99.14% | 6.33% | 79.79% | 93.27% | 14.61% |
+| `gliner-facility` | 96.81% | 8.27% | 70.65% | 74.88% | 27.40% |
+
+Any-label masking from the evaluator's `privacy` block, as scored, against
+ASQ-PHI's own gold boundaries:
+
+| System | Direct masked | NAME | Indirect masked | LOCATION | DATE | Any-label precision |
+|---|---:|---:|---:|---:|---:|---:|
+| `project-mix5` | 91.57% | 88.82% | 95.34% | 92.13% | 98.64% | 97.83% |
+| `project-model` | 92.02% | 93.73% | 88.73% | 82.20% | 95.41% | 97.04% |
+| `meddeid` | 97.24% | 97.30% | 98.59% | 98.55% | 98.64% | 74.66% |
+
+Most of the mix5 shortfall is convention, not exposure:
+
+- **NAME.** 90 of the 91 unmasked names miss only the honorific ("Dr.",
+  "Mr."), which ASQ-PHI includes in gold and the project policy excludes.
+  Counting those as masked, mix5 masks 99.88% of names, the adapter 98.40% and
+  MedDeID 97.67%. The one real miss is a name glued to the next word.
+- **ID and MRN.** Every alphanumeric character of every MRN is masked. The
+  unmasked characters are "#" and field labels such as "Patient ID:", which
+  ASQ-PHI puts inside the span.
+- **DATE.** The misses are relative dates ("last week", "last month"), which
+  the project policy does not annotate.
+- **LOCATION is the real gap.** 17 of 826 locations get no prediction at all,
+  almost all a city used as a modifier: "our Chicago clinic", "the NYC clinic",
+  "Seattle clinic". A further 33 are partly covered, usually because gold
+  joins a facility and city ("Mayo Clinic in Rochester, MN") and the connecting
+  words are left.
+
+Against the removed adapter, mix5 cuts non-PHI redaction by two thirds and
+raises leak-free documents by ten points. It leaves more PHI-free hard
+negatives with a span (73% clean against 84%).
+
 ## Reading results
 
 - **Lead with character recall and non-PII redaction together.** Either can be
