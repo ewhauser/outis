@@ -46,6 +46,10 @@ from clinical_deid.types import ENTITY_TYPES  # noqa: E402
 
 SEED = 20261014
 SUITE = "tk14_targeted_gaps"
+SEED2 = 20261015  # tk14-v2
+SUITE2 = "tk14_targeted_gaps_v2"
+YEAR_CAP2 = 68  # v2 history-year cap (under 2.7% of roughly 2,500 spans)
+FUTURE_CAP = 40
 CAP = (
     9  # at most 9 rows per pharmacy, funeral home, ZIP, town or facility value (0.45%)
 )
@@ -95,6 +99,29 @@ LAYOUTS = {
 }
 CASE_COUNTS = (("normal", 0.6), ("upper", 0.2), ("lower", 0.2))
 
+# v2 settled cases of 2026-10-05: (positive rows, negative rows, family, layouts)
+HIST_NEW_LAYOUTS = [
+    "awv_note",
+    "soap_note",
+    "telegraphic_oneliner",
+    "nursing_intake_history",
+    "portal_message_history",
+    "referral_letter",
+    "problem_list",
+]
+PHARM_NEW_LAYOUTS = list(LAYOUTS["pharmacy_zip"])
+PHONE_NEW_LAYOUTS = list(LAYOUTS["phone_extension"])
+NEW_CASES = {
+    "onset_year": (30, 15, "history_years", HIST_NEW_LAYOUTS),
+    "year_range": (37, 18, "history_years", HIST_NEW_LAYOUTS),
+    "future_year": (37, 18, "history_years", HIST_NEW_LAYOUTS),
+    "zip_plus_four": (33, 17, "pharmacy_zip", PHARM_NEW_LAYOUTS),
+    "rx_number": (40, 20, "pharmacy_zip", PHARM_NEW_LAYOUTS),
+    "pager": (30, 15, "phone_extension", PHONE_NEW_LAYOUTS),
+    "bare_extension": (0, 40, "phone_extension", PHONE_NEW_LAYOUTS),
+}
+HIST_NEW = ("onset_year", "year_range", "future_year")
+
 # ---------------------------------------------------------------------------
 # Value pools (all invented)
 # ---------------------------------------------------------------------------
@@ -119,6 +146,33 @@ Holloway Ishikawa Jameson Kuznetsov Lundgren Moreau Nikolaidis Ostrowski Prescot
 Valenzuela Wasserman Amoah Brzezinski Calloway Dufresne Engstrom Ferreira Goldfarb Hutchins Kowalski
 O'Halloran D'Amato Nguyen-Reyes Smythe-Okoye MacAllister""".split()
 LASTS += ["van der Linden", "de la Fuente", "del Rio", "St. Clair"]
+FIRSTS_V2 = """Abelard Adelmar Aelfric Agrippina Alaric Albertina Aldwin Alphonsine Amadeus Ambrosine Anatole
+Angharad Anscom Apolline Archibald Ariadne Arnaud Arvid Athalia Augustin Aurelian Avelina Balthazar Barnaby
+Beatrijs Benedetta Berengar Bertille Blandina Bram Brannoch Brigida Bryony Cadmus Caelan Caldwyn Camilo
+Casimir Cassiopeia Cenwulf Cesare Clarimond Clothilde Corbin Cosima Crispin Cuthbert Cyprian Damaris Dagny
+Delphina Demetrio Desideria Dietrich Dorothea Drusilla Dunstan Eadric Ebenezer Edmonda Eirian Elbert Eleazar
+Elfreda Elodie Emerentia Engelbert Ephraim Erasmus Esmond Eudora Eulalia Evander Evangeline Fabrizio
+Faustina Felicitas Ferdinand Fidelma Fiorella Florentin Fridolin Gaspard Gawain Genevra Gervase Gisela
+Godfrey Griselda Gudrun Gustavo Hadrian Halvard Hermione Hilarion Honoria Hortense Hubertus Humbert Ianthe
+Idony Ignazio Ingeborg Isaura Isolde Jedidiah Jocasta Jorund Juliane Justinian Kaspar Ladislas Laurentia
+Leandro Leofric Lettice Linnea Lisandro Ludovic Lysander Magdalena Marcellin Mathilde Maximilian Melisande
+Merewyn Mirabel Modesta Montague Nerissa Nicodemus Norbert Octavia Odilia Olwen Oriel Osmund Ottoline
+Pascale Pelagia Percival Philippa Placida Polycarp Quincy Radegund Raimund Reinhold Rosamund Rufus Rupert
+Sabina Salome Sebastiane Seraphina Sigrid Silvanus Sixtus Tancred Thaddea Theodora Thessaly Tiberius Ulysses
+Ursula Valdemar Vespasian Wolfram Xanthe Zenobia""".split()
+LASTS_V2 = """Abbotsford Aldersey Ashcombe Attwater Barraclough Bellingham Birtwistle Bonnycastle Brackenridge
+Brimblecombe Broadhurst Burrowes Cadwallader Calthorpe Carruthers Cheesman Chillingworth Clutterbuck
+Coppinger Cravenhurst Crouchback Dalrymple Delahunty Dinsdale Dowdeswell Dunstable Eddowes Fairweather
+Farquharson Featherstone Fenwicke Fetherston Fothergill Gallowglass Garnsey Gawthrop Gilfillan Goodenough
+Gorringe Grisewood Haddington Halliwell Hargreave Hazeldine Heatherington Hepplewhite Hollinshead Hornblower
+Ilchester Inglethorpe Jessop Kilbride Lanchester Larkworthy Lavington Leadbetter Lightfoot Littlejohn
+Lockyer Longbottom Lumsden Mainwaring Maudsley Merriweather Micklethwaite Mortlock Mountjoy Netherwood
+Nuttall Oddie Orrell Overbury Pargeter Pennyfeather Pettigrew Plumtree Prendergast Quarrell Quenby Radclyffe
+Ravenscroft Rowntree Rudkin Scrimshaw Selwyn Shackleford Sidebottom Skelton Slingsby Spofforth Stancliffe
+Stourton Swinburne Tattersall Thistlewood Throckmorton Tolhurst Trelawney Tunstall Twigg Umfreville Upjohn
+Vavasour Wakelin Wedgwood Wigglesworth Winterbottom Woolgar Wyndham Yarborough Yelverton Zouche Ardagh
+Bannerman Cheverell Dymoke Eversleigh Fanshawe Greenhalgh Hapgood Ingoldsby Jenkinson-Pryce Kenrick
+Lisle-Tarrant Mellersh Northcott Okell Pinsent Quennell Rotherham Shuttleworth Tetlow Uttley Vesey Wardlaw""".split()
 UNUSUAL_FIRSTS = [
     "He",
     "Care",
@@ -681,6 +735,7 @@ class Registry:
     def __init__(self):
         self.uses: Counter = Counter()
         self.years: Counter = Counter()
+        self.future: Counter = Counter()
 
     def pick(self, rng, make, kind, cap=CAP):
         for _ in range(400):
@@ -693,9 +748,25 @@ class Registry:
 
 
 class Ctx:
-    def __init__(self, rng, reg, family, cohort, positive, case):
+    def __init__(
+        self,
+        rng,
+        reg,
+        family,
+        cohort,
+        positive,
+        case,
+        year_cap=YEAR_CAP,
+        pools=None,
+        newcase=None,
+    ):
         self.rng, self.reg, self.family, self.cohort = rng, reg, family, cohort
         self.positive, self.case = positive, case
+        self.year_cap = year_cap
+        self.firsts, self.lasts = pools if pools else (FIRSTS, LASTS)
+        self.newcase = newcase
+        self.hit = False
+        self.neghit = False
         self.rb = RowBuilder()
         self.unusual = cohort == "unusual_name"
         self.long = cohort == "long_document"
@@ -721,9 +792,9 @@ class Ctx:
             first = (
                 rng.choice(UNUSUAL_FIRSTS)
                 if (patient and self.unusual)
-                else rng.choice(FIRSTS)
+                else rng.choice(self.firsts)
             )
-            last = rng.choice(LASTS)
+            last = rng.choice(self.lasts)
             if rng.random() < 0.1 and not (patient and self.unusual):
                 first = f"{first} {rng.choice('ABCDEFGHJKLMNPRSTW')}."
             name = f"{first} {last}"
@@ -904,7 +975,7 @@ class Ctx:
     def year(self, miny=1950, floor=None):
         lo = max(1950, miny, self.birth_year + 10, floor or 0)
         hi = self.note_year
-        cands = [y for y in range(lo, hi + 1) if self.reg.years[y] < YEAR_CAP]
+        cands = [y for y in range(lo, hi + 1) if self.reg.years[y] < self.year_cap]
         if not cands:
             return None
         year = self.rng.choices(cands, [1 + (y - 1950) / 40 for y in cands])[0]
@@ -1262,7 +1333,193 @@ def pub_year(rng):
     return str(rng.randint(1995, 2025))
 
 
+ONSET_FMT = [
+    lambda D, d: [D, " diagnosed in ", d],
+    lambda D, d: [D, " since ", d],
+    lambda D, d: ["diagnosed with ", D, " in ", d],
+    lambda D, d: [D, ", since ", d],
+    lambda D, d: ["carries a diagnosis of ", D, " since ", d],
+    lambda D, d: [D, " (dx ", d, ")"],
+    lambda D, d: [D, " - onset ", d],
+    lambda D, d: ["Dx ", D, ", ", d],
+    lambda D, d: [D, " first diagnosed ", d],
+]
+RANGE_CTX = [
+    "smoked",
+    "on tamoxifen",
+    "on prednisone",
+    "lived overseas",
+    "chemotherapy",
+    "physical therapy",
+    "on dialysis",
+    "used CPAP",
+    "took warfarin",
+    "treated with insulin",
+    "cardiac rehab",
+    "on a statin",
+    "tobacco use",
+    "heavy alcohol use",
+    "inpatient psychiatric care",
+]
+RANGE_FMT = [
+    lambda x, r: [x, " ", r],
+    lambda x, r: [x, ": ", r],
+    lambda x, r: [x, " (", r, ")"],
+    lambda x, r: [x, " from ", r],
+    lambda x, r: [x, ", ", r],
+]
+FUTURE_FMT = [
+    lambda T, R, d, V: [T, ": ", R, "; next due ", d],
+    lambda T, R, d, V: [T, " next due ", d],
+    lambda T, R, d, V: ["Repeat ", T, " due ", d],
+    lambda T, R, d, V: ["next ", T, ": ", d],
+    lambda T, R, d, V: [T, ", recheck ", d],
+    lambda T, R, d, V: [V, ": next due ", d],
+    lambda T, R, d, V: [T, ", due again ", d],
+    lambda T, R, d, V: ["Next screening ", d],
+]
+FUTURE_SENT = [
+    lambda T, d, V: ["Next ", T, " is due ", d, "."],
+    lambda T, d, V: ["Plan to repeat ", T, " in ", d, "."],
+    lambda T, d, V: ["Due for ", T, " again ", d, "."],
+    lambda T, d, V: [V, " is next due ", d, "."],
+]
+
+
+def sentence_case(item):
+    item = flat(item)
+    if item and isinstance(item[0], str) and item[0]:
+        item[0] = item[0][0].upper() + item[0][1:]
+    return item
+
+
+def future_parts(c):
+    rng = c.rng
+    for _ in range(80):
+        year = c.note_year + rng.randint(1, 12)
+        if c.reg.future[year] < FUTURE_CAP:
+            c.reg.future[year] += 1
+            break
+    else:
+        raise RuntimeError("future years exhausted")
+    if rng.random() < 0.72:
+        return [("DATE", str(year), "future")]
+    mi = rng.randrange(12)
+    text = rng.choice(
+        [f"{MON3[mi]} {year}", f"{MONFULL[mi]} {year}", f"{mi + 1:02d}/{year}"]
+    )
+    return [("DATE", text, "future")]
+
+
+def hist_new_pos(c, sentence):
+    rng, kind = c.rng, c.newcase
+    for _ in range(60):
+        if kind == "onset_year":
+            D = rng.choice(DIAGNOSES)
+            got = c.dp(1950)
+            if got is None:
+                continue
+            item = rng.choice(ONSET_FMT)(D if not sentence else D, got[0])
+        elif kind == "year_range":
+            y1 = c.year(1950)
+            if y1 is None:
+                continue
+            y2 = c.year(y1 + 1, floor=y1 + 1)
+            if y2 is None:
+                continue
+            text = rng.choice(
+                [
+                    f"{y1}-{y2}",
+                    f"{y1}-{y2}",
+                    f"{y1}-{y2}",
+                    f"{y1} - {y2}",
+                    f"{y1} to {y2}",
+                ]
+            )
+            item = rng.choice(RANGE_FMT)(
+                rng.choice(RANGE_CTX), [("DATE", text, "year")]
+            )
+        else:
+            T, _miny = rng.choice(TESTS)
+            V = rng.choice(VACCINES)[0]
+            d = future_parts(c)
+            if sentence:
+                item = rng.choice(FUTURE_SENT)(T, d, V)
+            else:
+                item = rng.choice(FUTURE_FMT)(T, results_for(rng, T), d, V)
+        c.hit = True
+        item = flat(item)
+        if sentence:
+            return (
+                sentence_case(item) if item[-1] == "." else [*sentence_case(item), "."]
+            )
+        return [cap_first_part(rng, item)]
+    raise RuntimeError("no feasible new-case history item")
+
+
+def cap_first_part(rng, item):
+    item = flat(item)
+    if rng.random() < 0.5 and isinstance(item[0], str) and item[0]:
+        item[0] = item[0][0].upper() + item[0][1:]
+    return item
+
+
+def hist_new_neg(c, sentence):
+    rng, kind = c.rng, c.newcase
+    D, T = rng.choice(DIAGNOSES), rng.choice(TESTS)[0]
+    n, m, a = rng.choice([2, 3, 5, 7, 10]), rng.choice([2, 3, 4, 6]), min(c.age, 89)
+    py = pub_year(rng)
+    TG = topic_for(T)
+    if kind == "onset_year":
+        options = [
+            f"{D} diagnosed at age {rng.randint(25, max(26, a - 3))}",
+            f"{D} for {n} years",
+            f"{D} diagnosed years ago",
+            f"{D} since age {rng.randint(25, max(26, a - 3))}",
+            f"{D}, stage {rng.choice(['1', '2', '3a', 'II'])}, dx per the {py} criteria",
+            f"{D} of long standing",
+        ]
+    elif kind == "year_range":
+        y = int(py)
+        options = [
+            f"per the {y}-{y + rng.randint(2, 5)} {TG} cohort study",
+            f"ages {rng.randint(45, 55)}-{rng.randint(70, 80)} per the {py} {TG} guideline",
+            rng.choice(
+                [
+                    "metformin 500-1000 mg",
+                    "lisinopril 10-40 mg",
+                    "atorvastatin 10-80 mg",
+                    "amlodipine 2.5-10 mg",
+                ]
+            ),
+            f"BP goal {rng.randint(110, 120)}-{rng.randint(125, 135)}/{rng.randint(65, 75)}-{rng.randint(78, 85)}",
+            f"{D}, stage {rng.choice(['2', '3'])}-{rng.choice(['3', '4'])}",
+            f"recovery over {m}-{m + 3} weeks",
+            f"{D} for {n}-{n + 4} years",
+            f"{y}-{y + 3} registry data reviewed",
+        ]
+    else:
+        options = [
+            f"{T}: next due in {n} years",
+            f"repeat {T} in {n} years",
+            f"next dose in {m} months",
+            f"next visit in {m} months",
+            f"{T} due per the {py} {TG} guideline",
+            f"{T} to be repeated every {n} years",
+            f"recheck in {m} weeks",
+        ]
+    text = rng.choice(options)
+    if sentence:
+        text = text[0].upper() + text[1:] + "."
+    elif rng.random() < 0.5:
+        text = text[0].upper() + text[1:]
+    c.neghit = True
+    return [text]
+
+
 def hist_pos(c, sentence=False):
+    if c.newcase in HIST_NEW and (not c.hit or c.rng.random() < 0.6):
+        return hist_new_pos(c, sentence)
     rng = c.rng
     for _ in range(60):
         kind = rng.choices(["test", "vax", "proc", "dx"], [40, 22, 28, 10])[0]
@@ -1309,6 +1566,8 @@ def hist_pos(c, sentence=False):
 
 def hist_neg(c, sentence=False):
     """A history-flavoured item with no patient-specific year (public years, durations, doses, stages, ages <= 89)."""
+    if c.newcase in HIST_NEW and (not c.neghit or c.rng.random() < 0.6):
+        return hist_new_neg(c, sentence)
     rng = c.rng
     Tl = rng.choice(TESTS)[0]
     T = cap_first(rng, Tl)
@@ -1813,7 +2072,11 @@ def pharm_line(c, positive=None, label=None):
     label = label if label is not None else pick(rng, PH_LABELS_RX)
     name = ("FACILITY", pharm_name(c), "pharmacy")
     if positive:
-        z = ("LOCATION", c.zip_code(), "zip")
+        zval = c.zip_code()
+        if c.newcase == "zip_plus_four":
+            zval = f"{zval}-{rng.randint(1000, 9999)}"
+            c.hit = True
+        z = ("LOCATION", zval, "zip")
         form = pick(
             rng,
             [
@@ -1842,6 +2105,16 @@ def pharm_line(c, positive=None, label=None):
         return [label, name, join, pharm_tail(c)]
     kind = rng.randrange(10)
     n5 = "".join(rng.choice("0123456789") for _ in range(5))
+    if c.newcase == "zip_plus_four":
+        c.neghit = True
+        code = rng.choice(
+            [
+                f", lot {n5}-{rng.randint(1000, 9999)}",
+                f", NDC {n5}-{rng.randint(1000, 9999)}",
+                f", batch {n5}-{rng.randint(100, 999)}",
+            ]
+        )
+        return [label, name, [code]]
     tail = {
         0: [],
         1: [],
@@ -1873,8 +2146,65 @@ def pharm_neg_nameless(c):
     ]
 
 
+def rx_line(c):
+    rng = c.rng
+    med = rng.choice(MEDS)
+    if c.positive:
+        n = "".join(rng.choice("0123456789") for _ in range(rng.randint(6, 8)))
+        rxid = ("ID", n, "rx")
+        alt = ("ID", "RX-" + "".join(rng.choice("0123456789") for _ in range(5)), "rx")
+        c.hit = True
+        return rng.choice(
+            [
+                ["Rx #", rxid, " refilled"],
+                ["Rx# ", rxid, " - ", med],
+                ["Rx no. ", rxid, " renewed"],
+                ["Rx number: ", rxid],
+                ["prescription number ", alt, " transferred"],
+                ["Rx ID ", rxid, " ready for pickup"],
+                ["Rx #", rxid, ", ", med],
+                ["Refill of Rx #", rxid, " requested"],
+                ["prescription number ", rxid, " approved"],
+            ]
+        )
+    c.neghit = True
+    return [
+        rng.choice(
+            [
+                f"Rx for {med}",
+                "Rx sent electronically",
+                f"{med} #{rng.choice([30, 60, 90])}, {rng.randint(0, 5)} refills",
+                f"Rx refills: {rng.randint(0, 5)}",
+                "prescription renewed for 90 days",
+                f"Rx quantity #{rng.choice([30, 60, 90])}",
+                "Rx pending prior authorization",
+                "new Rx written today",
+            ]
+        )
+    ]
+
+
+def mailing_zip_line(c):
+    rng = c.rng
+    label = rng.choice(["Mailing ZIP: ", "ZIP+4: ", "Billing ZIP: ", "Mail ZIP "])
+    if c.positive:
+        c.hit = True
+        z = f"{c.zip_code()}-{rng.randint(1000, 9999)}"
+        return [label, ("LOCATION", z, "zip")]
+    return [label + rng.choice(["not provided", "same as home", "unknown"])]
+
+
 def pharm_item(c, allow_nameless=True):
-    if allow_nameless and not c.positive and c.rng.random() < 0.12:
+    if c.newcase == "rx_number":
+        return [rx_line(c), "\n", pharm_line(c)]
+    if c.newcase == "zip_plus_four" and c.rng.random() < 0.3:
+        return [mailing_zip_line(c), "\n", pharm_line(c)]
+    if (
+        allow_nameless
+        and c.newcase is None
+        and not c.positive
+        and c.rng.random() < 0.12
+    ):
         return pharm_neg_nameless(c)
     return pharm_line(c)
 
@@ -1985,6 +2315,8 @@ def L_portal_message_pharmacy(c):
         )
     )
     rb.add("I am ", c.age_years(), " and take ", rng.choice(MEDS), ". ")
+    if c.newcase == "rx_number":
+        rb.add(rx_line(c), ". ")
     if c.positive:
         rb.add(
             pick(
@@ -2123,7 +2455,64 @@ def ph_neg_line(c):
     ]
 
 
+def pager_line(c):
+    rng = c.rng
+    label = rng.choice(["Pager", "pager", "Pager #", "Beeper", "On-call pager"])
+    if c.positive:
+        number = ("PHONE", c.phone()[1], "pager")
+        c.hit = True
+        return rng.choice(
+            [
+                [label, ": ", number],
+                [label, " ", number],
+                ["Page ", c.clinician(), " at pager ", number],
+                ["paged via ", number, " with no reply"],
+                ["Night pager ", number, ", carried until 7 am"],
+                ["Resident pager: ", number],
+                ["Unit pager (", number, ")"],
+            ]
+        )
+    c.neghit = True
+    return [
+        rng.choice(
+            [
+                "Paged the covering physician; no answer yet",
+                "Pager battery replaced at the desk",
+                "Page the resident if BP drops below 90",
+                "Pager not carried on nights",
+                "Hold the pager until 7 am",
+                "Paged overhead twice for the transport team",
+            ]
+        )
+    ]
+
+
+def bare_ext_line(c):
+    rng = c.rng
+    if rng.random() < 0.2:
+        return ph_neg_line(c)
+    n = "".join(rng.choice("0123456789") for _ in range(rng.choice([3, 4, 4, 5])))
+    n = "5" + n[1:] if n[0] == "0" else n
+    c.neghit = True
+    return rng.choice(
+        [
+            [f"Ward phone ext. {n}"],
+            [f"Charge desk x{n}"],
+            [f"Dial extension {n} from any unit phone"],
+            [f"Reach the clerk at ext {n}"],
+            [f"Nurses' station ext. {n}"],
+            [f"Pharmacy line EXT. {n}"],
+            [f"ext #{n} for transport"],
+            [f"Internal line extension {n}"],
+        ]
+    )
+
+
 def ph_item(c):
+    if c.newcase == "pager":
+        return pager_line(c)
+    if c.newcase == "bare_extension":
+        return bare_ext_line(c)
     return ph_pos_line(c) if c.positive else ph_neg_line(c)
 
 
@@ -2520,8 +2909,8 @@ FAMILY_PHENOMENA = {
 # ---------------------------------------------------------------------------
 # Plan and generation
 # ---------------------------------------------------------------------------
-def build_plan():
-    rng = random.Random(f"{SEED}:plan")
+def build_plan(seed=SEED, with_new=False):
+    rng = random.Random(f"{seed}:plan")
     plan = []
     for family, total in FAMILY_ROWS.items():
         layouts = LAYOUTS[family]
@@ -2547,16 +2936,64 @@ def build_plan():
         cohorts[index] = "unusual_name"
     for item, case, cohort in zip(plan, cases, cohorts):
         item["case"], item["cohort"] = case, cohort
+    if with_new:
+        mode_cycle = ["normal", "normal", "normal", "upper", "lower"]
+        for name, (positives, negatives, family, layouts) in NEW_CASES.items():
+            for k in range(positives + negatives):
+                plan.append(
+                    {
+                        "family": family,
+                        "layout": layouts[k % len(layouts)],
+                        "positive": k < positives,
+                        "case": mode_cycle[k % 5],
+                        "cohort": "realistic",
+                        "newcase": name,
+                    }
+                )
+        rng.shuffle(plan)
     return plan
 
 
-def make_row(index, item, reg, seen_texts):
-    for attempt in range(40):
-        rng = random.Random(f"{SEED}:{index}:{attempt}")
+VERSIONS = {
+    "v1": {
+        "seed": SEED,
+        "suite": SUITE,
+        "suffix": "",
+        "year_cap": YEAR_CAP,
+        "pools": None,
+        "with_new": False,
+    },
+    "v2": {
+        "seed": SEED2,
+        "suite": SUITE2,
+        "suffix": "_v2",
+        "year_cap": YEAR_CAP2,
+        "pools": (FIRSTS_V2, LASTS_V2),
+        "with_new": True,
+    },
+}
+
+
+def make_row(index, item, reg, seen_texts, cfg=None):
+    cfg = cfg or VERSIONS["v1"]
+    suffix = cfg["suffix"]
+    newcase = item.get("newcase")
+    for attempt in range(60):
+        rng = random.Random(f"{cfg['seed']}:{index}:{attempt}")
         c = Ctx(
-            rng, reg, item["family"], item["cohort"], item["positive"], item["case"]
+            rng,
+            reg,
+            item["family"],
+            item["cohort"],
+            item["positive"],
+            item["case"],
+            year_cap=cfg["year_cap"],
+            pools=cfg["pools"],
+            newcase=newcase,
         )
         LAYOUT_FUNCS[item["layout"]](c)
+        if newcase and not (c.hit if item["positive"] else c.neghit):
+            continue
         text, spans, tags = c.rb.build(item["case"])
         if text in seen_texts:
             continue
@@ -2567,15 +3004,15 @@ def make_row(index, item, reg, seen_texts):
         seen_texts.add(text)
         groups = [canonical_identity_group(name) for name in c.people]
         row = {
-            "id": f"tk14_{index:05d}",
+            "id": f"tk14_{index:05d}{suffix}",
             "text": text,
             "spans": spans,
             "split": "train",
-            "suite": SUITE,
+            "suite": cfg["suite"],
             "annotation_policy": POLICY_VERSION,
             "cohort": item["cohort"],
-            "family": f"tk14_{item['layout']}",
-            "template_family": f"tk14_{item['layout']}",
+            "family": f"tk14_{item['layout']}{suffix}",
+            "template_family": f"tk14_{item['layout']}{suffix}",
             "layout": item["layout"],
             "target_family": item["family"],
             "polarity": "positive" if item["positive"] else "negative",
@@ -2583,25 +3020,36 @@ def make_row(index, item, reg, seen_texts):
             "phenomena": [
                 *FAMILY_PHENOMENA[item["family"]],
                 "matched_positive" if item["positive"] else "matched_negative",
+                *([newcase] if newcase else []),
             ],
             "identity_group": groups[0],
             "identity_groups": list(dict.fromkeys(groups)),
-            "pair_id": f"tk14_unpaired_{index:05d}",
+            "pair_id": f"tk14_unpaired_{index:05d}{suffix}",
         }
+        if suffix:
+            row["new_case"] = newcase
+            row["version"] = "tk14-v2"
         years = [
-            int(re.search(r"\d{4}", value).group())
+            int(y)
             for tag, value in tags
             if tag == "year"
+            for y in re.findall(r"\d{4}", value)
         ]
-        return row, {"tags": tags, "years": years}
+        future = [
+            int(re.search(r"\d{4}", value).group())
+            for tag, value in tags
+            if tag == "future"
+        ]
+        return row, {"tags": tags, "years": years, "future_years": future}
     raise RuntimeError(f"could not make a unique row {index}")
 
 
-def generate():
+def generate(version="v1"):
+    cfg = VERSIONS[version]
     reg, seen = Registry(), set()
     rows, metas = [], []
-    for index, item in enumerate(build_plan()):
-        row, meta = make_row(index, item, reg, seen)
+    for index, item in enumerate(build_plan(cfg["seed"], cfg["with_new"])):
+        row, meta = make_row(index, item, reg, seen, cfg)
         rows.append(row)
         metas.append(meta)
     return rows, metas
@@ -2786,30 +3234,192 @@ def write_reports(rows, metas, stats, report_dir: Path):
     (report_dir / "spot_check_sample.md").write_text("\n".join(out), encoding="utf-8")
 
 
+UNSETTLED_V2 = """\
+Still out of scope by the owner's decision (not generated): a pharmacy followed by town, state and ZIP in one phrase, and funeral-home names with no type word.
+
+Choices made inside the settled cases that the fixtures do not spell out. Each is flagged for the owner:
+
+1. **Month-year future dates** (`next due Mar 2028`, `next due 03/2028`) are written as one DATE span, by analogy with partial dates such as `Mar 2015`. The fixture shows a bare future year only.
+2. **Year ranges.** Only bare-year ranges are generated: `1984-2003`, `1984 - 2003` and `1984 to 2003`, each one DATE span, with a leading `from` outside the span (as for full-date ranges). Ranges of month-year dates are not generated.
+3. **Future years** run from the year after the note year up to twelve years later, so they fall outside the 1950 to 2026 history-year window by design. They are counted separately and capped at 40 spans per year.
+4. **Pager numbers** are generated only as full fictional phone numbers (555-0100 to 555-0199 lines). Short internal pager codes (`pager 4417`) are not generated, because the fixture and policy cover a pager that is a phone number.
+5. **Prescription numbers** are generated only with an `Rx`, `Rx #`, `Rx no.`, `Rx number`, `Rx ID` or `prescription number` caption outside the span. The `RX-nnnnn` form includes its `RX-` prefix in the ID span, following the fixture. A bare number with no caption is not generated.
+6. **ZIP+4** is generated after a pharmacy name and in `Mailing ZIP:`, `ZIP+4:`, `Billing ZIP:` and `Mail ZIP` fields. Hyphenated look-alike codes with no ZIP caption (`lot 53728-4416`, `NDC 53728-4416`, `batch 53728-441`) are the matched negatives and are not annotated. Whether a model should separate the two on caption alone is the owner's call.
+7. **Bare extensions** (`Ward phone ext. 4412`, `Charge desk x5120`) are generated only as negatives and never directly after a phone number.
+8. **Name pools.** v2 draws person names from rarer given-name and surname pools to reduce identity collisions. The author could not check them against the protected identity lists (not permitted), so collisions cannot be ruled out; the owner's overlap audit decides.
+9. **Real-place collision** (unchanged from v1): invented town, stem and street spellings could not be checked against a gazetteer.
+"""
+
+
+def new_case_stats(rows, metas):
+    out = {}
+    for row, _meta in zip(rows, metas):
+        case = row.get("new_case")
+        if not case:
+            continue
+        entry = out.setdefault(
+            case, {"positive": 0, "negative": 0, "normal": 0, "upper": 0, "lower": 0}
+        )
+        entry[row["polarity"]] += 1
+        entry[row["case_mode"]] += 1
+    future = Counter(y for m in metas for y in m["future_years"])
+    return out, future
+
+
+def write_reports_v2(rows, metas, stats, report_dir: Path):
+    report_dir.mkdir(parents=True, exist_ok=True)
+    cases, future = new_case_stats(rows, metas)
+    lines = [
+        "## tk14 v2 (settled follow-up cases)",
+        "",
+        f"Generated by `scripts/takeover/author14_targeted_gaps.py --version v2` (seed {SEED2}, version `tk14-v2`) into `data/tk14_train_targeted_gaps__v2.jsonl`. v1 is unchanged and the generator still reproduces it byte for byte (tested). v2 repeats the 2,000-row v1 composition with a new seed and rarer name pools, and adds {sum(v['positive'] + v['negative'] for v in cases.values())} rows for the cases the owner settled on 2026-10-05. Synthetic, invented values only; training bank, not an evaluation bank.",
+        "",
+        f"Total {stats['rows']} rows; negatives are {100 * stats['polarity']['negative'] / stats['rows']:.1f}%.",
+        "",
+        "### Rows per family",
+        "",
+        "| Family | Rows | Positive | Negative |",
+        "|---|---:|---:|---:|",
+    ]
+    for family, count in stats["per_family"].items():
+        pol = stats["polarity_by_family"][family]
+        lines.append(
+            f"| {family} | {count} | {pol.get('positive', 0)} | {pol.get('negative', 0)} |"
+        )
+    lines += [
+        "",
+        "### Rows per new case",
+        "",
+        "| New case | Positive | Negative | Normal | All-caps | Lowercase |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for name in NEW_CASES:
+        v = cases[name]
+        lines.append(
+            f"| {name} | {v['positive']} | {v['negative']} | {v['normal']} | {v['upper']} | {v['lower']} |"
+        )
+    lines += [
+        "",
+        "### Layouts, case and cohort",
+        "",
+        f"{len(stats['per_layout'])} layouts; the largest holds {100 * stats['layout_max_share']:.1f}% of rows. "
+        f"Case modes: {stats['case_modes']}. Cohorts: {stats['cohorts']}.",
+        "",
+        "| Layout | Rows | Share |",
+        "|---|---:|---:|",
+    ]
+    for layout, count in stats["per_layout"].items():
+        lines.append(f"| {layout} | {count} | {100 * count / stats['rows']:.1f}% |")
+    lines += ["", "### Label support (spans)", "", "| Label | Spans |", "|---|---:|"]
+    lines += [f"| {k} | {v} |" for k, v in stats["label_support"].items()]
+    lines += [
+        "",
+        "### Year spread",
+        "",
+        f"{stats['history_year_spans']} history-year DATE endpoints (bare years, month-year forms, onset years and both ends of each range), "
+        f"{stats['distinct_years']} distinct years from {stats['history_year_min']} to {stats['history_year_max']}. "
+        f"The most frequent year holds {100 * stats['history_year_max_share']:.2f}% (cap 3%); top three: {stats['history_year_top']}.",
+        "",
+        f"Future patient-specific years: {sum(future.values())} spans over {len(future)} distinct years ({min(future)} to {max(future)}); the most frequent year holds {max(future.values())} spans. These sit outside the 1950 to 2026 window by design and are not in the figure above.",
+        "",
+        "### Maximum value repetition (rows containing the same value, case-folded)",
+        "",
+        "| Value type | Value | Rows | Share of rows |",
+        "|---|---|---:|---:|",
+    ]
+    for tag, info in stats["max_value_repetition_rows"].items():
+        if tag in ("year", "future"):
+            continue
+        lines.append(
+            f"| {tag} | {info['value']} | {info['rows']} | {100 * info['share']:.2f}% |"
+        )
+    lines += [
+        "",
+        "The cap is 0.5% of rows (11 rows).",
+        "",
+        "### Unsettled and flagged",
+        "",
+        UNSETTLED_V2,
+    ]
+    report = report_dir / "AUTHOR_REPORT.md"
+    existing = report.read_text(encoding="utf-8") if report.exists() else ""
+    marker = "## tk14 v2 (settled follow-up cases)"
+    if marker in existing:
+        existing = existing[: existing.index(marker)]
+    report.write_text(
+        existing.rstrip("\n") + "\n\n" + "\n".join(lines), encoding="utf-8"
+    )
+
+    sample_rng = random.Random(f"{SEED2}:spot")
+    by_case = {name: [] for name in NEW_CASES}
+    base = []
+    for index, row in enumerate(rows):
+        (by_case[row["new_case"]] if row.get("new_case") else base).append(index)
+    sample = []
+    for indexes in by_case.values():
+        sample += sample_rng.sample(indexes, 7)
+    sample += sample_rng.sample(base, 100 - len(sample))
+    sample.sort()
+    out = [
+        "# Spot-check sample, tk14 v2 (100 rows, fixed seed)",
+        "",
+        "49 rows on the new cases (7 per case) and 51 base rows. Spans are marked `[LABEL|text]`.",
+        "",
+    ]
+    for index in sample:
+        row = rows[index]
+        text, marked, pos = row["text"], [], 0
+        for span in row["spans"]:
+            marked.append(text[pos : span["start"]])
+            marked.append(f"[{span['label']}|{text[span['start'] : span['end']]}]")
+            pos = span["end"]
+        marked.append(text[pos:])
+        out.append(
+            f"### {row['id']} ({row['new_case'] or row['target_family']} / {row['layout']} / {row['polarity']} / {row['case_mode']} / {row['cohort']})"
+        )
+        out += ["", "```", "".join(marked), "```", ""]
+    (report_dir / "spot_check_sample_v2.md").write_text(
+        "\n".join(out), encoding="utf-8"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--out", default=str(ROOT / "data" / "tk14_train_targeted_gaps.jsonl")
-    )
+    parser.add_argument("--version", choices=sorted(VERSIONS), default="v1")
+    parser.add_argument("--out")
     parser.add_argument(
         "--report-dir",
         default=str(ROOT / "reports" / "takeover" / "author14_targeted_gaps"),
     )
+    parser.add_argument(
+        "--force", action="store_true", help="overwrite an existing v1 bank"
+    )
     args = parser.parse_args()
-    rows, metas = generate()
+    version = args.version
+    cfg = VERSIONS[version]
+    default_name = (
+        "tk14_train_targeted_gaps.jsonl"
+        if version == "v1"
+        else "tk14_train_targeted_gaps__v2.jsonl"
+    )
+    out = Path(args.out) if args.out else ROOT / "data" / default_name
+    if version == "v1" and out.exists() and not args.force:
+        raise SystemExit(f"{out} exists; v1 is frozen. Use --force to overwrite.")
+    rows, metas = generate(version)
     payload = serialise(rows)
-    out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(payload)
     stats = statistics(rows, metas)
     support = stats["label_support"]
     manifest = {
         "name": out.name,
+        "version": "tk14-v1" if version == "v1" else "tk14-v2",
         "annotation_policy": POLICY_VERSION,
         "policy_addenda": [
             "clinical-phi-v2-places",
             "care-sites-2026-10-05",
             "targeted-gaps-2026-10-05",
+            *(["targeted-followup-2026-10-05"] if version == "v2" else []),
         ],
         "split": "train",
         "role": "train",
@@ -2839,16 +3449,26 @@ def main():
         "author_provenance": {
             "generator": "scripts/takeover/author14_targeted_gaps.py",
             "generator_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-            "seed": SEED,
+            "seed": cfg["seed"],
             "brief": "docs/targeted-gaps-bank-brief.md",
             "synthetic_only": True,
             "inputs_read": "policy documents, fixtures and brief only; no corpus, evaluation or model file",
         },
     }
+    if version == "v2":
+        cases, future = new_case_stats(rows, metas)
+        manifest["new_case_counts"] = cases
+        manifest["future_year_spans"] = sum(future.values())
+        manifest["supersedes_note"] = (
+            "New file; tk14 v1 is unchanged. Names drawn from rarer pools."
+        )
     out.with_suffix(out.suffix + ".manifest.json").write_text(
         json.dumps(manifest, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    write_reports(rows, metas, stats, Path(args.report_dir))
+    if version == "v1":
+        write_reports(rows, metas, stats, Path(args.report_dir))
+    else:
+        write_reports_v2(rows, metas, stats, Path(args.report_dir))
     print(
         json.dumps(
             {

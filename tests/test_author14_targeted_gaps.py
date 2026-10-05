@@ -12,7 +12,10 @@ from clinical_deid.data.annotation_policy import (
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.annotation_policy_targeted import TARGETED_FIXTURES
+from clinical_deid.data.annotation_policy_targeted import (
+    TARGETED_FIXTURES,
+    TARGETED_FOLLOWUP_FIXTURES,
+)
 
 SCRIPT = (
     Path(__file__).resolve().parents[1]
@@ -179,7 +182,9 @@ def test_labels_supported(bank):
         assert support[label] > 0
 
 
-@pytest.mark.parametrize("fixture", TARGETED_FIXTURES, ids=lambda f: f["id"])
+@pytest.mark.parametrize(
+    "fixture", (*TARGETED_FIXTURES, *TARGETED_FOLLOWUP_FIXTURES), ids=lambda f: f["id"]
+)
 def test_span_logic_rebuilds_every_targeted_fixture(fixture):
     """Rebuild each fixture through the generator's own RowBuilder and compare exact offsets."""
     builder = gen.RowBuilder()
@@ -232,3 +237,149 @@ def test_fixture_shapes_are_covered_by_the_generator(bank):
         for _, _, s in joined
     )
     assert canonical_identity_group("x")
+
+
+# ---------------------------------------------------------------------------
+# tk14 v2
+# ---------------------------------------------------------------------------
+V1_DATA = (
+    Path(__file__).resolve().parents[1] / "data" / "tk14_train_targeted_gaps.jsonl"
+)
+
+
+@pytest.fixture(scope="module")
+def bank_v2():
+    return gen.generate("v2")
+
+
+@pytest.mark.skipif(not V1_DATA.exists(), reason="v1 data file not present")
+def test_generator_still_reproduces_v1_byte_for_byte(bank):
+    rows, _ = bank
+    assert gen.serialise(rows) == V1_DATA.read_bytes()
+
+
+def test_v2_is_deterministic_and_differs_from_v1(bank, bank_v2):
+    rows, _ = bank_v2
+    again, _ = gen.generate("v2")
+    assert gen.serialise(rows) == gen.serialise(again)
+    assert gen.serialise(rows) != gen.serialise(bank[0])
+
+
+def test_v2_composition_and_limits(bank_v2):
+    rows, metas = bank_v2
+    assert 2200 <= len(rows) <= 2400
+    assert all(
+        r["id"].endswith("_v2") and r["suite"] == "tk14_targeted_gaps_v2" for r in rows
+    )
+    assert all(r["version"] == "tk14-v2" and r["split"] == "train" for r in rows)
+    assert len({r["id"] for r in rows}) == len(rows)
+    assert len({r["text"] for r in rows}) == len(rows)
+    layouts = Counter(r["layout"] for r in rows)
+    assert len(layouts) >= 20 and max(layouts.values()) / len(rows) <= 0.08
+    negatives = sum(r["polarity"] == "negative" for r in rows)
+    assert 0.30 <= negatives / len(rows) <= 0.37
+    assert Counter(r["cohort"] for r in rows)["realistic"] > 0.85 * len(rows)
+    cases = Counter(r["case_mode"] for r in rows)
+    assert 0.55 <= cases["normal"] / len(rows) <= 0.65
+    years = Counter(y for m in metas for y in m["years"])
+    assert min(years) >= 1950 and max(years) <= 2026
+    assert max(years.values()) / sum(years.values()) <= 0.03
+    values: Counter = Counter()
+    for row in rows:
+        for label in ("FACILITY", "LOCATION"):
+            for value in {
+                s["text"].casefold() for s in row["spans"] if s["label"] == label
+            }:
+                values[(label, value)] += 1
+    assert max(values.values()) <= 0.005 * len(rows)
+    for row in rows:
+        assert annotation_errors(row["text"], row["spans"]) == []
+        assert identity_split(row["identity_group"]) == "train"
+        assert all(int(g[:8], 16) % 10 < 8 for g in row["identity_groups"])
+
+
+def test_v2_every_new_case_has_all_case_modes_and_matched_negatives(bank_v2):
+    rows, _ = bank_v2
+    for case, (positives, negatives, _family, _layouts) in gen.NEW_CASES.items():
+        group = [r for r in rows if r["new_case"] == case]
+        assert sum(r["polarity"] == "positive" for r in group) == positives
+        assert sum(r["polarity"] == "negative" for r in group) == negatives
+        assert {r["case_mode"] for r in group} == {"normal", "upper", "lower"}
+
+
+def spans_of(row, label):
+    return [s for s in row["spans"] if s["label"] == label]
+
+
+def test_v2_new_case_conventions(bank_v2):
+    rows, metas = bank_v2
+    for row, meta in zip(rows, metas):
+        case, text = row["new_case"], row["text"]
+        positive = row["polarity"] == "positive"
+        if case == "year_range" and positive:
+            ranges = [
+                s
+                for s in spans_of(row, "DATE")
+                if re.fullmatch(r"(\d{4})( ?- ?| to )(\d{4})", s["text"], re.I)
+            ]
+            assert ranges
+            for s in ranges:
+                a, b = (int(x) for x in re.findall(r"\d{4}", s["text"]))
+                assert 1950 <= a < b <= 2026
+        if case == "year_range" and not positive:
+            assert meta["years"] == []
+        if case == "future_year" and positive:
+            assert meta["future_years"]
+        if case == "future_year" and not positive:
+            assert meta["future_years"] == []
+        if case == "onset_year" and positive:
+            assert meta["years"]
+        if case == "zip_plus_four":
+            zips = [
+                s
+                for s in spans_of(row, "LOCATION")
+                if re.fullmatch(r"\d{5}-\d{4}", s["text"])
+            ]
+            if positive:
+                assert zips
+            else:
+                assert not zips
+                assert re.search(r"\b\d{5}-\d{3,4}\b", text)
+        if case == "rx_number":
+            ids = [
+                s
+                for s in spans_of(row, "ID")
+                if re.fullmatch(r"(RX-)?\d{5,8}", s["text"], re.I)
+            ]
+            if positive:
+                assert ids
+                for s in ids:
+                    assert re.search(
+                        r"(rx\s?(#|no\.|number:?|id)\s?|prescription number )$",
+                        text[: s["start"]],
+                        re.I,
+                    )
+            else:
+                assert not ids
+        if case == "pager":
+            pagers = [t for t in meta["tags"] if t[0] == "pager"]
+            if positive:
+                assert pagers
+                for s in spans_of(row, "PHONE"):
+                    if any(s["text"] == v for _, v in pagers):
+                        assert re.search(
+                            r"pager|beeper|paged via",
+                            text[max(0, s["start"] - 30) : s["start"]],
+                            re.I,
+                        )
+            else:
+                assert not pagers
+        if case == "bare_extension":
+            assert not positive
+            assert re.search(r"\b(ext\.?|extension|x)\s*#?\s*\d{3,5}", text, re.I)
+            for s in spans_of(row, "PHONE"):
+                assert not re.search(r"(ext|extension|\bx)\s*#?\s*\d", s["text"], re.I)
+                # a bare extension is never attached to the end of a phone span
+                assert not re.match(
+                    r"[ ,]*(ext\.?|extension|x)\s*#?\s*\d", text[s["end"] :], re.I
+                )
