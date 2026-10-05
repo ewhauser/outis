@@ -86,6 +86,10 @@ def test_followup_decisions():
         ("LOCATION", "Gorsefield"),
         ("FACILITY", "harlow vane drug"),
     ]
+    assert gold("county_modifier_and_bare_county") == [
+        ("LOCATION", "Kestrine County"),
+        ("LOCATION", "Kestrine"),
+    ]
     assert gold("ordinary_place_word_any_case") == []
     assert gold("employer_and_care_roles") == [("FACILITY", "Ombrey General Hospital")]
     row = {r["id"]: r for r in CARE_SITE_FOLLOWUP_FIXTURES}["employer_and_care_roles"]

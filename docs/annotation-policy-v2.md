@@ -110,7 +110,7 @@ Not every row has an executable fixture yet.
 | URL | Scheme, such as `https://` | Inside the span |
 | LOCATION | City with its state | One LOCATION span including the state |
 | LOCATION | A ZIP code alone | LOCATION |
-| LOCATION | A county name | One LOCATION span including `County` (`Kestrine County`, `Tollund County, OR`) |
+| LOCATION | A county name | One LOCATION span including `County` (`Kestrine County`, `Tollund County, OR`); followed by a generic site word, the word stays outside (`the [Kestrine County] office`, places P7); written without `County`, an ordinary locality (`grew up in [Kestrine]`) |
 | LOCATION | A state or a country alone | Not annotated |
 | FACILITY | A leading `the` used as an article (`seen at the Mayo Clinic`, sentence-initial `The Larkspur Pharmacy called`) | Outside the span |
 | FACILITY | A capitalised `The` that is part of the proper name, including a service organisation's name (`The Marlowe at Fennick Ridge`, `The Hearth at Ombrey`) | Inside the span |

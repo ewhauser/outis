@@ -93,6 +93,12 @@ CARE_SITE_FOLLOWUP_FIXTURES = (
         "NEEDS READING GLASSES AND A MOBILE PHONE CHARGER.",
         ["n5_place_word_other_role", "case_variation"],
     ),
+    # 1b. A county followed by a generic site word follows P7; a county named without "County" is a plain locality.
+    _example(
+        "county_modifier_and_bare_county",
+        "Records from the [[LOCATION|Kestrine County]] office; she grew up in [[LOCATION|Kestrine]].",
+        ["county_name", "p7_city_modifier"],
+    ),
     # 7. Per occurrence: employer role not annotated; care role is FACILITY.
     _example(
         "employer_and_care_roles",
