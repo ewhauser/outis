@@ -76,7 +76,7 @@ diagnostics do not replace exact typed-span evaluation.
 The table above leaves some cases open. In early October 2026, ten independent readers
 were given only the policy, protocol, types and fixtures and asked to choose a
 convention for 35 such cases. They agreed 10 of 10 on every case in the table
-below. The one split case, employer names, is decided after the table. Training banks were normalised to these choices, and they
+below. The one split case, employer names, is decided after the table. The rows for a leading `The` and for service organisations were decided by the owner on 2026-10-05 for the care-site and locality bank; their fixtures are `CARE_SITE_FIXTURES` in `src/clinical_deid/data/annotation_policy_care_sites.py`. Training banks were normalised to these choices, and they
 are in force for all new authoring and annotation. The record is
 [`convention_census_001.json`](../reports/takeover/convention_census_001.json).
 Not every row has an executable fixture yet.
@@ -111,13 +111,16 @@ Not every row has an executable fixture yet.
 | LOCATION | City with its state | One LOCATION span including the state |
 | LOCATION | A ZIP code alone | LOCATION |
 | LOCATION | A state or a country alone | Not annotated |
-| FACILITY | A leading `the` | Outside the span |
+| FACILITY | A leading `the` used as an article (`seen at the Mayo Clinic`, sentence-initial `The Larkspur Pharmacy called`) | Outside the span |
+| FACILITY | A capitalised `The` that is part of the proper name (`The Marlowe at Fennick Ridge`) | Inside the span |
 | FACILITY | A department word next to an institution name | Outside the span; FACILITY covers the institution name |
 | FACILITY | A named ward | FACILITY |
 | FACILITY | A named pharmacy | FACILITY |
+| FACILITY | A named organisation that provides care, services, supplies or housing to the patient: home health agency or VNA, hospice, durable medical equipment supplier, laboratory, adult day program, senior-living community, mail-order or specialty pharmacy | FACILITY, including its type words (`Vossmere VNA`, `Saint Odile Adult Day Program`) |
+| FACILITY | The same type words without a name (`home health referral sent`, `the hospice team`) | Not annotated |
 
 **Employer names.** Do not annotate an employer or other organisation that is
-not acting as a care site. Six census readers chose this and four chose
+not acting as a care site or serving the patient's care. Six census readers chose this and four chose
 FACILITY; the owner decided it on 2026-10-04. An employer that is itself the
 patient's care site is FACILITY under the ordinary rule.
 
