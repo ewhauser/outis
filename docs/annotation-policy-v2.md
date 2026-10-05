@@ -91,6 +91,7 @@ Not every row has an executable fixture yet.
 | ID | Clinician NPI and licence numbers | ID |
 | ACCOUNT | Billing, patient and guarantor account numbers | ACCOUNT |
 | MRN | A record number written with a prefix, such as `QX-0041122` | One MRN span including the prefix |
+| MRN | A field caption before the value, such as `MRN:` or `MRN#` | Outside the span |
 | NAME | Generational suffix, such as `Jr.` | Inside the span |
 | NAME | Possessive `'s` | Outside the span |
 | NAME | Initials | Inside the span |
