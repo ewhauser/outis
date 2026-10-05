@@ -50,9 +50,13 @@ SEED = 13013
 SEED_V2 = 14013
 SUITE_V2 = "tk13_care_sites_localities_v2"
 BANK_VERSION_V2 = "tk13-v2"
+SEED_V3 = 15013
+SUITE_V3 = "tk13_care_sites_localities_v3"
+BANK_VERSION_V3 = "tk13-v3"
 SUITE = "tk13_care_sites_localities"
 OUT = ROOT / "data" / "tk13_train_care_sites_localities.jsonl"
 OUT_V2 = ROOT / "data" / "tk13_train_care_sites_localities__v2.jsonl"
+OUT_V3 = ROOT / "data" / "tk13_train_care_sites_localities__v3.jsonl"
 REPORT_DIR = ROOT / "reports" / "takeover" / "author13_care_sites"
 
 SOURCE_PINS = {
@@ -78,6 +82,14 @@ SOURCE_DIR_CANDIDATES = (
     ),
 )
 
+FAMILY_ROWS_V3 = {
+    "city_modifier": 500,
+    "locality_short": 500,
+    "service_org": 650,
+    "practice_pharmacy": 450,
+    "senior_living_at": 350,
+    "town_narrative": 350,
+}
 FAMILY_ROWS_V2 = {
     "city_modifier": 450,
     "locality_short": 450,
@@ -684,7 +696,8 @@ class World:
     """Value pools shared by every row."""
 
     def __init__(self, rng: random.Random, version: str = "v1"):
-        self.v2 = version == "v2"
+        self.v3 = version == "v3"
+        self.v2 = version in ("v2", "v3")
         directory = find_sources()
         verify_pins(directory)
         self.rng = rng
@@ -766,6 +779,15 @@ class World:
                 ):
                     counties.append((value, state))
             self.county_picker = Picker(counties, rng)
+            bare = []
+            for value, state in counties:
+                name = value[: -len(" County")]
+                if len(name) >= 4 and (
+                    name not in all_names or place_value_pool(name) == "train"
+                ):
+                    bare.append((value, state))
+            self.bare_county_picker = Picker(bare, rng)
+            self.bare_county_count = len(bare)
             self.county_count = len(counties)
             self.pins["2024_Gaz_counties_national.zip"]["used"] = True
 
@@ -797,6 +819,12 @@ class Ctx:
         value, state = self.w.county_picker.next()
         self.record(value, "census_gazetteer_counties_2024", "county_name")
         return value, state
+
+    def county_bare(self):
+        """A county written without `County`; the recorded value is the full county name."""
+        value, state = self.w.bare_county_picker.next()
+        self.record(value, "census_gazetteer_counties_2024", "bare_county_name")
+        return value[: -len(" County")], state
 
     def cms(self, role: str) -> str:
         title, raw = self.w.cms.next()
@@ -2142,10 +2170,89 @@ V2_NEW = {
 }
 
 
+# --------------------------------------------------------------------------- v3 cores
+# Settled 2026-10-05: a county followed by a generic site word follows P7, and a county
+# written without `County` is an ordinary locality.
+
+COUNTY_SITE_TEMPLATES = (
+    "Records from the {C} office.",
+    "Labs drawn at the {C} clinic.",
+    "Follow up at our {C} site.",
+    "Referred to the {C} branch for infusions.",
+    "The {C} office called with the results.",
+    "Seen at the {C} location last week.",
+    "Visit moved to our {C} clinic.",
+    "Staff at the {C} office confirmed the referral.",
+)
+COUNTY_SITE_NEGATIVES = (
+    "Records from the county office.",
+    "Labs drawn at the county clinic.",
+    "Follow up at the county site.",
+    "Referred to the county health unit for shots.",
+    "The county office called with the results.",
+    "Visit moved to the county clinic.",
+)
+BARE_COUNTY_TEMPLATES = (
+    "Grew up in {B}.",
+    "Lives in {B}.",
+    "Family is from {B}.",
+    "Moved here from {B}.",
+    "Pt from {B}.",
+    "Born and raised in {B}.",
+    "Sister still lives in {B}.",
+    "Spent most of her life in {B}.",
+)
+
+
+def new_v3_city_modifier(c: Ctx, positive: bool, case: str):
+    r = c.rng
+    if positive:
+        if r.random() >= 0.16:
+            return None
+        if r.random() < 0.65:
+            value, _ = c.county()
+        else:
+            value = f"{c.stem()} County"
+        line = r.choice(COUNTY_SITE_TEMPLATES).replace("{C}", lab("LOCATION", value))
+        return [line], ["county_name", "county_modifier_p7", "p7_city_modifier"], None
+    if r.random() < 0.14:
+        return (
+            [r.choice(COUNTY_SITE_NEGATIVES)],
+            ["county_site_generic"],
+            "county_site_generic",
+        )
+    return None
+
+
+def new_v3_locality_short(c: Ctx, positive: bool, case: str):
+    r = c.rng
+    if positive:
+        if r.random() >= 0.16:
+            return None
+        if r.random() < 0.7:
+            name, _ = c.county_bare()
+        else:
+            name = c.stem()
+        line = r.choice(BARE_COUNTY_TEMPLATES).replace("{B}", lab("LOCATION", name))
+        return [line], ["bare_county_locality", "p1_patient_locality"], None
+    return None
+
+
+V3_NEW = {
+    "city_modifier": new_v3_city_modifier,
+    "locality_short": new_v3_locality_short,
+}
+
+
 def _wrap_v2(family):
     base, new = CORES[family], V2_NEW.get(family)
 
     def core(c, positive, case):
+        new3 = V3_NEW.get(family)
+        if c.w.v3 and new3 is not None:
+            result = new3(c, positive, case)
+            if result is not None:
+                return result
         if new is not None:
             result = new(c, positive, case)
             if result is not None:
@@ -2437,8 +2544,11 @@ def assign_cases(units, rng: random.Random):
 def generate(seed: int = SEED, version: str = "v1"):
     rng = random.Random(seed)
     world = World(rng, version)
-    units = plan_units(rng, FAMILY_ROWS_V2 if world.v2 else None)
-    suite = SUITE_V2 if world.v2 else SUITE
+    units = plan_units(
+        rng,
+        FAMILY_ROWS_V3 if world.v3 else FAMILY_ROWS_V2 if world.v2 else None,
+    )
+    suite = SUITE_V3 if world.v3 else SUITE_V2 if world.v2 else SUITE
     for unit in units:
         unit["suite"] = suite
     texts_seen = set()
@@ -2542,7 +2652,7 @@ def author_unit(world: World, rng: random.Random, unit: dict, seen: set) -> list
             continue
         seen.update(keys)
         # A pair shares identity, pair id and layout; the negative inherits the same keys.
-        pair_id = f"{'tk13v2' if world.v2 else 'tk13'}-{unit['serial']:05d}"
+        pair_id = f"{'tk13v3' if world.v3 else 'tk13v2' if world.v2 else 'tk13'}-{unit['serial']:05d}"
         for number, item in enumerate(items):
             item["pair_id"] = pair_id
             item["row_number"] = number
@@ -2596,7 +2706,7 @@ def finish_row(
     family = f"tk13_{item['family_key']}"
     suite = unit.get("suite", SUITE)
     phen = set(item["phenomena"])
-    if suite == SUITE_V2 and unit["case"] != "normal":
+    if suite in (SUITE_V2, SUITE_V3) and unit["case"] != "normal":
         if "the_in_name" in phen:
             phen.add("the_in_name_case_hidden")
         if "p7_city_modifier" in phen:
@@ -2635,7 +2745,7 @@ def finish_row(
 
 
 def write_bank(rows, world, seed: int = SEED, version: str = "v1"):
-    out = OUT_V2 if version == "v2" else OUT
+    out = {"v1": OUT, "v2": OUT_V2, "v3": OUT_V3}[version]
     payload = (
         "\n".join(json.dumps(r, ensure_ascii=False, sort_keys=False) for r in rows)
         + "\n"
@@ -2647,8 +2757,10 @@ def write_bank(rows, world, seed: int = SEED, version: str = "v1"):
     manifest = {
         "annotation_policy": POLICY_VERSION,
         "places_addendum": ADDENDUM,
-        "suite": SUITE_V2 if version == "v2" else SUITE,
-        "version": BANK_VERSION_V2 if version == "v2" else "tk13-v1",
+        "suite": {"v1": SUITE, "v2": SUITE_V2, "v3": SUITE_V3}[version],
+        "version": {"v1": "tk13-v1", "v2": BANK_VERSION_V2, "v3": BANK_VERSION_V3}[
+            version
+        ],
         "split": "train",
         "rows": len(rows),
         "documents": len(rows),
@@ -2939,6 +3051,7 @@ NEW_CASE_TAGS = (
     "ordinary_place_word_case_hidden",
 )
 V2_MARKER = "<!-- tk13-v2-section -->"
+V3_MARKER = "<!-- tk13-v3-section -->"
 
 
 def _mark(row):
@@ -3067,11 +3180,15 @@ def write_reports_v2(rows, manifest, world):
     ]
     report_path = REPORT_DIR / "AUTHOR_REPORT.md"
     existing = report_path.read_text(encoding="utf-8")
+    v3_tail = ""
+    if V3_MARKER in existing:
+        v3_tail = "\n\n" + existing[existing.index(V3_MARKER) :]
+        existing = existing[: existing.index(V3_MARKER)]
     if V2_MARKER in existing:
         existing = existing[: existing.index(V2_MARKER)].rstrip() + "\n\n"
     else:
         existing = existing.rstrip() + "\n\n"
-    report_path.write_text(existing + "\n".join(lines), encoding="utf-8")
+    report_path.write_text(existing + "\n".join(lines) + v3_tail, encoding="utf-8")
 
     sampler = random.Random(13)
     new = [r for r in rows if any(t in NEW_CASE_TAGS for t in r["phenomena"])]
@@ -3103,6 +3220,72 @@ def write_reports_v2(rows, manifest, world):
     )
 
 
+V3_TAGS = ("county_modifier_p7", "bare_county_locality", "county_site_generic")
+
+
+def write_reports_v3(rows, manifest, world):
+    n = len(rows)
+    fam = Counter(r["family"] for r in rows)
+    lay = Counter(r["layout"] for r in rows)
+    case = Counter(r["case_mode"] for r in rows)
+    pol = Counter(r["polarity"] for r in rows)
+    tags = Counter(t for r in rows for t in r["phenomena"] if t in V3_TAGS)
+    tag_case = Counter(
+        (t, r["case_mode"]) for r in rows for t in r["phenomena"] if t in V3_TAGS
+    )
+    pools = Counter(x["pool"] for r in rows for x in r["pool"])
+    sources = Counter(x["source"] for r in rows for x in r["pool"])
+    shares = value_shares(rows)
+    worst = max(shares.items(), key=lambda kv: kv[1])
+    lines = [
+        V3_MARKER,
+        "",
+        "# v3 bank: county with a generic site word, and county without `County`",
+        "",
+        f"Bank: `data/tk13_train_care_sites_localities__v3.jsonl` ({n} rows, sha256 `{manifest['sha256']}`), "
+        f"seed {SEED_V3}, version `{BANK_VERSION_V3}`, generator sha256 `{manifest['author_provenance']['generator_sha256']}`. "
+        "v3 is v2 plus the two cases below; v1 and v2 are unchanged and reproduce byte for byte from this generator. "
+        "Synthetic training bank; scores on it are not evidence of generalisation. Overlap audits were not run by the author.",
+        "",
+        "| Family | Rows |",
+        "|---|---:|",
+        *[f"| {k} | {v} |" for k, v in sorted(fam.items())],
+        "",
+        f"Positive {pol['positive']}, matched negative {pol['negative']} ({pol['negative'] / n:.1%}); "
+        f"{len(lay)} layouts, largest {max(lay.values()) / n:.1%}; case mix normal {case['normal']}, "
+        f"upper {case['upper']}, lower {case['lower']}.",
+        "",
+        "## Rows per new case",
+        "",
+        "| Case | Rows | normal | upper | lower |",
+        "|---|---:|---:|---:|---:|",
+        *[
+            f"| {t} | {tags[t]} | {tag_case[(t, 'normal')]} | {tag_case[(t, 'upper')]} | {tag_case[(t, 'lower')]} |"
+            for t in V3_TAGS
+        ],
+        "",
+        "`county_modifier_p7`: `the [<county> County] office`, LOCATION including `County`, generic word outside "
+        "(real train-pool counties and invented `<stem> County`). `bare_county_locality`: `grew up in [<county name>]`, "
+        "an ordinary locality (real county names without `County`, plus invented names). `county_site_generic`: "
+        "matched negative, `the county office` with no name. Bare county names are recorded in `pool` under the full "
+        "county value, which is train pool; a bare name is used only if it is not a Gazetteer place of the heldout pool.",
+        "",
+        "## v3 pool check",
+        "",
+        f"Real value uses {sum(pools.values())}: train {pools['train']}, heldout {pools['heldout']}; "
+        + ", ".join(f"{k} {v}" for k, v in sorted(sources.items()))
+        + f". Largest single value in the bank: {worst[1]} rows ({worst[1] / n:.2%}; limit {MAX_VALUE_SHARE:.1%}).",
+        "",
+        "Unsettled cases: none new. The v2 list still applies.",
+        "",
+    ]
+    path = REPORT_DIR / "AUTHOR_REPORT.md"
+    existing = path.read_text(encoding="utf-8")
+    if V3_MARKER in existing:
+        existing = existing[: existing.index(V3_MARKER)]
+    path.write_text(existing.rstrip() + "\n\n" + "\n".join(lines), encoding="utf-8")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -3110,26 +3293,28 @@ def main():
         action="store_true",
         help="also write the author report and spot-check sample",
     )
-    parser.add_argument("--version", choices=("v1", "v2"), default="v2")
+    parser.add_argument("--version", choices=("v1", "v2", "v3"), default="v3")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument(
         "--force-v1", action="store_true", help="allow rewriting the immutable v1 bank"
     )
     args = parser.parse_args()
-    if args.version == "v1" and not args.force_v1:
+    if args.version in ("v1", "v2") and not args.force_v1:
         raise SystemExit(
-            "v1 is immutable; reproduce it with generate(SEED, 'v1') or pass --force-v1"
+            "v1 and v2 are immutable; reproduce them with generate() or pass --force-v1"
         )
     seed = (
         args.seed
         if args.seed is not None
-        else (SEED_V2 if args.version == "v2" else SEED)
+        else {"v1": SEED, "v2": SEED_V2, "v3": SEED_V3}[args.version]
     )
     rows, world = generate(seed, args.version)
     check_bank(rows)
     manifest = write_bank(rows, world, seed, args.version)
     if args.reports:
-        if args.version == "v2":
+        if args.version == "v3":
+            write_reports_v3(rows, manifest, world)
+        elif args.version == "v2":
             write_reports_v2(rows, manifest, world)
         else:
             write_reports(rows, manifest, world)

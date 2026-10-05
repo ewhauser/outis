@@ -232,20 +232,25 @@ def tagged(rows, tag):
     return [r for r in rows if tag in r["phenomena"] and r["cohort"] != "long_document"]
 
 
-def test_v1_is_still_reproducible_from_the_current_generator():
+@pytest.mark.parametrize(
+    ("version", "seed", "name"),
+    [
+        ("v1", author13.SEED, "tk13_train_care_sites_localities.jsonl"),
+        ("v2", author13.SEED_V2, "tk13_train_care_sites_localities__v2.jsonl"),
+        ("v3", author13.SEED_V3, "tk13_train_care_sites_localities__v3.jsonl"),
+    ],
+)
+def test_every_version_reproduces_byte_for_byte(version, seed, name):
     import hashlib
     import json
 
-    rows, _ = author13.generate(author13.SEED, "v1")
+    rows, _ = author13.generate(seed, version)
     payload = (
         "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n"
     ).encode()
-    manifest = json.loads(
-        (
-            ROOT / "data" / "tk13_train_care_sites_localities.jsonl.manifest.json"
-        ).read_text()
-    )
+    manifest = json.loads((ROOT / "data" / f"{name}.manifest.json").read_text())
     assert hashlib.sha256(payload).hexdigest() == manifest["sha256"]
+    assert (ROOT / "data" / name).read_bytes() == payload
 
 
 def test_v2_is_deterministic_and_sized(bank2):
@@ -364,6 +369,9 @@ def test_followup_fixtures_are_rebuilt_exactly():
 
     built = {
         "county_name_is_location": f"Lives in {loc('Kestrine County')}; moved from {loc('Tollund County, OR')}.",
+        "county_modifier_and_bare_county": (
+            f"Records from the {loc('Kestrine County')} office; she grew up in {loc('Kestrine')}."
+        ),
         "capitalised_site_word_names_site": f"Seen at our {fac('Ombrey Clinic')}; labs at our {loc('Gorsefield')} clinic.",
         "case_hidden_role_decides": (
             f"SEEN AT {fac('OMBREY CLINIC')}. LIVES AT {fac('THE HEARTH AT OMBREY')}. "
@@ -387,3 +395,51 @@ def test_followup_fixtures_are_rebuilt_exactly():
         text, spans = build_row(marked)
         assert text == by_id[key]["text"], key
         assert gold({"text": text, "spans": spans}) == gold(by_id[key]), key
+
+
+@pytest.fixture(scope="module")
+def bank3():
+    rows, _world = author13.generate(author13.SEED_V3, "v3")
+    return rows
+
+
+def test_v3_size_ids_pools_and_caps(bank3):
+    assert 2700 <= len(bank3) <= 2900
+    assert all(r["id"].startswith("tk13_care_sites_localities_v3-") for r in bank3)
+    assert all(r["suite"] == author13.SUITE_V3 for r in bank3)
+    for row in bank3:
+        assert not annotation_errors(row["text"], row["spans"])
+        assert all(
+            x["pool"] == "train" and place_value_pool(x["value"]) == "train"
+            for x in row["pool"]
+        )
+    assert max(author13.value_shares(bank3).values()) <= 0.005 * len(bank3)
+    layouts = [r["layout"] for r in bank3]
+    assert max(layouts.count(x) for x in set(layouts)) <= 0.08 * len(bank3)
+    case = [r["case_mode"] for r in bank3]
+    assert 0.58 <= case.count("normal") / len(case) <= 0.62
+
+
+def test_v3_county_modifier_and_bare_county(bank3):
+    mod = tagged(bank3, "county_modifier_p7")
+    bare = tagged(bank3, "bare_county_locality")
+    neg = tagged(bank3, "county_site_generic")
+    assert mod and bare and neg
+    for case in ("normal", "upper", "lower"):
+        assert any(r["case_mode"] == case for r in mod)
+        assert any(r["case_mode"] == case for r in bare)
+    for row in mod:
+        county = [
+            s
+            for s in row["spans"]
+            if s["label"] == "LOCATION" and s["text"].lower().endswith(" county")
+        ]
+        assert county
+        after = row["text"][county[0]["end"] :].lower()
+        assert re.match(r" (office|clinic|site|branch|location)\b", after)
+    for row in bare:
+        locs = [s for s in row["spans"] if s["label"] == "LOCATION"]
+        assert locs and not any("county" in s["text"].lower() for s in locs)
+    for row in neg:
+        assert not any(s["label"] in ("LOCATION", "FACILITY") for s in row["spans"])
+    assert all(r["polarity"] == "negative" for r in neg)
