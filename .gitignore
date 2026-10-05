@@ -40,3 +40,6 @@ data/qualification_v9*_author_artifacts/
 # sealed content. Kept in the private deidentifier-data repository.
 data/blind_places_*/*
 !data/blind_places_*/sealing_record.json
+# Local leftovers from the removed Privacy-Filter adapter; safe to delete.
+models/privacy-filter-base/
+vendor/
