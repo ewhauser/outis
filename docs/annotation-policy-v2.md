@@ -100,7 +100,7 @@ Not every row has an executable fixture yet.
 | DATE | A weekday written before a date | Inside the span |
 | DATE | A clock time next to a date | Outside the span |
 | DATE | Relative expressions, such as `three days ago` | Not annotated |
-| DATE | A patient-specific year alone | DATE |
+| DATE | A patient-specific year alone, including years in history and screening lists (`DEXA 2013:`, `Td booster 2021`, `appendectomy 1995`) | DATE. Stricter than Safe Harbor, which permits a year alone; kept so years can be shifted consistently with full dates. Owner decision, 2026-10-05 |
 | DATE | A written date range | One DATE span, as in the table above |
 | AGE | A decade over 89, such as `nineties` | AGE |
 | PHONE | Extension | Inside the span |
