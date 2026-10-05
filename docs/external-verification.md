@@ -300,6 +300,10 @@ Most of the mix5 shortfall is convention, not exposure:
   joins a facility and city ("Mayo Clinic in Rochester, MN") and the connecting
   words are left.
 
+Against the removed adapter, mix5 cuts non-PHI redaction by two thirds and
+raises leak-free documents by ten points. It leaves more PHI-free hard
+negatives with a span (73% clean against 84%).
+
 ### Policy-aligned view
 
 `score_aligned.py` rescores the same predictions with the differences in
@@ -335,10 +339,6 @@ which is mix5's remaining gap. The one email miss shared by every system is a
 gold error: ASQ-PHI tags the word "email". The neutral rules are the project's
 own judgement, so quote this view next to the as-published one, never instead
 of it.
-
-Against the removed adapter, mix5 cuts non-PHI redaction by two thirds and
-raises leak-free documents by ten points. It leaves more PHI-free hard
-negatives with a span (73% clean against 84%).
 
 ## Reading results
 
