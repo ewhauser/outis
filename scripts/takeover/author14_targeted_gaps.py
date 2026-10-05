@@ -1,0 +1,2872 @@
+#!/usr/bin/env python3
+"""Deterministic generator for the tk14 targeted-gaps training bank.
+
+Brief: docs/targeted-gaps-bank-brief.md. Policy: docs/annotation-policy-v2.md and
+its places addendum. Four families:
+
+* history_years   patient-specific years in history and screening lists (DATE)
+* pharmacy_zip    pharmacy name (FACILITY) followed by a ZIP code (LOCATION)
+* phone_extension a phone number with a written extension (one PHONE span)
+* funeral_homes   a named funeral home handling the arrangements (FACILITY)
+
+Every positive has matched negatives in the same layouts. Every name, facility,
+town, ZIP, phone (fictional 555-0100 to 555-0199 lines), domain and identifier is
+invented. Rows are built from parts, so offsets are exact by construction, and
+the case transform (normal / all-caps / lowercase) is applied to whole rows with
+gold following the authored role.
+
+Usage:
+  PYTHONPATH=src python scripts/takeover/author14_targeted_gaps.py \
+      [--out data/tk14_train_targeted_gaps.jsonl] \
+      [--report-dir reports/takeover/author14_targeted_gaps]
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import random
+import re
+import sys
+from collections import Counter
+from datetime import date
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "src"))
+
+from clinical_deid.data.annotation_policy import (  # noqa: E402
+    POLICY_VERSION,
+    annotation_errors,
+    canonical_identity_group,
+    identity_split,
+)
+from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+
+SEED = 20261014
+SUITE = "tk14_targeted_gaps"
+CAP = (
+    9  # at most 9 rows per pharmacy, funeral home, ZIP, town or facility value (0.45%)
+)
+YEAR_CAP = 60  # per-year cap on history-year spans (about 2.5% of roughly 2,400)
+
+FAMILY_ROWS = {
+    "history_years": 900,
+    "pharmacy_zip": 450,
+    "phone_extension": 450,
+    "funeral_homes": 200,
+}
+LAYOUTS = {
+    "history_years": [
+        "awv_note",
+        "soap_note",
+        "screening_schedule",
+        "surgical_history_list",
+        "problem_list",
+        "immunization_record",
+        "telegraphic_oneliner",
+        "nursing_intake_history",
+        "portal_message_history",
+        "referral_letter",
+    ],
+    "pharmacy_zip": [
+        "intake_form",
+        "registration_form",
+        "refill_request",
+        "portal_message_pharmacy",
+        "discharge_med_list",
+        "pharmacy_oneliner",
+    ],
+    "phone_extension": [
+        "contact_block",
+        "fax_cover",
+        "callback_note",
+        "shift_handoff",
+        "nursing_note_family",
+        "followup_instructions",
+    ],
+    "funeral_homes": [
+        "death_note",
+        "hospice_discharge",
+        "social_work_bereavement",
+        "nursing_expiration",
+    ],
+}
+CASE_COUNTS = (("normal", 0.6), ("upper", 0.2), ("lower", 0.2))
+
+# ---------------------------------------------------------------------------
+# Value pools (all invented)
+# ---------------------------------------------------------------------------
+FIRSTS = """Aaliyah Abel Adaeze Adela Alasdair Amara Anneliese Anselm Beatriz Benedikt Bronwen Calla Caspian
+Cecilia Chidi Cormac Dalia Dariusz Delphine Dmitri Edda Eilidh Elio Emeka Esperanza Fenella Florian Gideon
+Greta Gwendolyn Hamza Henrietta Ignatius Ilse Ines Isidore Jasper Jovana Kasimir Katarina Kofi Lakshmi
+Leocadia Lorcan Lucinda Magnus Marisol Mateus Mirela Nadezhda Nils Noor Odalys Oluwaseun Orla Osvaldo
+Pasquale Perpetua Priyanka Quentin Rasmus Renata Rosalind Sabela Saoirse Selma Siobhan Tamsin Tavita
+Thaddeus Ulrike Valentina Vikram Wilhelmina Xiomara Yusuf Zbigniew Zora Linda Robert Maria James Patricia
+Ahmed Wei Mei Hiroshi Fatima Carlos Denise Harold Doris Walter Gladys Lloyd Bernice Clarence Mavis Rosa
+Luis Ngozi Yolanda Josefina Renee Soren Zoe Anika Bao Ravi Mikhail Lucille Otis Hattie Everett Winifred
+Cornelius Marcella Bashir Takumi Ingrid Leopold Corinne Desmond Palmira Eugenie Raymundo Tomasz Birgit""".split()
+LASTS = """Abernathy Adeyemi Alvarado Bellweather Brandvold Castellanos Chaudhry Czerwinski Delacroix Dunmore
+Eastergard Fairbairn Fontenot Garrido Gudmundsson Haverlock Hollingsworth Ibarra Jankowski Kowalczyk
+Lindqvist Machado Nakamura Okafor Pemberton Quimby Rasmussen Sandoval Tavares Underhill Valdivia
+Whitcombe Yamamoto Zielinski Ainsworth Balogun Cavanaugh Dimitrov Ellsworth Farouk Galloway Hartigan
+Iyer Jablonski Kaplan Lombardi Mbeki Novak Oyelaran Pettibone Quintero Radcliffe Szymanski Thibodeaux
+Ulloa Vasquez Wojcik Xavier Yilmaz Zamora Aguilar Bergstrom Coughlin Draper Espinoza Fitzgerald Grimaldi
+Hendricks Ivanov Jorgensen Keller Lacroix Mendoza Nwosu Olmstead Prochaska Raghavan Sorensen Tillman
+Uchenna Vandenberg Whitlock Yoder Zeller Armitage Boateng Carrasco Dlamini Edmondson Figueroa Gallardo
+Holloway Ishikawa Jameson Kuznetsov Lundgren Moreau Nikolaidis Ostrowski Prescott Reyes Stanczyk Teague
+Valenzuela Wasserman Amoah Brzezinski Calloway Dufresne Engstrom Ferreira Goldfarb Hutchins Kowalski
+O'Halloran D'Amato Nguyen-Reyes Smythe-Okoye MacAllister""".split()
+LASTS += ["van der Linden", "de la Fuente", "del Rio", "St. Clair"]
+UNUSUAL_FIRSTS = [
+    "He",
+    "Care",
+    "Hope",
+    "Will",
+    "Faith",
+    "Joy",
+    "Mark",
+    "Bill",
+    "Rich",
+    "May",
+    "June",
+    "Sunday",
+]
+
+STEMS = """Alvern Bexmoor Calmere Dornick Eskwith Fallowmere Garrowick Hestavale Ivermoor Jessamoor Kirkwen
+Lindenmoor Marrenby Nethermoor Orrinvale Pendrake Quenmoor Rosswick Sandrik Tolliver Ulmenby Vessmere
+Wexcombe Yarnwick Zelmoor Ambrewick Brennoch Caldrith Dunvale Eldermoor Farnwick Glenmarrow Harrowmere
+Ilkesby Jarvenmill Kelborne Lunnock Merrowby Norrisvale Oldencroft Pyrmoor Quillhaven Rimmerby Saltwhistle
+Thornvale Underby Verdemoor Wenlow Yewdale Zinnock Aldrecott Breckenmoor Cobbleby Dellwick Embermoor
+Foxcombe Galbraith-Vale Hobsmere Inglemoor Jadwick Knollby Larchmoor Mistlewick Needham-Vale Ormerod
+Pippinby Quarlby Ravensmoor Sorrelby Tansmoor Umberley Vinhaven Whinmoor Yarrowby Zephmoor Ashlowe Burnmere
+Corvale Dinmoor Elswick Fernlow Gilmoor Heathwick Irnby Junmoor Kestrelby Lowmoor Maplecroft""".replace(
+    "-Vale", "vale"
+).split()
+STREET_STEMS = """Wren Alder Fennel Harrow Juniper Kestrel Linden Marten Nettle Orchard Plover Quarry Rowan Sedge
+Tamarack Umber Vesper Willow Yarrow Hollis Bramble Cinder Dapple Elder Finch Gable Heron Ivy""".split()
+STREET_TYPES = [
+    "Lane",
+    "Court",
+    "Street",
+    "Avenue",
+    "Road",
+    "Way",
+    "Drive",
+    "Place",
+    "Terrace",
+]
+STATES = "UT OR NM MN WA OH CO AZ ID VT IA KS NE MT WI PA NC GA TN KY".split()
+
+CLINIC_TYPES = [
+    "Family Medicine",
+    "Internal Medicine",
+    "Medical Center",
+    "Health Center",
+    "Clinic",
+    "Community Hospital",
+    "Primary Care",
+    "Family Health",
+    "Regional Medical Center",
+    "Medical Associates",
+    "Health Partners",
+    "Senior Care Clinic",
+    "Cardiology Associates",
+    "Urgent Care",
+    "Women's Health",
+    "Specialty Clinic",
+]
+PHARM_TYPES = [
+    "Drug",
+    "Pharmacy",
+    "Apothecary",
+    "Rx",
+    "Drugs",
+    "Compounding Pharmacy",
+    "Family Pharmacy",
+    "Pharmacy & Gift",
+    "Prescription Shop",
+    "Discount Drug",
+    "Community Pharmacy",
+    "Corner Drug",
+    "Health Pharmacy",
+    "Medicine Cabinet",
+    "Rx Express",
+]
+FUNERAL_TYPES = [
+    "Funeral Home",
+    "Funeral Chapel",
+    "Mortuary",
+    "Funeral Service",
+    "Memorial Chapel",
+    "Cremation Society",
+    "Funeral Directors",
+    "Family Funeral Home",
+    "Memorial Funeral Home",
+    "Cremation & Burial Service",
+]
+FUNERAL_SURNAME_TYPES = [
+    "& Sons Funeral Home",
+    "& Sons Mortuary",
+    "& Daughters Funeral Home",
+    "& Son Mortuary",
+]
+HOSPICE_FORMS = [
+    "Hospice of {s}",
+    "{s} Hospice",
+    "{s} Hospice & Palliative Care",
+    "{s} Comfort Care Hospice",
+]
+MON3 = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+MONFULL = "January February March April May June July August September October November December".split()
+WEEKDAYS = "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split()
+TENS = {9: "ninety"}
+ONES = "zero one two three four five six seven eight nine".split()
+AREA_CODES = [
+    201,
+    212,
+    303,
+    312,
+    404,
+    415,
+    502,
+    513,
+    520,
+    602,
+    612,
+    615,
+    651,
+    702,
+    719,
+    801,
+    802,
+    907,
+    913,
+    971,
+]
+RELATIONS = [
+    "daughter",
+    "son",
+    "spouse",
+    "sibling",
+    "child",
+    "grandchild",
+    "niece or nephew",
+    "friend",
+    "neighbor",
+    "partner",
+    "caregiver",
+    "relative",
+]
+
+TESTS = [
+    ("bone density scan", 1990),
+    ("DEXA", 1990),
+    ("colonoscopy", 1995),
+    ("screening mammogram", 1980),
+    ("mammogram", 1975),
+    ("Pap smear", 1970),
+    ("low-dose chest CT", 2013),
+    ("PSA", 1992),
+    ("lipid panel", 1985),
+    ("hemoglobin A1c", 1995),
+    ("dilated eye exam", 1975),
+    ("echocardiogram", 1985),
+    ("stress test", 1980),
+    ("nuclear stress test", 1990),
+    ("EGD", 1985),
+    ("upper endoscopy", 1985),
+    ("flexible sigmoidoscopy", 1985),
+    ("stool DNA test", 2015),
+    ("FIT", 2005),
+    ("carotid duplex", 1995),
+    ("AAA ultrasound", 2005),
+    ("hepatitis C antibody", 1995),
+    ("audiogram", 1970),
+    ("spirometry", 1980),
+    ("sleep study", 1995),
+    ("thyroid ultrasound", 1995),
+    ("MRI brain", 1990),
+    ("lumbar spine films", 1960),
+    ("nerve conduction study", 1985),
+    ("TB skin test", 1960),
+    ("abdominal CT", 1985),
+    ("chest X-ray", 1950),
+    ("colposcopy", 1980),
+    ("skin check with dermatology", 1990),
+    ("whole-body bone scan", 1980),
+    ("ankle-brachial index", 1995),
+    ("Holter monitor", 1980),
+    ("cardiac cath", 1980),
+    ("coronary calcium score", 2000),
+    ("hearing screen", 1990),
+    ("PET scan", 2000),
+    ("liver ultrasound", 1990),
+    ("renal ultrasound", 1985),
+    ("cystoscopy", 1980),
+    ("bronchoscopy", 1985),
+    ("capsule endoscopy", 2003),
+    ("urine microalbumin", 1995),
+    ("fasting glucose", 1985),
+]
+RESULTS = [
+    "normal",
+    "negative",
+    "benign",
+    "unremarkable",
+    "osteopenia",
+    "T-score -1.8",
+    "T-score -2.6",
+    "mild LVH",
+    "EF 55%",
+    "EF 60-65%",
+    "no polyps",
+    "two small adenomas",
+    "one tubular adenoma",
+    "BI-RADS 2",
+    "BI-RADS 1",
+    "stable nodule",
+    "no change",
+    "negative for malignancy",
+    "within normal limits",
+    "borderline",
+    "A1c 6.1%",
+    "mild sensory loss",
+    "moderate OSA",
+    "mild OSA",
+    "repeat due",
+    "no ischemia",
+    "mild stenosis",
+    "trace MR",
+    "grade 1 diastolic dysfunction",
+    "LDL 98",
+    "TSH 2.1",
+    "PSA 1.4",
+    "mild fatty liver",
+    "no hydronephrosis",
+    "negative HPV",
+    "two benign nevi",
+    "no acute findings",
+]
+VACCINES = [
+    ("influenza", 1990),
+    ("Tdap", 2006),
+    ("Td booster", 1970),
+    ("Shingrix", 2018),
+    ("zoster vaccine", 2007),
+    ("PCV13", 2014),
+    ("PCV20", 2022),
+    ("PPSV23", 1990),
+    ("hepatitis B series", 1992),
+    ("hepatitis A series", 1996),
+    ("MMR", 1960),
+    ("COVID-19 vaccine", 2021),
+    ("COVID booster", 2021),
+    ("RSV vaccine", 2023),
+    ("HPV series", 2007),
+    ("tetanus shot", 1960),
+    ("varicella vaccine", 1996),
+    ("meningococcal vaccine", 2005),
+    ("pneumonia vaccine", 1995),
+    ("flu shot", 1990),
+]
+PROCEDURES = [
+    "appendectomy",
+    "cholecystectomy",
+    "total knee replacement, right",
+    "total knee replacement, left",
+    "total hip replacement",
+    "hysterectomy",
+    "tonsillectomy",
+    "cataract surgery, left eye",
+    "cataract surgery, right eye",
+    "CABG x3",
+    "PCI with stent to LAD",
+    "inguinal hernia repair",
+    "lumpectomy",
+    "thyroidectomy",
+    "partial colectomy",
+    "TURP",
+    "lumbar fusion",
+    "pacemaker placement",
+    "carpal tunnel release",
+    "rotator cuff repair",
+    "bunionectomy",
+    "cesarean section",
+    "vasectomy",
+    "septoplasty",
+    "ACL reconstruction",
+    "prostatectomy",
+    "mastectomy",
+    "angioplasty",
+    "parathyroidectomy",
+    "hemorrhoidectomy",
+    "sleeve gastrectomy",
+    "cervical discectomy",
+    "ventral hernia repair",
+    "knee arthroscopy",
+    "oophorectomy",
+    "ablation for AFib",
+    "aortic valve replacement",
+    "carotid endarterectomy",
+    "lithotripsy",
+]
+PROC_MIN = {
+    "pacemaker placement": 1975,
+    "PCI with stent to LAD": 1995,
+    "ablation for AFib": 2002,
+    "sleeve gastrectomy": 2005,
+    "aortic valve replacement": 1980,
+    "CABG x3": 1975,
+}
+PROC_DETAIL = [
+    "uncomplicated",
+    "no complications",
+    "outside hospital",
+    "recovered well",
+    "mesh used",
+    "per patient report",
+    "records not available",
+    "good result",
+    "healed well",
+    "done as outpatient",
+]
+DIAGNOSES = [
+    "hypertension",
+    "type 2 diabetes",
+    "hyperlipidemia",
+    "atrial fibrillation",
+    "breast cancer",
+    "prostate cancer",
+    "myocardial infarction",
+    "DVT",
+    "TIA",
+    "kidney stones",
+    "GERD",
+    "major depression",
+    "hypothyroidism",
+    "asthma",
+    "wrist fracture",
+    "gout",
+    "COPD",
+    "osteoarthritis of the knees",
+    "CKD",
+    "anemia",
+    "melanoma in situ",
+]
+GUIDE_TOPICS = [
+    "colorectal screening",
+    "lung cancer screening",
+    "osteoporosis",
+    "hypertension",
+    "diabetes care",
+    "cervical screening",
+    "immunization",
+    "lipid management",
+    "breast screening",
+    "prostate screening",
+]
+MEDS = [
+    "lisinopril 20 mg daily",
+    "metformin 500 mg BID",
+    "atorvastatin 40 mg nightly",
+    "amlodipine 5 mg daily",
+    "levothyroxine 75 mcg daily",
+    "omeprazole 20 mg daily",
+    "sertraline 50 mg daily",
+    "metoprolol succinate 25 mg daily",
+    "losartan 50 mg daily",
+    "gabapentin 300 mg TID",
+    "apixaban 5 mg BID",
+    "furosemide 20 mg daily",
+    "tamsulosin 0.4 mg nightly",
+    "alendronate 70 mg weekly",
+    "montelukast 10 mg nightly",
+    "glipizide 5 mg daily",
+    "carvedilol 6.25 mg BID",
+    "pantoprazole 40 mg daily",
+    "allopurinol 100 mg daily",
+    "donepezil 5 mg nightly",
+]
+FILLER = [
+    "BP 128/76, HR 72, weight stable.",
+    "Denies chest pain, shortness of breath or dizziness.",
+    "Appetite is good and sleep is adequate.",
+    "Walks about 20 minutes most days.",
+    "No falls reported since the last visit.",
+    "Mood is stable; PHQ-2 negative.",
+    "Medications reviewed and reconciled with the patient.",
+    "Lungs clear, heart regular, abdomen soft.",
+    "Discussed diet, exercise and sodium restriction.",
+    "Home blood pressure readings average 130/78.",
+    "Lives with family and manages medications with a pill organizer.",
+    "Vision and hearing adequate for daily tasks.",
+    "Labs reviewed with the patient and tolerated well.",
+    "Advance directive discussion offered.",
+    "Fall-risk screen negative today.",
+    "Cognition grossly intact on brief screen.",
+    "Follow-up in clinic in three months or sooner if symptoms change.",
+    "Patient verbalizes understanding of the plan.",
+    "Exam unremarkable apart from mild bilateral ankle edema.",
+    "No new complaints; reports good adherence.",
+    "Encouraged adequate hydration and daily walking.",
+    "Reviewed warning signs that need prompt evaluation.",
+    "Diet is mostly home cooked with limited sweets.",
+    "Pain is controlled on the current regimen.",
+]
+
+DEATH_FILLER = [
+    "Family at the bedside and supported by staff.",
+    "Chaplain visited and offered support.",
+    "Personal belongings returned to the family.",
+    "Hospice team notified.",
+    "Death certificate paperwork started.",
+    "Family given time with the patient.",
+    "Comfort measures continued until the end.",
+    "No distress noted at the time of death.",
+    "Pastoral care called at the family's request.",
+    "Family expressed gratitude for the care received.",
+    "Bereavement resources reviewed with the family.",
+    "Attending physician informed.",
+]
+PH_LABELS = [
+    "Unit clerk",
+    "Billing office",
+    "Callback line",
+    "Direct line",
+    "Nurse line",
+    "Front desk",
+    "Case manager",
+    "Home health coordinator",
+    "Radiology scheduling",
+    "Social work",
+    "Discharge planner",
+    "Referral coordinator",
+    "Clinic office",
+    "Charge nurse",
+    "On-call service",
+    "Transfer center",
+    "Patient access",
+    "Scheduling",
+    "Care coordinator",
+    "Medical records",
+    "Lab results line",
+    "Hospice intake",
+    "Infusion center",
+    "Triage nurse",
+    "Physical therapy",
+    "PCP office",
+    "Cardiology office",
+    "Answering service",
+    "Utilization review",
+]
+EXT_FORMS = [
+    ", extension {n}",
+    " extension {n}",
+    " EXT. {n}",
+    " ext. {n}",
+    " ext {n}",
+    " x{n}",
+    ", x{n}",
+    " Ext {n}",
+    ", ext. {n}",
+    " EXT {n}",
+    " extension #{n}",
+    " ext: {n}",
+    " x {n}",
+    " ext #{n}",
+]
+PH_NEG = [
+    "knee extension lacks 5 degrees",
+    "full extension at the elbow",
+    "ext. rotation 45 degrees bilaterally",
+    "extension of the right great toe intact",
+    "great toe extension 5/5",
+    "back extension painful at end range",
+    "extension tubing exchanged",
+    "request for extension of stay pending",
+    "hip extension 0-20 degrees",
+    "wrist extension 4/5",
+    "neck extension limited",
+    "tumor extension into the pelvis not seen",
+    "extended-release formulation continued",
+    "ext. auditory canal clear",
+    "EXT: no edema, pulses intact",
+    "knee extension lag 5 degrees",
+    "extension to 180 degrees",
+    "ext. cord replaced at the bedside",
+    "extension of the incision noted",
+    "elbow extension and flexion full",
+]
+ROOMS = [
+    "Room 4120",
+    "Rm 318",
+    "bed 7B",
+    "room 2204-B",
+    "transferred to room 214",
+    "bed 12 West",
+    "Room 5120",
+    "Rm 4B",
+]
+
+
+def spelled_age(n: int) -> str:
+    ones = n % 10
+    return "ninety" if ones == 0 else f"ninety-{ONES[ones]}"
+
+
+# ---------------------------------------------------------------------------
+# Row builder: parts are plain strings or (LABEL, text[, tag]) tuples
+# ---------------------------------------------------------------------------
+def flat(*items):
+    out = []
+    for item in items:
+        if isinstance(item, list):
+            out.extend(flat(*item))
+        elif item is not None:
+            out.append(item)
+    return out
+
+
+CASE_FUNCS = {"normal": lambda s: s, "upper": str.upper, "lower": str.lower}
+
+
+class RowBuilder:
+    def __init__(self):
+        self.parts: list = []
+
+    def add(self, *items):
+        self.parts.extend(flat(*items))
+        return self
+
+    def nl(self, count: int = 1):
+        self.parts.append("\n" * count)
+        return self
+
+    def build(self, case: str = "normal"):
+        fold = CASE_FUNCS[case]
+        pieces, spans, tags, pos = [], [], [], 0
+        for part in self.parts:
+            if isinstance(part, tuple):
+                label, value = part[0], fold(part[1])
+                if not value or value != value.strip():
+                    raise ValueError(f"bad span value {value!r}")
+                spans.append(
+                    {
+                        "start": pos,
+                        "end": pos + len(value),
+                        "label": label,
+                        "text": value,
+                    }
+                )
+                if len(part) > 2:
+                    tags.append((part[2], value))
+            else:
+                value = fold(part)
+            pieces.append(value)
+            pos += len(value)
+        text = "".join(pieces)
+        lead = len(text) - len(text.lstrip())
+        text = text.strip()
+        for span in spans:
+            span["start"] -= lead
+            span["end"] -= lead
+        return text, spans, tags
+
+
+class Registry:
+    """Run-level caps on repeated values (rows per value)."""
+
+    def __init__(self):
+        self.uses: Counter = Counter()
+        self.years: Counter = Counter()
+
+    def pick(self, rng, make, kind, cap=CAP):
+        for _ in range(400):
+            value = make(rng)
+            key = (kind, value.casefold())
+            if self.uses[key] < cap:
+                self.uses[key] += 1
+                return value
+        raise RuntimeError(f"pool exhausted for {kind}")
+
+
+class Ctx:
+    def __init__(self, rng, reg, family, cohort, positive, case):
+        self.rng, self.reg, self.family, self.cohort = rng, reg, family, cohort
+        self.positive, self.case = positive, case
+        self.rb = RowBuilder()
+        self.unusual = cohort == "unusual_name"
+        self.long = cohort == "long_document"
+        self.note_year = rng.choices([2022, 2023, 2024, 2025, 2026], [1, 2, 3, 4, 3])[0]
+        old_share = 0.22 if family == "funeral_homes" else 0.09
+        if rng.random() < old_share:
+            self.age = rng.randint(90, 99)
+        else:
+            self.age = min(89, max(40, int(rng.gauss(68, 12))))
+        self.birth_year = self.note_year - self.age
+        self.people: list[str] = []
+        self.patient = self.person(patient=True)
+        self.mrn = rng.choice(["QX-", "", "MR", "K-", "HC", "LP-"]) + "".join(
+            rng.choice("0123456789") for _ in range(rng.randint(6, 8))
+        )
+        self.bullet = rng.choice(["- ", "* ", "", "- ", "# "])
+        self.clin = None
+
+    # --- people -----------------------------------------------------------
+    def person(self, patient=False):
+        rng = self.rng
+        for _ in range(1000):
+            first = (
+                rng.choice(UNUSUAL_FIRSTS)
+                if (patient and self.unusual)
+                else rng.choice(FIRSTS)
+            )
+            last = rng.choice(LASTS)
+            if rng.random() < 0.1 and not (patient and self.unusual):
+                first = f"{first} {rng.choice('ABCDEFGHJKLMNPRSTW')}."
+            name = f"{first} {last}"
+            if name in self.people:
+                continue
+            if identity_split(canonical_identity_group(name)) == "train":
+                self.people.append(name)
+                return name
+        raise RuntimeError("no train-partition name found")
+
+    def clinician(self):
+        name = self.person()
+        form = self.rng.choice(["dr", "dr", "md", "np", "rn", "pa", "do"])
+        if form == "dr":
+            return ["Dr. ", ("NAME", name)]
+        suffix = {
+            "md": ", MD",
+            "np": ", NP-C",
+            "rn": ", RN",
+            "pa": ", PA-C",
+            "do": ", DO",
+        }[form]
+        return [("NAME", name), suffix]
+
+    def relative(self):
+        name = self.person()
+        return [self.rng.choice(RELATIONS), " ", ("NAME", name)]
+
+    def name_ref(self):
+        """The patient's name inside prose; unusual-name rows name the patient only in the header."""
+        return [("NAME", self.patient)]
+
+    # --- sizes and filler --------------------------------------------------
+    def n(self, low, high):
+        count = self.rng.randint(low, high)
+        return count * 3 if self.long else count
+
+    def fill(self, k=1):
+        pool = DEATH_FILLER if self.family == "funeral_homes" else FILLER
+        return " ".join(self.rng.sample(pool, min(k, len(pool))))
+
+    def pad(self):
+        """Extra PHI-free paragraphs for long_document rows."""
+        if not self.long:
+            return []
+        return ["\n\n", self.fill(self.rng.randint(4, 7)), "\n"]
+
+    # --- values -------------------------------------------------------------
+    def facility(self):
+        return (
+            "FACILITY",
+            self.reg.pick(
+                self.rng,
+                lambda r: f"{r.choice(STEMS)} {r.choice(CLINIC_TYPES)}",
+                "facility",
+            ),
+            "facility",
+        )
+
+    def town(self):
+        return self.reg.pick(self.rng, lambda r: r.choice(STEMS), "town")
+
+    def town_line(self):
+        r = self.rng
+        town = self.town()
+        if r.random() < 0.5:
+            town = f"{town}, {r.choice(STATES)}"
+        return [
+            r.choice(
+                [
+                    "Lives in ",
+                    "Family lives in ",
+                    "Pt from ",
+                    "Daughter lives in ",
+                    "Resides in ",
+                    "Returned from ",
+                ]
+            ),
+            ("LOCATION", town, "town"),
+            ". ",
+        ]
+
+    def zip_code(self):
+        return self.reg.pick(self.rng, lambda r: f"{r.randint(10000, 99998)}", "zip")
+
+    def phone(self, ext=False, fax=False):
+        rng = self.rng
+        ac, line = rng.choice(AREA_CODES), 100 + rng.randint(0, 99)
+        number = rng.choice(
+            [
+                f"({ac}) 555-0{line}",
+                f"{ac}-555-0{line}",
+                f"{ac}.555.0{line}",
+                f"+1 {ac} 555 0{line}",
+                f"+1 ({ac}) 555-0{line}",
+                f"{ac} 555 0{line}",
+                f"({ac}) 555-0{line}",
+                f"{ac}-555-0{line}",
+            ]
+        )
+        if ext:
+            n = "".join(
+                rng.choice("0123456789")
+                for _ in range(rng.choice([2, 3, 3, 4, 4, 5, 6]))
+            )
+            if n[0] == "0":
+                n = "3" + n[1:]
+            number += rng.choice(EXT_FORMS).format(n=n)
+        return ("PHONE", number, "ext" if ext else "phone")
+
+    def email(self):
+        first, last = self.patient.split()[0], self.patient.split()[-1]
+        handle = re.sub(r"[^a-z]", "", f"{first[0]}{last}".lower()) or "patient"
+        return (
+            "EMAIL",
+            f"{handle}{self.rng.randint(1, 99)}@{self.rng.choice(['mail.example', 'example.org', 'example.net', 'post.test', 'inbox.example.com'])}",
+        )
+
+    def url(self):
+        dom = self.rng.choice(
+            ["clinic.test", "example.org", "health.example", "careportal.example.net"]
+        )
+        return ("URL", f"https://portal.{dom}/visit/{self.rng.randint(1000, 99999)}")
+
+    def address(self):
+        rng = self.rng
+        town = self.town()
+        z = self.zip_code()
+        street = f"{rng.randint(10, 9899)} {rng.choice(STREET_STEMS)} {rng.choice(STREET_TYPES)}"
+        unit = rng.choice(
+            ["", "", "", f", Apt {rng.randint(1, 40)}", f", Unit {rng.choice('ABCDE')}"]
+        )
+        return ("ADDRESS", f"{street}{unit}, {town}, {rng.choice(STATES)} {z}")
+
+    def insurance_id(self):
+        rng = self.rng
+        value = "".join(
+            rng.choice("ABCDEFGHJKLMNPRSTUVWXYZ") for _ in range(3)
+        ) + "".join(rng.choice("0123456789") for _ in range(9))
+        return ("ID", value)
+
+    def account(self):
+        return (
+            "ACCOUNT",
+            "".join(
+                self.rng.choice("0123456789") for _ in range(self.rng.randint(7, 9))
+            ),
+        )
+
+    def ssn(self):
+        r = self.rng
+        return (
+            "SSN",
+            f"{r.randint(900, 999)}-{r.randint(10, 99)}-{r.randint(1000, 9999)}",
+        )
+
+    # --- dates ---------------------------------------------------------------
+    def full_date(self, year):
+        rng = self.rng
+        month, day = rng.randint(1, 12), rng.randint(1, 28)
+        if year >= 2026:
+            month = rng.randint(1, 9)
+        wd = WEEKDAYS[date(year, month, day).weekday()]
+        form = rng.randrange(8)
+        text = [
+            f"{month:02d}/{day:02d}/{year}",
+            f"{MONFULL[month - 1]} {day}, {year}",
+            f"{day} {MON3[month - 1]} {year}",
+            f"{year}-{month:02d}-{day:02d}",
+            f"{MON3[month - 1]} {day}, {year}",
+            f"{month}/{day}/{year % 100:02d}",
+            f"{wd}, {MONFULL[month - 1]} {day}, {year}",
+            f"{month}/{day}/{year}",
+        ][form]
+        clock = rng.choice(["", "", " 09:30", " 14:05", " 0830"])
+        return [("DATE", text), clock]
+
+    def year(self, miny=1950, floor=None):
+        lo = max(1950, miny, self.birth_year + 10, floor or 0)
+        hi = self.note_year
+        cands = [y for y in range(lo, hi + 1) if self.reg.years[y] < YEAR_CAP]
+        if not cands:
+            return None
+        year = self.rng.choices(cands, [1 + (y - 1950) / 40 for y in cands])[0]
+        self.reg.years[year] += 1
+        return year
+
+    def year_parts(self, year):
+        rng = self.rng
+        if rng.random() < 0.74:
+            return [("DATE", str(year), "year")]
+        mi = rng.randrange(9 if year >= 2026 else 12)
+        form = rng.randrange(4)
+        text = [
+            f"{MON3[mi]} {year}",
+            f"{MONFULL[mi]} {year}",
+            f"{mi + 1:02d}/{year}",
+            f"{mi + 1}/{year}",
+        ][form]
+        return [("DATE", text, "year")]
+
+    def dp(self, miny=1950, floor=None):
+        year = self.year(miny, floor)
+        return None if year is None else (self.year_parts(year), year)
+
+    # --- age -------------------------------------------------------------------
+    def age_parts(self, style=None):
+        rng, a = self.rng, self.age
+        if a <= 89:
+            return [
+                rng.choice(
+                    [
+                        f"{a}-year-old",
+                        f"{a} y/o",
+                        f"{a} year old",
+                        f"{a}yo",
+                        f"{a} years old",
+                    ]
+                )
+            ]
+        form = style if style is not None else rng.choice([0, 1, 1, 2, 3, 4, 5, 6])
+        if form == 0:
+            return [("AGE", str(a)), "-year-old"]
+        if form == 1:
+            return [("AGE", str(a)), " y/o"]
+        if form == 2:
+            return [("AGE", str(a)), rng.choice(["F", "M"])]
+        if form == 3:
+            return [("AGE", str(a)), " years old"]
+        if form == 4:
+            return [("AGE", spelled_age(a)), " years old"]
+        if form == 5:
+            return [("AGE", str(a)), "yo"]
+        return [("AGE", str(a)), " year old"]
+
+    def age_plain(self):
+        return [("AGE", str(self.age))] if self.age > 89 else [str(self.age)]
+
+    def age_years(self):
+        if self.age <= 89:
+            return [f"{self.age} years old"]
+        return self.age_parts(self.rng.choice([3, 4]))
+
+    # --- header ---------------------------------------------------------------------
+    def hdr(self, keys, sep=None):
+        rng = self.rng
+        sep = sep or rng.choice(["\n", " | ", "   ", "; ", "\n"])
+        items = []
+        for key in keys:
+            if key == "name":
+                label = (
+                    "Patient name"
+                    if self.unusual
+                    else rng.choice(
+                        [
+                            "Patient",
+                            "Name",
+                            "Pt",
+                            "Patient name",
+                            "PATIENT",
+                            "Patient Name",
+                        ]
+                    )
+                )
+                items.append([label + ": ", ("NAME", self.patient)])
+            elif key == "mrn":
+                items.append(
+                    [
+                        rng.choice(
+                            [
+                                "MRN: ",
+                                "MRN# ",
+                                "MRN ",
+                                "Medical record number: ",
+                                "MR#: ",
+                                "MRN - ",
+                            ]
+                        ),
+                        ("MRN", self.mrn),
+                    ]
+                )
+            elif key == "dob":
+                items.append(
+                    [
+                        rng.choice(
+                            ["DOB: ", "Date of birth: ", "Birth date: ", "D.O.B. "]
+                        ),
+                        self.full_date(self.birth_year)[:1],
+                    ]
+                )
+            elif key == "dos":
+                items.append(
+                    [
+                        rng.choice(
+                            [
+                                "Date of service: ",
+                                "DOS: ",
+                                "Visit date: ",
+                                "Seen: ",
+                                "Encounter date: ",
+                                "Date: ",
+                            ]
+                        ),
+                        self.full_date(self.note_year),
+                    ]
+                )
+            elif key == "prov":
+                items.append(
+                    [
+                        rng.choice(
+                            [
+                                "Provider: ",
+                                "Clinician: ",
+                                "PCP: ",
+                                "Seen by: ",
+                                "Attending: ",
+                                "Author: ",
+                            ]
+                        ),
+                        self.clinician(),
+                    ]
+                )
+            elif key == "fac":
+                items.append(
+                    [
+                        rng.choice(["Clinic: ", "Facility: ", "Site: ", ""]),
+                        self.facility(),
+                    ]
+                )
+            elif key == "age":
+                items.append(
+                    ["Age: ", self.age_parts(0 if self.age > 89 else None)[:1]]
+                )
+        out = []
+        for i, item in enumerate(items):
+            if i:
+                out.append(sep)
+            out.append(item)
+        return out
+
+    def sign(self):
+        """Closing lines naming the patient; skipped for unusual-name rows."""
+        if self.unusual:
+            return ["Thank you"]
+        return [
+            self.rng.choice(["Thanks, ", "Sincerely, ", "Thank you, ", "Regards, "]),
+            ("NAME", self.patient),
+        ]
+
+
+# ---------------------------------------------------------------------------
+# History-year items
+# ---------------------------------------------------------------------------
+def cap_first(rng, text):
+    return text[0].upper() + text[1:] if rng.random() < 0.5 else text
+
+
+TEST_LIST = [
+    lambda T, d, R: [T, " ", d, ": ", R],
+    lambda T, d, R: [T, " (", d, ") - ", R],
+    lambda T, d, R: [T, ", ", d, ", ", R],
+    lambda T, d, R: [T, " done in ", d, "; ", R],
+    lambda T, d, R: [T, " - last ", d],
+    lambda T, d, R: [d, " ", T, ": ", R],
+    lambda T, d, R: [T, ": ", R, " (", d, ")"],
+    lambda T, d, R: ["last ", T, " was ", d, ", ", R],
+    lambda T, d, R: [T, " on file from ", d],
+    lambda T, d, R: [T, " | ", d, " | ", R],
+    lambda T, d, R: [T, "  ", d, "  ", R],
+    lambda T, d, R: [T, " - ", d],
+    lambda T, d, R: [T, " (", d, ")"],
+    lambda T, d, R: [T, " completed ", d, ", ", R],
+]
+VAX_LIST = [
+    lambda V, d, d2, k: [V, " ", d],
+    lambda V, d, d2, k: [V, " booster ", d],
+    lambda V, d, d2, k: [V, " (", d, ")"],
+    lambda V, d, d2, k: [V, " - ", d, ", ", d2] if d2 else [V, " - ", d],
+    lambda V, d, d2, k: [V, " series completed ", d],
+    lambda V, d, d2, k: [V, ": received ", d],
+    lambda V, d, d2, k: [V, " given ", d],
+    lambda V, d, d2, k: [V, " dose ", str(k), " ", d],
+    lambda V, d, d2, k: [V, " ", d, " - no reaction"],
+    lambda V, d, d2, k: [V, " last ", d],
+    lambda V, d, d2, k: [V, ", ", d],
+]
+PROC_LIST = [
+    lambda P, d, X: [P, " (", d, ")"],
+    lambda P, d, X: ["s/p ", P, " ", d],
+    lambda P, d, X: [P, " in ", d],
+    lambda P, d, X: [P, " ", d, " - ", X],
+    lambda P, d, X: [d, " - ", P],
+    lambda P, d, X: [P, ", ", d],
+    lambda P, d, X: [P, " (", d, "), ", X],
+    lambda P, d, X: [P, ": ", d, ", ", X],
+    lambda P, d, X: [P, " performed ", d],
+    lambda P, d, X: ["history of ", P, " in ", d],
+    lambda P, d, X: [P, " - ", d],
+]
+DX_LIST = [
+    lambda D, d: [D, " diagnosed ", d],
+    lambda D, d: [D, " since ", d],
+    lambda D, d: ["h/o ", D, " (", d, ")"],
+    lambda D, d: [D, " dx ", d],
+    lambda D, d: [D, ", onset ", d],
+]
+SENT_POS = [
+    lambda T, d, R: ["Last ", T, " was in ", d, "; ", R, "."],
+    lambda T, d, R: [T, " in ", d, " showed ", R, "."],
+    lambda T, d, R: ["Had a ", T, " around ", d, " (", R, ")."],
+    lambda T, d, R: ["Patient reports ", T, " ", d, " with ", R, "."],
+    lambda T, d, R: ["Per patient, the most recent ", T, " was ", d, "."],
+    lambda T, d, R: ["I had my ", T, " back in ", d, " and it was ", R, "."],
+    lambda T, d, R: ["My last ", T, " was ", d, "."],
+]
+SENT_PROC = [
+    lambda P, d, X: ["Underwent ", P, " in ", d, ", ", X, "."],
+    lambda P, d, X: ["Had ", P, " ", d, "."],
+    lambda P, d, X: ["Reports ", P, " (", d, "), ", X, "."],
+    lambda P, d, X: ["I had ", P, " in ", d, "."],
+    lambda P, d, X: ["Surgical history includes ", P, " ", d, "."],
+]
+SENT_VAX = [
+    lambda V, d, d2, k: ["Received ", V, " in ", d, "."],
+    lambda V, d, d2, k: [V, " was given ", d, "."],
+    lambda V, d, d2, k: ["My ", V, " was ", d, "."],
+    lambda V, d, d2, k: ["Last ", V, " documented ", d, "."],
+]
+
+
+def results_for(rng, test):
+    t = test.lower()
+    if "a1c" in t:
+        return rng.choice(["A1c 6.1%", "A1c 7.2%", "A1c 6.8%", "controlled"])
+    if "lipid" in t:
+        return rng.choice(["LDL 98", "LDL 112", "LDL 74", "at goal"])
+    if "psa" in t:
+        return rng.choice(["PSA 1.4", "PSA 0.8", "stable"])
+    if any(k in t for k in ("colonoscopy", "egd", "endoscopy", "sigmoidoscopy")):
+        return rng.choice(
+            [
+                "no polyps",
+                "two small adenomas",
+                "one tubular adenoma",
+                "benign",
+                "normal",
+                "no acute findings",
+            ]
+        )
+    if "mammogram" in t:
+        return rng.choice(["BI-RADS 1", "BI-RADS 2", "normal", "benign"])
+    if "dexa" in t or "bone" in t:
+        return rng.choice(["osteopenia", "T-score -1.8", "T-score -2.6", "normal"])
+    if any(
+        k in t
+        for k in (
+            "echo",
+            "stress",
+            "cath",
+            "holter",
+            "calcium",
+            "ankle-brachial",
+            "carotid",
+        )
+    ):
+        return rng.choice(
+            [
+                "mild LVH",
+                "EF 55%",
+                "EF 60-65%",
+                "no ischemia",
+                "mild stenosis",
+                "trace MR",
+                "grade 1 diastolic dysfunction",
+                "normal",
+            ]
+        )
+    if "audiogram" in t or "hearing" in t:
+        return rng.choice(["mild high-frequency loss", "normal", "moderate loss"])
+    if "spirometry" in t:
+        return rng.choice(["FEV1 78% predicted", "normal", "mild obstruction"])
+    if "sleep" in t:
+        return rng.choice(["mild OSA", "moderate OSA", "negative"])
+    if "nerve" in t:
+        return rng.choice(["mild sensory loss", "normal"])
+    if "skin" in t:
+        return rng.choice(["two benign nevi", "benign", "no suspicious lesions"])
+    if "liver" in t:
+        return rng.choice(["mild fatty liver", "normal", "stable"])
+    if "renal" in t:
+        return rng.choice(["no hydronephrosis", "normal", "stable cyst"])
+    if "colposcopy" in t or "pap" in t:
+        return rng.choice(["negative", "normal", "negative HPV"])
+    if any(
+        k in t for k in ("ct", "mri", "x-ray", "pet", "ultrasound", "films", "scan")
+    ):
+        return rng.choice(
+            [
+                "stable nodule",
+                "no change",
+                "unremarkable",
+                "no acute findings",
+                "negative for malignancy",
+            ]
+        )
+    return rng.choice(
+        [
+            "normal",
+            "negative",
+            "unremarkable",
+            "within normal limits",
+            "borderline",
+            "repeat due",
+        ]
+    )
+
+
+def topic_for(test):
+    t = test.lower()
+    for keys, topic in (
+        (("colon", "sigmoid", "fit", "stool"), "colorectal screening"),
+        (("mammogram",), "breast screening"),
+        (("pap", "colposcopy"), "cervical screening"),
+        (("psa",), "prostate screening"),
+        (("chest ct",), "lung cancer screening"),
+        (("bone", "dexa"), "osteoporosis"),
+        (("a1c", "glucose", "microalbumin", "eye"), "diabetes care"),
+        (("lipid", "calcium"), "lipid management"),
+    ):
+        if any(k in t for k in keys):
+            return topic
+    return "preventive care"
+
+
+def pub_year(rng):
+    return str(rng.randint(1995, 2025))
+
+
+def hist_pos(c, sentence=False):
+    rng = c.rng
+    for _ in range(60):
+        kind = rng.choices(["test", "vax", "proc", "dx"], [40, 22, 28, 10])[0]
+        if kind == "test":
+            T, miny = rng.choice(TESTS)
+            got = c.dp(miny)
+            if got is None:
+                continue
+            R = results_for(rng, T)
+            T = T if sentence else cap_first(rng, T)
+            return (rng.choice(SENT_POS) if sentence else rng.choice(TEST_LIST))(
+                T, got[0], R
+            )
+        if kind == "vax":
+            V, miny = rng.choice(VACCINES)
+            got = c.dp(miny)
+            if got is None:
+                continue
+            d2 = None
+            if rng.random() < 0.3:
+                second = c.dp(got[1] + 1, floor=got[1] + 1)
+                d2 = second[0] if second else None
+            V = V if sentence else cap_first(rng, V)
+            return (rng.choice(SENT_VAX) if sentence else rng.choice(VAX_LIST))(
+                V, got[0], d2, rng.randint(1, 3)
+            )
+        if kind == "proc":
+            P = rng.choice(PROCEDURES)
+            got = c.dp(PROC_MIN.get(P, 1950))
+            if got is None:
+                continue
+            P = P if sentence else cap_first(rng, P)
+            return (rng.choice(SENT_PROC) if sentence else rng.choice(PROC_LIST))(
+                P, got[0], rng.choice(PROC_DETAIL)
+            )
+        D = rng.choice(DIAGNOSES)
+        got = c.dp(1950)
+        if got is None:
+            continue
+        item = rng.choice(DX_LIST)(D if sentence else cap_first(rng, D), got[0])
+        return [*item, "."] if sentence else item
+    raise RuntimeError("no feasible history year item")
+
+
+def hist_neg(c, sentence=False):
+    """A history-flavoured item with no patient-specific year (public years, durations, doses, stages, ages <= 89)."""
+    rng = c.rng
+    Tl = rng.choice(TESTS)[0]
+    T = cap_first(rng, Tl)
+    V = cap_first(rng, rng.choice(VACCINES)[0])
+    P = cap_first(rng, rng.choice(PROCEDURES))
+    D = cap_first(rng, rng.choice(DIAGNOSES))
+    R, G, n, a = (
+        results_for(rng, Tl),
+        rng.choice(GUIDE_TOPICS),
+        rng.choice([2, 3, 5, 7, 10, 12, 15, 20]),
+        min(c.age, 89),
+    )
+    TG = topic_for(Tl)
+    py = pub_year(rng)
+    dose_total = rng.randint(2, 3)
+    options = [
+        f"{T}: {R}; repeat in {n} years",
+        f"{T} due per the {py} {TG} guideline",
+        f"{V}: dose {rng.randint(1, dose_total)} of {dose_total}",
+        f"{P} at age {rng.randint(25, max(26, a - 3))}",
+        f"{P}, about {n} years ago",
+        f"{D} for {n} years",
+        f"{D}, stage {rng.choice(['1', '2', '3a', '3b', 'II', 'III'])}",
+        f"{V} offered; patient declined",
+        f"{T}: {R}",
+        f"{T} ordered; {R} expected",
+        f"{T} every {n} years per the {py} {TG} recommendations",
+        f"{V} 0.5 mL IM, lot HK{rng.randint(1000, 9999)}",
+        f"{G} reviewed at age {rng.randint(min(45, a), a)}",
+        f"{D}; smoker for {n} years, {n + rng.randint(2, 12)} pack-years",
+        f"{T} not on file; ordered today",
+        f"Results of the {py} {rng.choice(['cohort study', 'randomized trial', 'meta-analysis', 'consensus statement'])} on {G} discussed",
+        f"{D}, A1c {rng.randint(55, 90) / 10:.1f}%, eGFR {rng.randint(35, 95)}",
+        f"{V} schedule reviewed per the {py} immunization guideline",
+        f"{T}: {R} (per the {py} {TG} guideline, next in {n} years)",
+    ]
+    text = rng.choice(options)
+    if sentence:
+        text = text[0].upper() + text[1:] + "."
+    return [text]
+
+
+def hist_lines(c, count, mix=0.0, sentence=False, join="\n", prefix=None):
+    """Positive rows: patient-specific year items, with an occasional negative line mixed in. Negative rows: only negatives."""
+    out = []
+    for i in range(count):
+        use_neg = (not c.positive) or c.rng.random() < mix
+        item = hist_neg(c, sentence) if use_neg else hist_pos(c, sentence)
+        if i:
+            out.append(join)
+        out.append(prefix if prefix is not None else c.bullet)
+        out.append(item)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# History layouts
+# ---------------------------------------------------------------------------
+def pick(rng, options):
+    return rng.choice(options)
+
+
+def L_awv_note(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "ANNUAL WELLNESS VISIT",
+                "Annual Wellness Visit Note",
+                "Medicare annual wellness visit",
+                "AWV - preventive visit",
+                "Preventive visit note",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "mrn", "dos", "prov"][: rng.randint(3, 4)]), "\n\n")
+    rb.add(
+        pick(
+            rng,
+            [
+                "Annual preventive visit; age ",
+                "Here for the yearly preventive visit, age ",
+                "Presents for routine wellness care, age ",
+            ],
+        ),
+        c.age_plain(),
+        ". ",
+        c.fill(2),
+        " ",
+        c.pad(),
+        "\n",
+    )
+    rb.add(
+        pick(
+            rng,
+            [
+                "HEALTH MAINTENANCE:",
+                "Health Maintenance",
+                "PREVENTIVE CARE:",
+                "Preventive care summary:",
+                "HEALTH MAINTENANCE / SCREENING",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(hist_lines(c, c.n(3, 7), mix=0.25))
+    rb.add(c.pad(), "\n\nASSESSMENT/PLAN: ", c.fill(2))
+    if c.positive and rng.random() < 0.5:
+        rb.add(" ", hist_neg(c, True))
+
+
+def L_soap_note(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        "SOAP NOTE\n",
+        c.hdr(["name", "mrn", "dos"], sep=pick(rng, ["\n", " | "])),
+        "\n\n",
+    )
+    rb.add("S: Age ", c.age_plain(), ", seen for follow-up. ", c.fill(1), " ")
+    for _i in range(c.n(2, 4)):
+        item = (
+            hist_neg(c, True)
+            if (not c.positive or rng.random() < 0.2)
+            else hist_pos(c, True)
+        )
+        rb.add(item, " ")
+    rb.add(c.pad(), "\nO: ", c.fill(2), "\nA: ", c.fill(1), "\nP: ", c.fill(1))
+    if c.positive:
+        rb.add(" ", hist_neg(c, True))
+    rb.add("\n", c.clinician())
+
+
+def L_screening_schedule(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "SCREENING SCHEDULE:",
+                "Screening schedule",
+                "SCREENING SCHEDULE / REMINDERS",
+                "Screening tracker:",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "mrn"], sep=" | "), "\n")
+    rb.add(
+        pick(
+            rng,
+            [
+                "Test | Last done | Interval",
+                "Item   Last done   Repeat",
+                "Screening - last - interval",
+            ],
+        ),
+        "\n",
+    )
+    for _i in range(c.n(3, 6)):
+        T = pick(rng, TESTS)
+        interval = pick(
+            rng,
+            [
+                "10 yr",
+                "5 yr",
+                "every 3 years",
+                "annual",
+                "q2y",
+                "every 12 months",
+                "q10y",
+            ],
+        )
+        if c.positive:
+            got = c.dp(T[1])
+            if got is None:
+                continue
+            rb.add(
+                cap_first(rng, T[0]),
+                pick(rng, [" | ", "   ", " - ", ": "]),
+                got[0],
+                pick(rng, [" | ", "   ", " - ", ", repeat "]),
+                interval,
+                "\n",
+            )
+        else:
+            last = pick(
+                rng,
+                [
+                    "never done",
+                    "not on file",
+                    "declined",
+                    "ordered",
+                    "pending referral",
+                    "unknown",
+                    "due now",
+                ],
+            )
+            rb.add(
+                cap_first(rng, T[0]),
+                pick(rng, [" | ", "   ", " - ", ": "]),
+                last,
+                pick(rng, [" | ", "   ", " - ", ", repeat "]),
+                interval,
+                "\n",
+            )
+    rb.add(c.pad(), hist_neg(c, True))
+
+
+def L_surgical_history_list(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "PAST SURGICAL HISTORY:",
+                "Past surgical history",
+                "PSH:",
+                "SURGICAL HISTORY",
+                "Surgical hx:",
+            ],
+        ),
+        "\n",
+    )
+    for i in range(c.n(2, 6)):
+        P = cap_first(rng, pick(rng, PROCEDURES))
+        if c.positive:
+            got = c.dp(PROC_MIN.get(P.lower(), 1950))
+            if got is None:
+                continue
+            body = rng.choice(PROC_LIST)(P, got[0], rng.choice(PROC_DETAIL))
+        else:
+            body = [
+                pick(
+                    rng,
+                    [
+                        f"{P} - remote",
+                        f"{P}, about {rng.randint(3, 30)} years ago",
+                        f"{P} at age {rng.randint(18, min(c.age, 89))}",
+                        f"{P}, no complications",
+                        f"{P}, date unknown",
+                    ],
+                )
+            ]
+        rb.add(f"{i + 1}. ", body, "\n")
+    rb.add(
+        c.pad(),
+        "\n",
+        c.hdr(["name", "mrn", "dos"], sep=" | "),
+        "\nNo other operations. ",
+        c.fill(1),
+    )
+
+
+def L_problem_list(c):
+    rb, rng = c.rb, c.rng
+    rb.add(c.hdr(["name", "dob" if rng.random() < 0.4 else "mrn"], sep=" | "), "\n\n")
+    rb.add(
+        pick(
+            rng,
+            [
+                "PROBLEM LIST:",
+                "Active problems",
+                "PROBLEM LIST (reviewed)",
+                "Problem list / history",
+            ],
+        ),
+        "\n",
+    )
+    for i in range(c.n(3, 7)):
+        body = hist_neg(c) if not c.positive or rng.random() < 0.25 else hist_pos(c)
+        rb.add(f"{i + 1}) ", body, "\n")
+    rb.add(c.pad(), "Last reviewed with patient and family. ", c.clinician())
+
+
+def L_immunization_record(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "IMMUNIZATIONS:",
+                "Immunization record",
+                "VACCINE HISTORY",
+                "Immunizations on file",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "mrn"], sep="   "), "\n")
+    for _i in range(c.n(3, 6)):
+        V, miny = pick(rng, VACCINES)
+        V = cap_first(rng, V)
+        if c.positive:
+            got = c.dp(miny)
+            if got is None:
+                continue
+            d2 = None
+            if rng.random() < 0.25:
+                second = c.dp(got[1] + 1, floor=got[1] + 1)
+                d2 = second[0] if second else None
+            body = rng.choice(VAX_LIST)(V, got[0], d2, rng.randint(1, 3))
+        else:
+            body = [
+                pick(
+                    rng,
+                    [
+                        f"{V}: dose {rng.randint(1, 3)} of {rng.randint(2, 3)}",
+                        f"{V} offered; declined",
+                        f"{V} due",
+                        f"{V} 0.5 mL IM",
+                        f"{V} not documented",
+                        f"{V} every {rng.randint(1, 10)} years per the {pub_year(rng)} schedule",
+                    ],
+                )
+            ]
+        rb.add(c.bullet, body, "\n")
+    rb.add(c.pad(), "Reviewed with patient. ", c.facility())
+
+
+def L_telegraphic_oneliner(c):
+    rb, rng = c.rb, c.rng
+    rb.add(c.hdr(["name"]), "; ", c.age_parts(), pick(rng, [" w/ ", " with ", " hx "]))
+    for i in range(c.n(2, 5)):
+        if i:
+            rb.add(pick(rng, ["; ", ", ", " / ", ". "]))
+        item = hist_neg(c) if (not c.positive or rng.random() < 0.2) else hist_pos(c)
+        rb.add(item)
+    rb.add(".", c.pad() or [" "], c.fill(1))
+
+
+def L_nursing_intake_history(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "NURSING ADMISSION ASSESSMENT",
+                "Nursing intake",
+                "RN admission note",
+                "Admission nursing history",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "mrn", "dos"], sep=pick(rng, ["\n", " | "])), "\n")
+    rb.add(
+        pick(
+            rng,
+            [
+                "History per patient: ",
+                "PMH/PSH per pt: ",
+                "Past history obtained from patient and chart: ",
+            ],
+        )
+    )
+    for _i in range(c.n(2, 5)):
+        item = (
+            hist_neg(c, True)
+            if (not c.positive or rng.random() < 0.2)
+            else hist_pos(c, True)
+        )
+        rb.add(item, " ")
+    rb.add(c.pad(), "\nAssessed by ", c.clinician(), ". ", c.fill(1))
+
+
+def L_portal_message_history(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "Portal message",
+                "MyChart-style message",
+                "Patient portal message",
+                "Message to care team",
+            ],
+        ),
+        "\n",
+    )
+    rb.add("To: ", c.clinician(), "\n")
+    rb.add(pick(rng, ["Hello, ", "Hi, ", "Good morning, ", "To whom it may concern, "]))
+    rb.add(
+        "I am ", c.age_years(), " and trying to find out what screening I still need. "
+    )
+    for _i in range(c.n(2, 4)):
+        item = (
+            hist_neg(c, True)
+            if (not c.positive or rng.random() < 0.2)
+            else hist_pos(c, True)
+        )
+        rb.add(item, " ")
+    rb.add(
+        c.pad(),
+        pick(
+            rng,
+            [
+                "Can you tell me what is due? ",
+                "Do I need anything else this year? ",
+                "Please advise. ",
+            ],
+        ),
+        "\n",
+        c.sign(),
+    )
+    if rng.random() < 0.3:
+        rb.add("\n", c.email())
+    elif rng.random() < 0.3:
+        rb.add("\nPortal: ", c.url())
+
+
+def L_referral_letter(c):
+    rb, rng = c.rb, c.rng
+    rb.add("Dear ", c.clinician(), ",\n\n")
+    if c.unusual:
+        rb.add(
+            "Thank you for seeing the patient, age ",
+            c.age_plain(),
+            ". ",
+            c.hdr(["name"]),
+            "\n",
+        )
+    else:
+        rb.add(
+            "Thank you for seeing ", ("NAME", c.patient), ", age ", c.age_plain(), ". "
+        )
+    rb.add(pick(rng, ["Pertinent history: ", "Relevant history: ", "Background: "]))
+    for _i in range(c.n(2, 5)):
+        item = (
+            hist_neg(c, True)
+            if (not c.positive or rng.random() < 0.2)
+            else hist_pos(c, True)
+        )
+        rb.add(item, " ")
+    rb.add(c.pad(), "\n\nSincerely,\n", c.clinician(), "\n", c.facility())
+
+
+# ---------------------------------------------------------------------------
+# Pharmacy and ZIP
+# ---------------------------------------------------------------------------
+PH_LABELS_RX = [
+    "PHARMACY: ",
+    "Preferred pharmacy: ",
+    "Pharmacy on file: ",
+    "Dispensing pharmacy - ",
+    "Rx sent to: ",
+    "Send refills to: ",
+    "Pharm: ",
+    "Pharmacy of choice: ",
+    "Local pharmacy: ",
+    "Default pharmacy: ",
+    "Retail pharmacy: ",
+    "Pharmacy for refills: ",
+    "Prescriptions go to ",
+    "Usual drugstore: ",
+    "Fill at ",
+    "Outpatient pharmacy: ",
+    "Pt's pharmacy: ",
+    "Meds filled at ",
+    "e-prescribe to ",
+    "Preferred drugstore = ",
+    "Pharmacy (retail): ",
+    "PHARMACY - ",
+]
+ZIP_JOINS = [
+    ("{n}, {z}", ", "),
+    ("{n} - {z}", " - "),
+    ("{n} {z}", " "),
+    ("{n}; {z}", "; "),
+    ("{n} ({z})", None),
+    ("{n}, ZIP {z}", None),
+    ("{n}, zip code {z}", None),
+    ("{n} / {z}", " / "),
+    ("{n}, {z}", ", "),
+    ("{n}, {z}", ", "),
+]
+
+
+def pharm_name(c):
+    rng = c.rng
+    if rng.random() < 0.12:
+        return c.reg.pick(rng, lambda r: f"{r.choice(LASTS)}'s Pharmacy", "pharmacy")
+    return c.reg.pick(
+        rng, lambda r: f"{r.choice(STEMS)} {r.choice(PHARM_TYPES)}", "pharmacy"
+    )
+
+
+def pharm_tail(c):
+    rng = c.rng
+    roll = rng.random()
+    if roll < 0.18:
+        return [pick(rng, [", ph ", ", phone ", " tel "]), c.phone()]
+    if roll < 0.26:
+        return [", fax ", c.phone()]
+    return []
+
+
+def pharm_line(c, positive=None, label=None):
+    rng = c.rng
+    positive = c.positive if positive is None else positive
+    label = label if label is not None else pick(rng, PH_LABELS_RX)
+    name = ("FACILITY", pharm_name(c), "pharmacy")
+    if positive:
+        z = ("LOCATION", c.zip_code(), "zip")
+        form = pick(
+            rng,
+            [
+                "comma",
+                "comma",
+                "comma",
+                "dash",
+                "space",
+                "semi",
+                "paren",
+                "zipword",
+                "zipcode",
+                "slash",
+            ],
+        )
+        join = {
+            "comma": [", ", z],
+            "dash": [" - ", z],
+            "space": [" ", z],
+            "semi": ["; ", z],
+            "paren": [" (", z, ")"],
+            "zipword": [", ZIP ", z],
+            "zipcode": [", zip code ", z],
+            "slash": [" / ", z],
+        }[form]
+        return [label, name, join, pharm_tail(c)]
+    kind = rng.randrange(10)
+    n5 = "".join(rng.choice("0123456789") for _ in range(5))
+    tail = {
+        0: [],
+        1: [],
+        2: pharm_tail(c) or [", open until 9 pm"],
+        3: [", ", c.address()],
+        4: [f", NDC {n5}-{rng.randint(1000, 9999)}-{rng.randint(10, 99)}"],
+        5: [f", lot {n5}"],
+        6: [f", {rng.choice([30, 60, 90, 120])} tablets"],
+        7: [f", #{rng.choice([30, 60, 90])}, {rng.randint(0, 5)} refills"],
+        8: [f", {rng.choice([30, 90])} day supply, DAW {rng.randint(0, 2)}"],
+        9: [f", dose count {rng.randint(10, 200)}, batch {n5}"],
+    }[kind]
+    return [label, name, tail]
+
+
+def pharm_neg_nameless(c):
+    rng = c.rng
+    return [
+        pick(
+            rng,
+            [
+                "Pharmacy: none on file",
+                "Pharmacy: not yet chosen",
+                "Preferred pharmacy: declined to list one",
+                "Rx sent to: patient will pick a pharmacy",
+                "Pharmacy: mail order, details pending",
+            ],
+        )
+    ]
+
+
+def pharm_item(c, allow_nameless=True):
+    if allow_nameless and not c.positive and c.rng.random() < 0.12:
+        return pharm_neg_nameless(c)
+    return pharm_line(c)
+
+
+def L_intake_form(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "PATIENT INTAKE FORM",
+                "New patient intake",
+                "Intake questionnaire",
+                "INTAKE - DEMOGRAPHICS AND PHARMACY",
+            ],
+        ),
+        "\n",
+    )
+    fields = [
+        ["Name: ", ("NAME", c.patient)],
+        ["DOB: ", c.full_date(c.birth_year)[:1]],
+        ["Address: ", c.address()],
+        ["Phone: ", c.phone()],
+        ["Email: ", c.email()],
+        ["Insurance member ID: ", c.insurance_id()],
+        [
+            "Allergies: ",
+            pick(rng, ["penicillin", "none known", "sulfa", "latex", "shellfish"]),
+        ],
+        ["Emergency contact: ", ("NAME", c.person()), ", ", c.phone()],
+    ]
+    if rng.random() < 0.08:
+        fields.append(["Account #: ", c.account()])
+    rng.shuffle(fields)
+    chosen = fields[: rng.randint(3, 6)]
+    if all(f[0] != "Name: " for f in chosen):
+        chosen[0] = fields[[f[0] for f in fields].index("Name: ")]
+    for field in chosen:
+        rb.add(field, "\n")
+    for k in range(c.n(1, 2)):
+        rb.add(pharm_item(c, allow_nameless=(k == 0)), "\n")
+    rb.add(c.pad(), c.fill(1))
+
+
+def L_registration_form(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "REGISTRATION",
+                "Patient registration",
+                "REGISTRATION FORM - FRONT DESK",
+                "Registration / demographics",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "dob", "mrn"], sep="\n"), "\n")
+    rb.add("Guarantor account: ", c.account(), "\n")
+    if rng.random() < 0.1:
+        rb.add("SSN: ", c.ssn(), "\n")
+    rb.add("Contact: ", c.phone(), "\n")
+    if rng.random() < 0.5:
+        rb.add("Responsible party: ", c.relative(), "\n")
+    rb.add(
+        pick(rng, ["PHARMACY INFORMATION", "Pharmacy", "Preferred pharmacy section"]),
+        "\n",
+    )
+    for k in range(c.n(1, 2)):
+        rb.add(pharm_item(c, allow_nameless=(k == 0)), "\n")
+    rb.add(c.pad(), "Registered at ", c.facility())
+
+
+def L_refill_request(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "TELEPHONE ENCOUNTER - refill request",
+                "Refill request",
+                "Rx refill note",
+                "Medication refill call",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "dos"], sep=" | "), "\n")
+    rb.add("Requested: ", ", ".join(rng.sample(MEDS, rng.randint(1, 3))), ".\n")
+    for k in range(c.n(1, 2)):
+        rb.add(pharm_item(c, allow_nameless=(k == 0)), "\n")
+    rb.add(c.pad(), "Routed to ", c.clinician(), " for approval. ", c.fill(1))
+
+
+def L_portal_message_pharmacy(c):
+    rb, rng = c.rb, c.rng
+    rb.add("Portal message\nTo: ", c.clinician(), "\n")
+    rb.add(pick(rng, ["Hello, ", "Hi there, ", "Good afternoon, "]))
+    rb.add(
+        pick(
+            rng,
+            [
+                "I would like to change where my prescriptions are sent. ",
+                "Please send my refills to a different store. ",
+                "Can you update my pharmacy? ",
+            ],
+        )
+    )
+    rb.add("I am ", c.age_years(), " and take ", rng.choice(MEDS), ". ")
+    if c.positive:
+        rb.add(
+            pick(
+                rng,
+                [
+                    "Please use ",
+                    "The new one is ",
+                    "Send everything to ",
+                    "My pharmacy is now ",
+                ],
+            )
+        )
+        rb.add(pharm_line(c, True, label=""), ". ")
+    else:
+        if rng.random() < 0.5:
+            rb.add(
+                pharm_line(
+                    c,
+                    False,
+                    label=pick(
+                        rng, ["Please use ", "The new one is ", "Send everything to "]
+                    ),
+                ),
+                ". ",
+            )
+        else:
+            rb.add(
+                pick(
+                    rng,
+                    [
+                        "I will call the pharmacy with the details. ",
+                        "The pharmacy near my daughter's house is easier. ",
+                        "I have not picked a new one yet. ",
+                    ],
+                )
+            )
+    if rng.random() < 0.3:
+        rb.add("Link: ", c.url(), ". ")
+    rb.add(c.pad(), "\n", c.sign())
+
+
+def L_discharge_med_list(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "DISCHARGE MEDICATIONS",
+                "Discharge medication list",
+                "Medications at discharge",
+                "TRANSITION OF CARE - MEDS",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "mrn", "dos"], sep=" | "), "\n")
+    for med in rng.sample(MEDS, rng.randint(3, 6)):
+        rb.add(c.bullet, med, "\n")
+    for k in range(c.n(1, 2)):
+        rb.add(pharm_item(c, allow_nameless=(k == 0)), "\n")
+    rb.add(c.pad(), c.fill(1), " ", c.clinician())
+
+
+def L_pharmacy_oneliner(c):
+    rb, rng = c.rb, c.rng
+    rb.add(c.hdr(["name"]), ", ", c.age_parts(), "; meds reviewed; ")
+    rb.add(pharm_item(c))
+    rb.add(pick(rng, [". ", "; ", ".\n"]), rng.choice(MEDS), ". ", c.pad())
+
+
+# ---------------------------------------------------------------------------
+# Phone with written extension
+# ---------------------------------------------------------------------------
+def ph_pos_line(c):
+    rng = c.rng
+    label, phone = pick(rng, PH_LABELS), c.phone(ext=True)
+    form = rng.randrange(12)
+    if form == 0:
+        return [label, ": ", phone]
+    if form == 1:
+        return [label, " - ", phone]
+    if form == 2:
+        return [label, " at ", phone]
+    if form == 3:
+        return [label, " (", phone, ")"]
+    if form == 4:
+        return ["call ", label.lower(), " ", phone]
+    if form == 5:
+        return [
+            pick(
+                rng, ["Ph: ", "Tel ", "Phone ", "Callback # ", "Reach at ", "Direct: "]
+            ),
+            phone,
+        ]
+    if form == 6:
+        return ["Please call ", label.lower(), " at ", phone, " to confirm."]
+    if form == 7:
+        return ["Left voicemail; callback number ", phone, "."]
+    if form == 8:
+        return ["Family requests a call back at ", phone, "."]
+    if form == 9:
+        return ["Dial ", phone, " and ask for ", c.clinician(), "."]
+    if form == 10:
+        return ["Questions? ", phone]
+    return [label, ", ", phone, pick(rng, [" (weekdays)", "", " after 8 am", ""])]
+
+
+def ph_neg_line(c):
+    rng = c.rng
+    roll = rng.random()
+    if roll < 0.45:
+        return [
+            rng.choice(PH_NEG).capitalize()
+            if rng.random() < 0.5
+            else rng.choice(PH_NEG)
+        ]
+    if roll < 0.65:
+        return [pick(rng, ROOMS), "; ", rng.choice(PH_NEG)]
+    if roll < 0.85:
+        # a plain phone with no extension, followed by extension words that are not part of it
+        return [
+            pick(rng, PH_LABELS),
+            ": ",
+            c.phone(),
+            ". ",
+            rng.choice(PH_NEG).capitalize(),
+        ]
+    return [
+        pick(rng, ["Call", "Ring", "Contact"]),
+        " ",
+        pick(rng, PH_LABELS).lower(),
+        " at ",
+        c.phone(),
+        " for questions; ",
+        pick(rng, ROOMS),
+    ]
+
+
+def ph_item(c):
+    return ph_pos_line(c) if c.positive else ph_neg_line(c)
+
+
+def ph_lines(c, count, join="\n", prefix=None):
+    out = []
+    for i in range(count):
+        if i:
+            out.append(join)
+        out.append(prefix if prefix is not None else c.bullet)
+        item = flat(ph_item(c))
+        out.append(item)
+        if join != "\n" and not (
+            isinstance(item[-1], str) and item[-1].endswith((".", "?"))
+        ):
+            out.append(".")
+    return out
+
+
+def L_contact_block(c):
+    rb, rng = c.rb, c.rng
+    rb.add(c.hdr(["name", "mrn"], sep=" | "), "\n")
+    rb.add(
+        pick(
+            rng,
+            [
+                "CONTACTS:",
+                "Contact numbers",
+                "KEY CONTACTS",
+                "Phone directory for this stay",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(ph_lines(c, c.n(2, 5)))
+    rb.add("\nFamily: ", c.relative(), " ", c.phone(), "\n", c.pad(), c.fill(1))
+
+
+def L_fax_cover(c):
+    rb, rng = c.rb, c.rng
+    rb.add(pick(rng, ["FAX COVER SHEET", "Fax cover", "FAX TRANSMITTAL"]), "\n")
+    rb.add("To: ", c.clinician(), pick(rng, ["  ", " | ", "\n"]), c.facility(), "\n")
+    rb.add("From: ", c.clinician(), "\n")
+    rb.add("Fax: ", c.phone(), "\n")
+    rb.add("Re: ", c.hdr(["name", "mrn"], sep=" | "), "\n")
+    rb.add(ph_lines(c, c.n(1, 3), prefix=""), "\n")
+    rb.add(
+        c.pad(),
+        pick(rng, ["Pages: 3. ", "Please confirm receipt. ", "Records attached. "]),
+        c.fill(1),
+    )
+
+
+def L_callback_note(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng, ["TELEPHONE ENCOUNTER", "Callback note", "Phone message", "Call log"]
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "dos"], sep=" | "), "\n")
+    rb.add(
+        pick(rng, ["Caller: ", "Spoke with: ", "Message from: "]), c.relative(), ". "
+    )
+    rb.add(ph_lines(c, c.n(1, 3), join=" ", prefix=""), " ")
+    rb.add(c.pad(), c.fill(1), " Routed to ", c.clinician(), ".")
+
+
+def L_shift_handoff(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(rng, ["SHIFT HANDOFF", "SBAR handoff", "Handoff note", "Nursing handoff"]),
+        "\n",
+    )
+    rb.add(c.hdr(["name"]), ", ", c.age_parts(), pick(rng, ["; ", "\n"]))
+    rb.add(c.fill(2), "\n")
+    rb.add(ph_lines(c, c.n(2, 4)), "\n")
+    rb.add(
+        c.town_line() if rng.random() < 0.25 else "",
+        c.pad(),
+        "Report given to ",
+        c.clinician(),
+    )
+
+
+def L_nursing_note_family(c):
+    rb, rng = c.rb, c.rng
+    rb.add(pick(rng, ["Nursing note", "RN progress note", "Nursing narrative"]), "\n")
+    rb.add(c.hdr(["name", "dos"], sep=" | "), "\n")
+    rb.add(c.fill(2), " ")
+    rb.add(pick(rng, ["Spoke with ", "Updated ", "Called "]), c.relative(), ". ")
+    rb.add(
+        ph_lines(c, c.n(1, 3), join=" ", prefix=""),
+        " ",
+        c.town_line() if rng.random() < 0.3 else "",
+        c.pad(),
+        c.fill(1),
+    )
+
+
+def L_followup_instructions(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "FOLLOW-UP INSTRUCTIONS",
+                "After-visit instructions",
+                "Discharge follow-up",
+                "NEXT STEPS",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "dos"], sep=" | "), "\n")
+    rb.add(c.fill(2), " ", c.town_line() if rng.random() < 0.25 else "", "\n")
+    rb.add(
+        pick(
+            rng,
+            [
+                "To schedule or change an appointment:",
+                "Questions after you go home:",
+                "Who to call:",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(ph_lines(c, c.n(2, 4)), "\n")
+    rb.add(c.pad(), "Seen at ", c.facility(), ". ", c.clinician())
+
+
+# ---------------------------------------------------------------------------
+# Funeral homes
+# ---------------------------------------------------------------------------
+def funeral_name(c):
+    rng = c.rng
+
+    def make(r):
+        if r.random() < 0.3:
+            return f"{r.choice(LASTS)} {r.choice(FUNERAL_SURNAME_TYPES)}"
+        return f"{r.choice(STEMS)} {r.choice(FUNERAL_TYPES)}"
+
+    return ("FACILITY", c.reg.pick(rng, make, "funeral"), "funeral")
+
+
+def hospice_name(c):
+    return (
+        "FACILITY",
+        c.reg.pick(
+            c.rng,
+            lambda r: r.choice(HOSPICE_FORMS).format(s=r.choice(STEMS)),
+            "hospice",
+        ),
+        "facility",
+    )
+
+
+def fh_pos_line(c):
+    rng = c.rng
+    f = funeral_name(c)
+    form = rng.randrange(12)
+    time = pick(rng, ["0930", "1415", "2210", "0645", "1130", "1845"])
+    if form == 0:
+        return [f, " notified at ", time, "."]
+    if form == 1:
+        return ["Family chose ", f, "."]
+    if form == 2:
+        return [f, " contacted for transport."]
+    if form == 3:
+        return ["Body released to ", f, " at ", time, "."]
+    if form == 4:
+        return ["Funeral arrangements are being handled by ", f, "."]
+    if form == 5:
+        return ["Family has contacted ", f, " regarding arrangements."]
+    if form == 6:
+        return ["Pickup by ", f, " completed at ", time, "."]
+    if form == 7:
+        return ["Per ", c.relative(), ", ", f, " will make the arrangements."]
+    if form == 8:
+        return ["Mortuary: ", f, "."]
+    if form == 9:
+        return ["Funeral home: ", f, "; family aware."]
+    if form == 10:
+        return [f, " staff arrived at ", time, " to receive the body."]
+    return ["The family selected ", f, " and signed the release."]
+
+
+def fh_neg_line(c):
+    return [
+        pick(
+            c.rng,
+            [
+                "The funeral home will call the family.",
+                "Funeral planning discussed with family.",
+                "Family has not yet chosen a funeral home.",
+                "Funeral home to be selected by the family.",
+                "Mortuary transport arranged per family request.",
+                "Family will contact a funeral home in the morning.",
+                "Arrangements per family; no preference stated.",
+                "Funeral home notified by the unit clerk.",
+                "Cremation versus burial discussed; family undecided.",
+                "The chosen funeral home was called.",
+                "Social work provided a list of funeral services.",
+                "Family asked about funeral costs and pre-planning.",
+                "Funeral director to be contacted after family meeting.",
+                "Body held pending release to the funeral home.",
+            ],
+        )
+    ]
+
+
+def fh_item(c):
+    return fh_pos_line(c) if c.positive else fh_neg_line(c)
+
+
+def fh_lines(c, count, join="\n"):
+    out = []
+    for i in range(count):
+        if i:
+            out.append(join)
+        out.append(fh_item(c))
+    return out
+
+
+def death_facts(c, time_style=True):
+    rng = c.rng
+    return [
+        "Patient pronounced dead at ",
+        pick(rng, ["0412", "1530", "2250", "0905", "1740"]),
+        " on ",
+        c.full_date(c.note_year)[:1],
+        " by ",
+        c.clinician(),
+        ". ",
+    ]
+
+
+def L_death_note(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(rng, ["DEATH NOTE", "Expiration note", "Death summary", "NOTE OF DEATH"]),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "mrn"], sep=" | "), "\n")
+    rb.add(c.age_parts(), " patient with end-stage illness. ", death_facts(c), "\n")
+    rb.add(
+        "Next of kin: ",
+        c.relative(),
+        ", ",
+        c.phone(),
+        ". Autopsy ",
+        pick(rng, ["declined", "not requested", "discussed and declined"]),
+        ".\n",
+    )
+    rb.add(
+        fh_lines(c, c.n(1, 2)),
+        "\n",
+        c.town_line() if rng.random() < 0.35 else "",
+        c.pad(),
+        c.fill(1),
+    )
+
+
+def L_hospice_discharge(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "HOSPICE DISCHARGE SUMMARY",
+                "Hospice discharge - death",
+                "Hospice record of death",
+                "HOSPICE NOTE",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "dos"], sep=" | "), "\n")
+    rb.add(
+        "Enrolled with ",
+        hospice_name(c),
+        ". ",
+        c.age_parts(),
+        " at time of death. ",
+        death_facts(c),
+        "\n",
+    )
+    rb.add("Bereavement packet given to ", c.relative(), ". ")
+    rb.add(
+        fh_lines(c, c.n(1, 2), join=" "),
+        "\n",
+        c.town_line() if rng.random() < 0.3 else "",
+        c.pad(),
+        c.fill(1),
+    )
+
+
+def L_social_work_bereavement(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "SOCIAL WORK NOTE",
+                "Social work - bereavement",
+                "SW follow-up",
+                "Chaplain and social work note",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name"]), "\n")
+    rb.add(
+        "Met with ",
+        c.relative(),
+        " and ",
+        c.relative(),
+        " at the bedside. ",
+        c.fill(1),
+        " ",
+        c.town_line() if rng.random() < 0.6 else "",
+    )
+    rb.add(fh_lines(c, c.n(1, 3), join=" "), "\n", c.pad(), "Contact: ", c.phone())
+
+
+def L_nursing_expiration(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "Nursing note - expiration",
+                "RN note",
+                "Nursing narrative: death",
+                "End-of-life nursing note",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "dos"], sep=" | "), "\n")
+    rb.add(
+        "Found without pulse or respirations; ",
+        c.clinician(),
+        " notified and pronounced. ",
+        c.relative(),
+        " at bedside. ",
+    )
+    rb.add(
+        fh_lines(c, c.n(1, 2), join=" "),
+        " ",
+        c.pad(),
+        c.fill(1),
+        "\nUnit: ",
+        c.facility(),
+    )
+
+
+LAYOUT_FUNCS = {
+    "awv_note": L_awv_note,
+    "soap_note": L_soap_note,
+    "screening_schedule": L_screening_schedule,
+    "surgical_history_list": L_surgical_history_list,
+    "problem_list": L_problem_list,
+    "immunization_record": L_immunization_record,
+    "telegraphic_oneliner": L_telegraphic_oneliner,
+    "nursing_intake_history": L_nursing_intake_history,
+    "portal_message_history": L_portal_message_history,
+    "referral_letter": L_referral_letter,
+    "intake_form": L_intake_form,
+    "registration_form": L_registration_form,
+    "refill_request": L_refill_request,
+    "portal_message_pharmacy": L_portal_message_pharmacy,
+    "discharge_med_list": L_discharge_med_list,
+    "pharmacy_oneliner": L_pharmacy_oneliner,
+    "contact_block": L_contact_block,
+    "fax_cover": L_fax_cover,
+    "callback_note": L_callback_note,
+    "shift_handoff": L_shift_handoff,
+    "nursing_note_family": L_nursing_note_family,
+    "followup_instructions": L_followup_instructions,
+    "death_note": L_death_note,
+    "hospice_discharge": L_hospice_discharge,
+    "social_work_bereavement": L_social_work_bereavement,
+    "nursing_expiration": L_nursing_expiration,
+}
+FAMILY_PHENOMENA = {
+    "history_years": ["history_year", "date_boundaries"],
+    "pharmacy_zip": ["pharmacy_zip", "facility_boundary"],
+    "phone_extension": ["phone_extension"],
+    "funeral_homes": ["service_organisation", "funeral_home"],
+}
+
+
+# ---------------------------------------------------------------------------
+# Plan and generation
+# ---------------------------------------------------------------------------
+def build_plan():
+    rng = random.Random(f"{SEED}:plan")
+    plan = []
+    for family, total in FAMILY_ROWS.items():
+        layouts = LAYOUTS[family]
+        per = total // len(layouts)
+        for layout in layouts:
+            negatives = round(per / 3)
+            for k in range(per):
+                plan.append(
+                    {"family": family, "layout": layout, "positive": k >= negatives}
+                )
+    rng.shuffle(plan)
+    cases = []
+    for name, share in CASE_COUNTS:
+        cases += [name] * round(len(plan) * share)
+    cases = (cases + ["normal"] * len(plan))[: len(plan)]
+    rng.shuffle(cases)
+    cohorts = ["realistic"] * len(plan)
+    order = list(range(len(plan)))
+    rng.shuffle(order)
+    for index in order[: round(len(plan) * 0.05)]:
+        cohorts[index] = "long_document"
+    for index in order[round(len(plan) * 0.05) : round(len(plan) * 0.09)]:
+        cohorts[index] = "unusual_name"
+    for item, case, cohort in zip(plan, cases, cohorts):
+        item["case"], item["cohort"] = case, cohort
+    return plan
+
+
+def make_row(index, item, reg, seen_texts):
+    for attempt in range(40):
+        rng = random.Random(f"{SEED}:{index}:{attempt}")
+        c = Ctx(
+            rng, reg, item["family"], item["cohort"], item["positive"], item["case"]
+        )
+        LAYOUT_FUNCS[item["layout"]](c)
+        text, spans, tags = c.rb.build(item["case"])
+        if text in seen_texts:
+            continue
+        spans.sort(key=lambda s: s["start"])
+        errors = annotation_errors(text, spans)
+        if errors:
+            raise RuntimeError(f"{item['layout']} row {index}: {errors}")
+        seen_texts.add(text)
+        groups = [canonical_identity_group(name) for name in c.people]
+        row = {
+            "id": f"tk14_{index:05d}",
+            "text": text,
+            "spans": spans,
+            "split": "train",
+            "suite": SUITE,
+            "annotation_policy": POLICY_VERSION,
+            "cohort": item["cohort"],
+            "family": f"tk14_{item['layout']}",
+            "template_family": f"tk14_{item['layout']}",
+            "layout": item["layout"],
+            "target_family": item["family"],
+            "polarity": "positive" if item["positive"] else "negative",
+            "case_mode": item["case"],
+            "phenomena": [
+                *FAMILY_PHENOMENA[item["family"]],
+                "matched_positive" if item["positive"] else "matched_negative",
+            ],
+            "identity_group": groups[0],
+            "identity_groups": list(dict.fromkeys(groups)),
+            "pair_id": f"tk14_unpaired_{index:05d}",
+        }
+        years = [
+            int(re.search(r"\d{4}", value).group())
+            for tag, value in tags
+            if tag == "year"
+        ]
+        return row, {"tags": tags, "years": years}
+    raise RuntimeError(f"could not make a unique row {index}")
+
+
+def generate():
+    reg, seen = Registry(), set()
+    rows, metas = [], []
+    for index, item in enumerate(build_plan()):
+        row, meta = make_row(index, item, reg, seen)
+        rows.append(row)
+        metas.append(meta)
+    return rows, metas
+
+
+def serialise(rows) -> bytes:
+    return (
+        "\n".join(json.dumps(row, ensure_ascii=False, sort_keys=False) for row in rows)
+        + "\n"
+    ).encode("utf-8")
+
+
+def statistics(rows, metas):
+    support = Counter(span["label"] for row in rows for span in row["spans"])
+    years = Counter(year for meta in metas for year in meta["years"])
+    per_family = Counter(row["target_family"] for row in rows)
+    per_layout = Counter(row["layout"] for row in rows)
+    row_values: dict = {}
+    for row, meta in zip(rows, metas):
+        for tag, value in {(t, v.casefold()) for t, v in meta["tags"]}:
+            row_values.setdefault(tag, Counter())[value] += 1
+        for label in ("FACILITY", "LOCATION", "ADDRESS"):
+            for value in {
+                s["text"].casefold() for s in row["spans"] if s["label"] == label
+            }:
+                row_values.setdefault(f"all_{label}", Counter())[value] += 1
+    max_rep = {
+        tag: counter.most_common(1)[0] for tag, counter in sorted(row_values.items())
+    }
+    history_spans = sum(years.values())
+    return {
+        "rows": len(rows),
+        "per_family": dict(per_family),
+        "per_layout": dict(sorted(per_layout.items())),
+        "layout_max_share": max(per_layout.values()) / len(rows),
+        "case_modes": dict(Counter(row["case_mode"] for row in rows)),
+        "polarity": dict(Counter(row["polarity"] for row in rows)),
+        "polarity_by_family": {
+            f: dict(Counter(r["polarity"] for r in rows if r["target_family"] == f))
+            for f in per_family
+        },
+        "cohorts": dict(Counter(row["cohort"] for row in rows)),
+        "label_support": {label: support[label] for label in ENTITY_TYPES},
+        "history_year_spans": history_spans,
+        "history_year_min": min(years),
+        "history_year_max": max(years),
+        "distinct_years": len(years),
+        "history_year_max_share": max(years.values()) / history_spans,
+        "history_year_top": years.most_common(3),
+        "year_decade_counts": dict(
+            sorted(Counter((y // 10) * 10 for y in years.elements()).items())
+        ),
+        "max_value_repetition_rows": {
+            tag: {"value": value, "rows": count, "share": count / len(rows)}
+            for tag, (value, count) in max_rep.items()
+        },
+    }
+
+
+UNSETTLED = """\
+Cases the policy and brief do not settle. Each was left out of the bank rather than guessed.
+
+1. **Year ranges** such as `smoked 1980-2005` or `2014 - 2016`. The policy settles written date ranges for full dates, not bare year pairs. Not generated.
+2. **Future years** (`next due 2028`, `repeat colonoscopy in 2033`). A scheduled future date is patient-specific but no fixture covers it. Not generated; intervals are written as durations (`repeat in 10 years`).
+3. **ZIP+4** (`53728-1042`) after a pharmacy. The policy covers a five-digit ZIP alone only. Not generated.
+4. **Pharmacy name followed by town and ZIP** in one phrase (`Name, Town, ST 53728`). P5 settles a locality after a care site; whether the state and ZIP stay inside one LOCATION span is not stated for this shape. Not generated; the pharmacy rows use a ZIP only.
+5. **Prescription (Rx) numbers and NPI-style codes** on dispensing lines. ID versus ACCOUNT versus unannotated is not settled for prescription numbers. Not generated; pharmacy negatives use NDC-style codes, lot numbers, quantities, day supplies and dose counts only.
+6. **Internal extensions without a phone number** (`dial 4417 from any unit phone`) and **pager numbers**. The policy puts an extension inside the PHONE span only when it belongs to a phone. Not generated. Room and bed numbers are used as negatives.
+7. **Funeral-home types without a person-style name** (`Cremation Society` with no proper name) and **a funeral home named only by a person's surname with no type word**. Not generated; every positive carries a proper name plus its type words.
+8. **Diagnosis-onset years** (`hypertension since 2009`). These follow the general rule that a patient-specific year is DATE, and were included in a minority of history items, but no fixture covers a diagnosis year. Flagged for the owner to confirm.
+9. **Real-place collision.** Town, stem and street words are invented spellings, but the author could not check them against any gazetteer (reading data files was not permitted), so a coincidental match with a real place cannot be ruled out.
+10. **SSN rows.** A small number of registration forms carry SSNs from the never-issued 900-999 area range. The policy requires a documented invented scheme for SSNs; this is the scheme used.
+
+Provenance note. The author read only the permitted files, plus a directory listing of `tests/` and the first 25 lines of one existing fixture-only test (`tests/test_annotation_policy_care_sites.py`) while looking for a test layout; no corpus, bank, report, model or other generator was opened.
+
+"""
+
+
+def write_reports(rows, metas, stats, report_dir: Path):
+    report_dir.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# tk14 targeted-gaps bank: author report",
+        "",
+        f"Generated by `scripts/takeover/author14_targeted_gaps.py` (seed {SEED}). Synthetic, invented values only. Training bank; not an evaluation bank.",
+        "",
+        "## Rows per family",
+        "",
+        "| Family | Rows | Positive | Negative |",
+        "|---|---:|---:|---:|",
+    ]
+    for family, count in stats["per_family"].items():
+        pol = stats["polarity_by_family"][family]
+        lines.append(
+            f"| {family} | {count} | {pol.get('positive', 0)} | {pol.get('negative', 0)} |"
+        )
+    lines += [
+        f"| total | {stats['rows']} | {stats['polarity']['positive']} | {stats['polarity']['negative']} |",
+        "",
+        "Negatives are %.1f%% of rows."
+        % (100 * stats["polarity"]["negative"] / stats["rows"]),
+        "",
+        "## Layouts",
+        "",
+        "| Layout | Rows | Share |",
+        "|---|---:|---:|",
+    ]
+    for layout, count in stats["per_layout"].items():
+        lines.append(f"| {layout} | {count} | {100 * count / stats['rows']:.1f}% |")
+    lines += [
+        "",
+        f"{len(stats['per_layout'])} layouts; the largest holds {100 * stats['layout_max_share']:.1f}% of rows.",
+        "",
+        "## Case mode and cohort",
+        "",
+        "| Case mode | Rows |",
+        "|---|---:|",
+    ]
+    lines += [f"| {k} | {v} |" for k, v in stats["case_modes"].items()]
+    lines += ["", "| Cohort | Rows |", "|---|---:|"]
+    lines += [f"| {k} | {v} |" for k, v in stats["cohorts"].items()]
+    lines += ["", "## Label support (spans)", "", "| Label | Spans |", "|---|---:|"]
+    lines += [f"| {k} | {v} |" for k, v in stats["label_support"].items()]
+    lines += [
+        "",
+        "## History-year spread",
+        "",
+        f"{stats['history_year_spans']} history-year DATE spans (bare years and month-year forms in the history family), "
+        f"{stats['distinct_years']} distinct years from {stats['history_year_min']} to {stats['history_year_max']}. "
+        f"The most frequent year holds {100 * stats['history_year_max_share']:.2f}% of them (cap 3%); top three: {stats['history_year_top']}.",
+        "",
+        "| Decade | Spans |",
+        "|---|---:|",
+    ]
+    lines += [f"| {k}s | {v} |" for k, v in stats["year_decade_counts"].items()]
+    lines += [
+        "",
+        "## Maximum value repetition (rows containing the same value, case-folded)",
+        "",
+        "| Value type | Value | Rows | Share of rows |",
+        "|---|---|---:|---:|",
+    ]
+    for tag, info in stats["max_value_repetition_rows"].items():
+        if tag == "year":
+            continue
+        lines.append(
+            f"| {tag} | {info['value']} | {info['rows']} | {100 * info['share']:.2f}% |"
+        )
+    lines += [
+        "",
+        "The cap is 0.5% of rows (10 rows).",
+        "",
+        "## Unsettled cases",
+        "",
+        UNSETTLED,
+    ]
+    (report_dir / "AUTHOR_REPORT.md").write_text("\n".join(lines), encoding="utf-8")
+
+    sample_rng = random.Random(f"{SEED}:spot")
+    sample = sorted(sample_rng.sample(range(len(rows)), 100))
+    out = [
+        "# Spot-check sample (100 rows, fixed seed)",
+        "",
+        "Spans are marked `[LABEL|text]`. Rows are shown with `\\n` for newlines.",
+        "",
+    ]
+    for index in sample:
+        row = rows[index]
+        text, marked, pos = row["text"], [], 0
+        for span in row["spans"]:
+            marked.append(text[pos : span["start"]])
+            marked.append(f"[{span['label']}|{text[span['start'] : span['end']]}]")
+            pos = span["end"]
+        marked.append(text[pos:])
+        out.append(
+            f"### {row['id']} ({row['target_family']} / {row['layout']} / {row['polarity']} / {row['case_mode']} / {row['cohort']})"
+        )
+        out.append("")
+        out.append("```")
+        out.append("".join(marked))
+        out.append("```")
+        out.append("")
+    (report_dir / "spot_check_sample.md").write_text("\n".join(out), encoding="utf-8")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--out", default=str(ROOT / "data" / "tk14_train_targeted_gaps.jsonl")
+    )
+    parser.add_argument(
+        "--report-dir",
+        default=str(ROOT / "reports" / "takeover" / "author14_targeted_gaps"),
+    )
+    args = parser.parse_args()
+    rows, metas = generate()
+    payload = serialise(rows)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(payload)
+    stats = statistics(rows, metas)
+    support = stats["label_support"]
+    manifest = {
+        "name": out.name,
+        "annotation_policy": POLICY_VERSION,
+        "policy_addenda": [
+            "clinical-phi-v2-places",
+            "care-sites-2026-10-05",
+            "targeted-gaps-2026-10-05",
+        ],
+        "split": "train",
+        "role": "train",
+        "independent_final": False,
+        "rows": len(rows),
+        "documents": len(rows),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "label_support": support,
+        "entity_support": support,
+        "label_counts": support,
+        "cohort_counts": stats["cohorts"],
+        "family_counts": stats["per_family"],
+        "layout_counts": stats["per_layout"],
+        "case_mode_counts": stats["case_modes"],
+        "polarity_counts": stats["polarity"],
+        "history_year_spread": {
+            k: stats[k]
+            for k in (
+                "history_year_spans",
+                "history_year_min",
+                "history_year_max",
+                "distinct_years",
+                "history_year_max_share",
+            )
+        },
+        "max_value_repetition_rows": stats["max_value_repetition_rows"],
+        "author_provenance": {
+            "generator": "scripts/takeover/author14_targeted_gaps.py",
+            "generator_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "seed": SEED,
+            "brief": "docs/targeted-gaps-bank-brief.md",
+            "synthetic_only": True,
+            "inputs_read": "policy documents, fixtures and brief only; no corpus, evaluation or model file",
+        },
+    }
+    out.with_suffix(out.suffix + ".manifest.json").write_text(
+        json.dumps(manifest, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    write_reports(rows, metas, stats, Path(args.report_dir))
+    print(
+        json.dumps(
+            {
+                k: stats[k]
+                for k in (
+                    "rows",
+                    "per_family",
+                    "case_modes",
+                    "cohorts",
+                    "label_support",
+                    "history_year_max_share",
+                    "layout_max_share",
+                )
+            },
+            indent=1,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()
