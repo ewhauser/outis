@@ -62,8 +62,8 @@ agreement's publication clause before quoting results that name it.
 
 | Key | Model | Licence | Runtime |
 |---|---|---|---|
-| `project` | `models/clinical-adapter`, hybrid backend | Apache-2.0 | project `.venv` |
-| `project-model` | same adapter, model-only backend | Apache-2.0 | project `.venv` |
+| `project-mix5` | default ModernBERT mix5 checkpoint, model-only | Apache-2.0 | project `.venv` |
+| `project`, `project-model` | removed Privacy-Filter adapter (hybrid, model-only); history | Apache-2.0 | project `.venv` |
 | `meddeid` | `stighellemans/meddeid-english-synth` | AGPL-3.0 with a private fine-tuning exception | `.venv-meddeid` |
 | `gliner-trained`, `gliner-facility` | `nvidia/gliner-PII` | NVIDIA Open Model License | `.venv-gliner` |
 
@@ -205,15 +205,14 @@ Then convert, predict and score:
 .venv-meddeid/bin/python predict_meddeid.py --benchmark asq_phi
 .venv-gliner/bin/python predict_gliner.py --benchmark asq_phi --arm trained
 .venv-gliner/bin/python predict_gliner.py --benchmark asq_phi --arm facility
-../../.venv/bin/python score.py --benchmark asq_phi --systems project meddeid gliner-trained gliner-facility
+../../.venv/bin/python score.py --benchmark asq_phi --systems project-mix5 meddeid gliner-trained gliner-facility
 ```
 
-In a git worktree, `models/privacy-filter-base` holds only its provenance file.
-Pass the populated directory from the main checkout:
-
-```sh
-../../.venv/bin/python predict_project.py --benchmark asq_phi --base-dir /path/to/main/models/privacy-filter-base
-```
+`predict_project.py` runs the default model-only checkpoint and writes the
+`project-mix5` system. The `project`, `project-model` and
+`project-facility-fix` prediction files came from the removed adapter detector
+and are kept as history. Model weights are not in git; in a worktree, pass
+`--model-dir` pointing at the main checkout's copy.
 
 Set `HF_HOME` to a shared cache to avoid downloading external weights again.
 On ASQ-PHI on Apple silicon CPU, MedDeID takes about 17 seconds, the project

@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Removed
 
+- The tracked Privacy-Filter adapter checkpoints (`models/clinical-adapter*`)
+  and the `models/privacy-filter-base` provenance file. They remain in git
+  history. The external benchmark harness now runs the default checkpoint as
+  system `project-mix5`.
 - **Breaking:** the rule layer. Detection is now model-only: the regex
   extractors and context guards (`clinical_deid.detection.rules`,
   `clinical_deid.detection.context`), the `backend` option of the service,

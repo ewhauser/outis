@@ -15,12 +15,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fastapi.testclient import TestClient
 
 from clinical_deid.api import create_app
+from clinical_deid.paths import DEFAULT_MODEL_DIR
 from clinical_deid.service import Deidentifier
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model-dir", default="models/clinical-adapter")
+    parser.add_argument("--model-dir", default=DEFAULT_MODEL_DIR)
     parser.add_argument("--device", default="cpu")
     parser.add_argument(
         "--output", type=Path, default=Path("reports/extended_api_smoke.json")

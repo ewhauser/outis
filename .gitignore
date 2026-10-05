@@ -26,10 +26,6 @@ reports/**/run.lock
 models/**/model.safetensors
 models/**/pytorch_model.bin
 models/**/*.pt
-# Rebuilt from the pinned upstream checkpoint by scripts/bootstrap.py.
-models/privacy-filter-base/*
-!models/privacy-filter-base/provenance.json
-vendor/
 *.egg-info/
 logs/
 # Claude Code worktrees are full checkouts; never commit them.
