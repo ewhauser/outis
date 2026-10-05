@@ -12,6 +12,7 @@ from asq_phi import align, parse  # noqa: E402
 from common import windows  # noqa: E402
 from labels import project_label  # noqa: E402
 from score import age_characters, merge_names  # noqa: E402
+from score_aligned import bare_year_characters, gold_values  # noqa: E402
 
 
 class AsqPhiConversionTest(unittest.TestCase):
@@ -85,6 +86,35 @@ class ScoringHelpersTest(unittest.TestCase):
         self.assertEqual(project_label("gliner-facility", "hospital or medical facility", "Mt. Sinai"), "FACILITY")
         with self.assertRaises(KeyError):
             project_label("gliner-trained", "hospital or medical facility", "Mt. Sinai")
+
+
+class PolicyAlignedNeutralTest(unittest.TestCase):
+    def kept(self, text, value, label):
+        start = text.index(value)
+        values = gold_values(text, [{"start": start, "end": start + len(value), "label": label}])
+        return "".join(text[i] for i in sorted(values[0][1])) if values else None
+
+    def test_honorific_and_credentials_are_neutral(self):
+        self.assertEqual(self.kept("Seen by Dr. Anna Smith, MD today.", "Dr. Anna Smith, MD", "NAME"), "AnnaSmith")
+
+    def test_identifier_field_label_and_hash_are_neutral(self):
+        self.assertEqual(self.kept("(Patient ID: ABCD1234)", "Patient ID: ABCD1234", "ID"), "ABCD1234")
+        self.assertEqual(self.kept("plan #DB-2345678.", "#DB-2345678", "ID"), "DB2345678")
+
+    def test_relative_dates_are_neutral_but_month_names_stay(self):
+        self.assertIsNone(self.kept("seen last week at clinic", "last week", "DATE"))
+        self.assertEqual(self.kept("seen last December", "last December", "DATE"), "December")
+        self.assertEqual(self.kept("on May 5th, 2021", "May 5th, 2021", "DATE"), "May5th2021")
+
+    def test_location_keeps_proper_names_only(self):
+        self.assertEqual(self.kept("our New York clinic", "New York clinic", "LOCATION"), "NewYork")
+        self.assertEqual(self.kept("Mayo Clinic in Rochester, MN", "Mayo Clinic in Rochester, MN", "LOCATION"),
+                         "MayoClinicRochesterMN")
+        self.assertIsNone(self.kept("the county hospital", "county hospital", "LOCATION"))
+
+    def test_bare_years_only(self):
+        text = "Dx in 2021; seen 12/11/1958 and 2020-03-04."
+        self.assertEqual("".join(text[i] for i in sorted(bare_year_characters(text))), "2021")
 
 
 if __name__ == "__main__":

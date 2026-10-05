@@ -300,6 +300,42 @@ Most of the mix5 shortfall is convention, not exposure:
   joins a facility and city ("Mayo Clinic in Rochester, MN") and the connecting
   words are left.
 
+### Policy-aligned view
+
+`score_aligned.py` rescores the same predictions with the differences in
+requirements neutralised. Where ASQ-PHI and the
+[annotation policy](annotation-policy-v2.md) disagree about whether text must
+be masked, those characters count neither as PHI nor as over-redaction, for
+every system:
+
+| Neutral text | Why |
+|---|---|
+| Spaces and punctuation | A leaked comma or "#" reveals nothing |
+| Honorifics and credentials in NAME | The policy excludes them |
+| Field labels before an identifier ("Patient ID:") | Not part of the value |
+| Relative dates ("last week"), and "last" in "last December" | The policy does not annotate relative expressions |
+| Lowercase and generic unit words in LOCATION ("clinic", "in", "ER") | The policy keeps prepositions and generic care-site words outside place spans |
+| Ages up to 89 and bare years outside gold | Safe Harbor permits both; ASQ-PHI never annotates them, and the project masks a patient-specific year |
+
+The rules read only the text and gold, never predictions, and are tested in
+`test_external.py`. The output is `results/asq_phi.aligned.md`.
+
+| System | Value-char recall | Non-PHI redaction | Direct masked | NAME (doc 95% lb) | Indirect masked | LOCATION | Leak-free PHI docs | Clean hard negatives |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `project-mix5` | 99.50% | 0.19% | 99.85% | 99.88% (99.63%) | 98.64% | 97.33% | 97.12% | 94.06% |
+| `project-model` (removed adapter) | 95.73% | 1.18% | 98.58% | 99.51% (98.90%) | 90.07% | 83.76% | 79.33% | 87.21% |
+| `project` (removed adapter, hybrid) | 97.15% | 1.20% | 99.63% | 99.63% (99.14%) | 92.54% | 86.06% | 85.22% | 86.30% |
+| `meddeid` | 99.66% | 0.91% | 99.55% | 99.51% (99.01%) | 99.08% | 98.55% | 97.60% | 88.13% |
+| `gliner-facility` | 98.57% | 2.43% | 97.02% | 99.88% (99.51%) | 99.57% | 99.15% | 94.47% | 54.79% |
+
+Under the project's requirements, mix5 and MedDeID mask about the same
+(99.50% against 99.66% of value characters). Mix5 masks more direct identifiers
+and leaves a fifth as much non-PHI text masked. MedDeID is ahead on LOCATION,
+which is mix5's remaining gap. The one email miss shared by every system is a
+gold error: ASQ-PHI tags the word "email". The neutral rules are the project's
+own judgement, so quote this view next to the as-published one, never instead
+of it.
+
 Against the removed adapter, mix5 cuts non-PHI redaction by two thirds and
 raises leak-free documents by ten points. It leaves more PHI-free hard
 negatives with a span (73% clean against 84%).
