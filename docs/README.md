@@ -40,6 +40,9 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
   diagnostic bank for place-recognition work.
 - [Care-site and locality bank brief](care-site-locality-bank-brief.md):
   brief for the tk13 training bank, ready to author.
+- [Targeted gaps bank brief](targeted-gaps-bank-brief.md): brief for the
+  tk14 training bank (history years, pharmacy ZIPs, phone extensions, funeral
+  homes).
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 

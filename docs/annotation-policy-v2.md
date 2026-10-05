@@ -119,7 +119,7 @@ Not every row has an executable fixture yet.
 | FACILITY | A department word next to an institution name | Outside the span; FACILITY covers the institution name |
 | FACILITY | A named ward | FACILITY |
 | FACILITY | A named pharmacy | FACILITY |
-| FACILITY | A named organisation that provides care, services, supplies or housing to the patient: home health agency or VNA, hospice, durable medical equipment supplier, laboratory, adult day program, senior-living community, mail-order or specialty pharmacy | FACILITY, including its type words (`Vossmere VNA`, `Saint Odile Adult Day Program`) |
+| FACILITY | A named organisation that provides care, services, supplies or housing to the patient: home health agency or VNA, hospice, durable medical equipment supplier, laboratory, adult day program, senior-living community, mail-order or specialty pharmacy, funeral home handling the patient's arrangements | FACILITY, including its type words (`Vossmere VNA`, `Saint Odile Adult Day Program`) |
 | FACILITY | The same type words without a name (`home health referral sent`, `the hospice team`) | Not annotated |
 
 **Employer names.** Do not annotate an employer or other organisation that is
