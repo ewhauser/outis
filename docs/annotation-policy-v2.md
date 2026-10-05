@@ -89,6 +89,7 @@ Not every row has an executable fixture yet.
 | ID | Device serial numbers | ID |
 | ID | Driver's licence, passport and similar licence numbers | ID |
 | ID | Clinician NPI and licence numbers | ID |
+| ID | Prescription numbers (`Rx #8830167`) | ID on the number; the `Rx #` caption stays outside |
 | ACCOUNT | Billing, patient and guarantor account numbers | ACCOUNT |
 | MRN | A record number written with a prefix, such as `QX-0041122` | One MRN span including the prefix |
 | MRN | A field caption before the value, such as `MRN:` or `MRN#` | Outside the span |
@@ -102,14 +103,18 @@ Not every row has an executable fixture yet.
 | DATE | Relative expressions, such as `three days ago` | Not annotated |
 | DATE | A patient-specific year alone, including years in history and screening lists (`bone density scan 2011`, `shingles vaccine 2019`, `cholecystectomy (1988)`) | DATE. Stricter than Safe Harbor, which permits a year alone; kept so years can be shifted consistently with full dates. Owner decision, 2026-10-05 |
 | DATE | A written date range | One DATE span, as in the table above |
+| DATE | A diagnosis-onset, year-range or future patient-specific year (`diagnosed in 1997`, `smoked 1984-2003`, `next due 2028`) | DATE; a year range is one span |
 | AGE | A decade over 89, such as `nineties` | AGE |
 | PHONE | Extension | Inside the span |
 | PHONE | Leading `+1` country code | Inside the span |
 | PHONE | Fax numbers | PHONE |
+| PHONE | Pager numbers | PHONE |
+| PHONE | An extension written with no phone number (`ward phone ext. 4412`) | Not annotated |
 | ADDRESS | Street, unit, city, state and postal code written together | One ADDRESS span |
 | URL | Scheme, such as `https://` | Inside the span |
 | LOCATION | City with its state | One LOCATION span including the state |
 | LOCATION | A ZIP code alone | LOCATION |
+| LOCATION | A ZIP+4 code (`53728-4416`) | One LOCATION span including the +4 |
 | LOCATION | A county name | One LOCATION span including `County` (`Kestrine County`, `Tollund County, OR`); followed by a generic site word, the word stays outside (`the [Kestrine County] office`, places P7); written without `County`, an ordinary locality (`grew up in [Kestrine]`) |
 | LOCATION | A state or a country alone | Not annotated |
 | FACILITY | A leading `the` used as an article (`seen at the Mayo Clinic`, sentence-initial `The Larkspur Pharmacy called`) | Outside the span |

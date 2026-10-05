@@ -8,11 +8,14 @@ from clinical_deid.data.annotation_policy_care_sites import (
     CARE_SITE_FOLLOWUP_FIXTURES,
 )
 from clinical_deid.data.annotation_policy_places import PLACE_FIXTURES
-from clinical_deid.data.annotation_policy_targeted import TARGETED_FIXTURES
+from clinical_deid.data.annotation_policy_targeted import (
+    TARGETED_FIXTURES,
+    TARGETED_FOLLOWUP_FIXTURES,
+)
 
 
 def gold(key):
-    row = {r["id"]: r for r in TARGETED_FIXTURES}[key]
+    row = {r["id"]: r for r in (*TARGETED_FIXTURES, *TARGETED_FOLLOWUP_FIXTURES)}[key]
     return [(s["label"], row["text"][s["start"] : s["end"]]) for s in row["spans"]]
 
 
@@ -26,7 +29,7 @@ def test_targeted_fixtures_are_valid_and_ids_unique():
     )
     ids = [r["id"] for r in every]
     assert len(ids) == len(set(ids))
-    for row in TARGETED_FIXTURES:
+    for row in (*TARGETED_FIXTURES, *TARGETED_FOLLOWUP_FIXTURES):
         assert row["annotation_policy"] == POLICY_VERSION
         assert not annotation_errors(row["text"], row["spans"])
 
@@ -52,4 +55,18 @@ def test_targeted_decisions():
     assert gold("funeral_home_is_facility") == [
         ("FACILITY", "Felsham Funeral Chapel"),
         ("FACILITY", "Orlinde & Sons Funeral Home"),
+    ]
+
+
+def test_targeted_followup_decisions():
+    assert gold("onset_range_and_future_years") == [
+        ("DATE", "1997"),
+        ("DATE", "1984-2003"),
+        ("DATE", "2028"),
+    ]
+    assert gold("zip_plus_four") == [("LOCATION", "53728-4416")]
+    assert gold("prescription_number_is_id") == [("ID", "8830167"), ("ID", "RX-55102")]
+    assert gold("pager_is_phone_bare_extension_is_not") == [
+        ("NAME", "Kell Ravelston"),
+        ("PHONE", "(612) 555-0177"),
     ]

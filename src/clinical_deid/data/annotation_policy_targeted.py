@@ -45,3 +45,27 @@ TARGETED_FIXTURES = (
         ["service_organisation", "funeral_home"],
     ),
 )
+
+# Follow-up decisions of 2026-10-05 (cases left open by the tk14 author).
+TARGETED_FOLLOWUP_FIXTURES = (
+    _example(
+        "onset_range_and_future_years",
+        "Asthma diagnosed in [[DATE|1997]]; smoked [[DATE|1984-2003]]; colon screening next due [[DATE|2028]].",
+        ["history_year", "date_range", "future_year"],
+    ),
+    _example(
+        "zip_plus_four",
+        "Mailing ZIP: [[LOCATION|53728-4416]].",
+        ["zip_plus_four"],
+    ),
+    _example(
+        "prescription_number_is_id",
+        "Rx #[[ID|8830167]] refilled; prescription number [[ID|RX-55102]] transferred.",
+        ["prescription_number"],
+    ),
+    _example(
+        "pager_is_phone_bare_extension_is_not",
+        "Page Dr. [[NAME|Kell Ravelston]] at pager [[PHONE|(612) 555-0177]]; ward phone ext. 4412.",
+        ["pager_number", "bare_extension"],
+    ),
+)
