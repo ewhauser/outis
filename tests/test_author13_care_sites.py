@@ -1,0 +1,215 @@
+"""Tests for the tk13 care-site and locality generator."""
+
+import importlib.util
+import re
+import sys
+from pathlib import Path
+
+import pytest
+
+from clinical_deid.data.annotation_policy import annotation_errors
+from clinical_deid.data.annotation_policy_care_sites import CARE_SITE_FIXTURES
+from clinical_deid.data.annotation_policy_places import PLACE_FIXTURES, place_value_pool
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location(
+    "author13", ROOT / "scripts" / "takeover" / "author13_care_sites.py"
+)
+author13 = importlib.util.module_from_spec(SPEC)
+sys.modules["author13"] = author13
+SPEC.loader.exec_module(author13)
+
+lab = author13.lab
+build_row = author13.build_row
+
+GENERIC_HEADS = (
+    "clinic",
+    "office",
+    "site",
+    "unit",
+    "branch",
+    "location",
+    "center",
+    "hospital",
+    "campus",
+    "neighborhood",
+)
+SERVICE_WORDS = re.compile(
+    r"\b(vna|dme|adult day|hospice|post-acute|skilled nursing|reference laboratory|specialty pharmacy|"
+    r"mail-order|home health|home infusion|home medical)\b"
+)
+
+
+@pytest.fixture(scope="module")
+def bank():
+    rows, _world = author13.generate(author13.SEED)
+    return rows
+
+
+def gold(example):
+    return [
+        (s["label"], example["text"][s["start"] : s["end"]]) for s in example["spans"]
+    ]
+
+
+def test_generator_is_deterministic_for_its_seed(bank):
+    again, _ = author13.generate(author13.SEED)
+    assert [(r["id"], r["text"], r["spans"], r["pool"]) for r in bank] == [
+        (r["id"], r["text"], r["spans"], r["pool"]) for r in again
+    ]
+    other, _ = author13.generate(author13.SEED + 1)
+    assert [r["text"] for r in other] != [r["text"] for r in bank]
+
+
+def test_rows_have_valid_offsets_and_metadata(bank):
+    assert len(bank) == 2400
+    ids = set()
+    for row in bank:
+        assert not annotation_errors(row["text"], row["spans"])
+        assert row["split"] == "train" and row["annotation_policy"] == "clinical-phi-v2"
+        assert row["family"] == row["template_family"]
+        assert row["id"] not in ids
+        ids.add(row["id"])
+        for span in row["spans"]:
+            assert row["text"][span["start"] : span["end"]] == span["text"]
+        for real in row["pool"]:
+            assert (
+                real["pool"] == "train" and place_value_pool(real["value"]) == "train"
+            )
+    layouts = {r["layout"] for r in bank}
+    assert len(layouts) >= 25
+    counts = {name: sum(r["layout"] == name for r in bank) for name in layouts}
+    assert max(counts.values()) <= 0.08 * len(bank)
+
+
+def test_conventions_in_a_sample_of_rows(bank):
+    p7 = the_name = service = article = 0
+    for row in bank[::3]:
+        text, spans = row["text"], row["spans"]
+        for span in spans:
+            before = text[: span["start"]].lower()
+            after = text[span["end"] :].lower()
+            value = span["text"]
+            if span["label"] == "LOCATION":
+                # P7: a generic head word stays outside the locality.
+                assert not any(
+                    re.search(rf"\b{h}\b", value.lower()) for h in GENERIC_HEADS
+                )
+                if any(after.startswith(f" {h}") for h in GENERIC_HEADS):
+                    p7 += 1
+            if span["label"] == "FACILITY":
+                if value.lower().startswith("the "):
+                    # D3: inside only for authored names, which are normal-case rows.
+                    assert row["case_mode"] == "normal" and value.startswith("The ")
+                    the_name += 1
+                if before.endswith((" the ", "\nthe ")) or before == "the ":
+                    # D3: an article before a name stays outside.
+                    assert not value.lower().startswith("the ")
+                    article += 1
+                if SERVICE_WORDS.search(value.lower()):
+                    # D2: the type words are inside the span, not left outside it.
+                    assert not re.match(
+                        r"\s*(vna|dme|program|center|care|health|agency|association|supply|pharmacy)\b",
+                        after,
+                    )
+                    service += 1
+            if span["label"] == "MRN":
+                assert not value.lower().startswith(("mrn", "#", ":"))
+            if span["label"] == "NAME":
+                assert not re.match(r"(dr|mr|mrs|ms)\b", value.lower())
+                assert not re.search(r"\b(rn|lpn|msw|pt|np|md)$", value.lower())
+            if span["label"] == "AGE":
+                assert (
+                    re.fullmatch(r"ninety(-\w+)?|nineties", value.lower())
+                    or int(value) > 89
+                )
+    assert p7 and the_name and service and article
+
+
+def test_negative_rows_have_no_place_or_facility_spans(bank):
+    negatives = [r for r in bank if r["polarity"] == "negative"]
+    assert 0.3 <= len(negatives) / len(bank) <= 0.37
+    for row in negatives:
+        assert not any(s["label"] in ("LOCATION", "FACILITY") for s in row["spans"])
+
+
+def test_case_modes_keep_offsets_exact():
+    for example in (*CARE_SITE_FIXTURES, *PLACE_FIXTURES):
+        marked = author13.marked_from_example(example)
+        for case in ("normal", "upper", "lower"):
+            text, spans = build_row(marked, case)
+            assert not annotation_errors(text, spans)
+            assert [s["label"] for s in spans] == [s["label"] for s in example["spans"]]
+
+
+def test_span_construction_reproduces_fixture_gold():
+    for example in (*CARE_SITE_FIXTURES, *PLACE_FIXTURES):
+        text, spans = build_row(author13.marked_from_example(example))
+        assert text == example["text"]
+        assert [(s["start"], s["end"], s["label"]) for s in spans] == [
+            (s["start"], s["end"], s["label"]) for s in example["spans"]
+        ]
+
+
+def test_helpers_compose_the_care_site_fixtures():
+    by_id = {e["id"]: e for e in CARE_SITE_FIXTURES}
+
+    def loc(v):
+        return lab("LOCATION", v)
+
+    def fac(v):
+        return lab("FACILITY", v)
+
+    built = {
+        "p7_city_modifies_unnamed_site": f"Seen at our {loc('Vellmont')} clinic; labs drawn at the {loc('Corriston')} office.",
+        "p7_named_site_is_still_facility": f"Seen at {fac('Vellmont Clinic')}; our {loc('Corriston')} site sent records.",
+        "service_organisations_are_facilities": (
+            f"Referred to {fac('Vossmere VNA')}; bed delivered by {fac('Tindle Brook DME')}; attends "
+            f"{fac('Saint Odile Adult Day Program')}; labs from {fac('Yarrowick Laboratory Services')}."
+        ),
+        "unnamed_service_is_not_phi": "Home health referral sent; DME delivered a hospital bed; the hospice team will visit.",
+        "employer_without_care_role": (
+            f"Works nights at a warehouse for Pellham Logistics; admitted to {fac('Hospice of Marrowdale')}."
+        ),
+        "the_part_of_name": f"Lives at {fac('The Marlowe at Fennick Ridge')}; moved from {fac('The Quillon at Ashby Mill')}.",
+        "the_as_article": (
+            f"The {fac('Pellham Drug & Gift')} pharmacist called; she was seen at the {fac('Ashgrove Family Health')} office."
+        ),
+    }
+    assert set(built) == set(by_id)
+    for key, marked in built.items():
+        text, spans = build_row(marked)
+        assert text == by_id[key]["text"], key
+        assert gold({"text": text, "spans": spans}) == gold(by_id[key]), key
+
+
+def test_helpers_compose_the_place_fixtures():
+    by_id = {e["id"]: e for e in PLACE_FIXTURES}
+
+    def loc(v):
+        return lab("LOCATION", v)
+
+    def fac(v):
+        return lab("FACILITY", v)
+
+    def name(v):
+        return lab("NAME", v)
+
+    built = {
+        "p1_patient_locality": f"Pt from {loc('Chicago')}; daughter lives in {loc('Tacoma, WA')}.",
+        "p5_care_site_then_locality": f"Treated at {fac('Mayo Clinic')} in {loc('Rochester, MN')}.",
+        "p6_clinician_affiliation": f"Dr. {name('Priya Testier')} from {fac('UCSF')} reviewed the scan.",
+        "n5_place_word_as_person_or_word": f"{name('Florence Testier')} needs reading glasses and a mobile phone charger.",
+        "state_inside_locality": f"Lives in {loc('Tacoma, WA')}, not elsewhere in Washington.",
+    }
+    for key, marked in built.items():
+        text, spans = build_row(marked)
+        assert text == by_id[key]["text"], key
+        assert gold({"text": text, "spans": spans}) == gold(by_id[key]), key
+
+
+def test_no_reused_example_names_or_heldout_values(bank):
+    low = "\n".join(r["text"].casefold() for r in bank)
+    for fragment in author13.BANNED_FRAGMENTS:
+        assert fragment not in low
+    assert not [x for r in bank for x in r["pool"] if x["pool"] != "train"]
