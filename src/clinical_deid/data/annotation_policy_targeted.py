@@ -14,27 +14,27 @@ TARGETED_FIXTURES = (
     # Patient-specific years alone in history and screening lists are DATE.
     _example(
         "history_list_years",
-        "HEALTH MAINTENANCE: DEXA [[DATE|2013]]: T-score -1.8. Td booster [[DATE|2021]]. "
-        "Appendectomy ([[DATE|1995]]). Colonoscopy [[DATE|Jul 2017]], normal; repeat in 10 years.",
+        "Prior studies: bone density scan [[DATE|2011]], osteopenia. Shingles vaccine [[DATE|2019]]. "
+        "Cholecystectomy ([[DATE|1988]]). Upper endoscopy [[DATE|Mar 2015]], benign; recheck in 5 years.",
         ["history_year", "date_boundaries"],
     ),
     _example(
         "public_years_and_durations_are_not_dates",
-        "Per the 2021 USPSTF update, screen every 10 years; statin for 5 years in the 2019 trial.",
+        "Per the 2018 society guideline, recheck every 3 years; aspirin for 6 years in the 2009 cohort study.",
         ["public_dates", "durations"],
     ),
     # A ZIP code after a pharmacy name is a separate LOCATION; the pharmacy is FACILITY.
     _example(
         "pharmacy_then_zip",
-        "PHARMACY: [[FACILITY|Quarrington Drug]], [[LOCATION|45706]]. Preferred pharmacy: "
-        "[[FACILITY|Felsham Apothecary]], [[LOCATION|04101]].",
+        "PHARMACY: [[FACILITY|Quarrington Drug]], [[LOCATION|53728]]. Preferred pharmacy: "
+        "[[FACILITY|Felsham Apothecary]], [[LOCATION|36184]].",
         ["pharmacy_zip", "facility_boundary"],
     ),
     # A written-out extension is inside the PHONE span.
     _example(
         "phone_written_extension",
-        "Report to the charge nurse at [[PHONE|(404) 555-0142, extension 1183]]; "
-        "office [[PHONE|505.555.0169 EXT. 1175]].",
+        "Call the unit clerk at [[PHONE|(612) 555-0193, extension 2276]]; "
+        "billing [[PHONE|719.555.0104 EXT. 318]].",
         ["phone_extension"],
     ),
     # A named funeral home handling the patient's arrangements is FACILITY (service organisation).

@@ -33,21 +33,21 @@ def test_targeted_fixtures_are_valid_and_ids_unique():
 
 def test_targeted_decisions():
     assert [v for _, v in gold("history_list_years")] == [
-        "2013",
-        "2021",
-        "1995",
-        "Jul 2017",
+        "2011",
+        "2019",
+        "1988",
+        "Mar 2015",
     ]
     assert gold("public_years_and_durations_are_not_dates") == []
     assert gold("pharmacy_then_zip") == [
         ("FACILITY", "Quarrington Drug"),
-        ("LOCATION", "45706"),
+        ("LOCATION", "53728"),
         ("FACILITY", "Felsham Apothecary"),
-        ("LOCATION", "04101"),
+        ("LOCATION", "36184"),
     ]
     assert gold("phone_written_extension") == [
-        ("PHONE", "(404) 555-0142, extension 1183"),
-        ("PHONE", "505.555.0169 EXT. 1175"),
+        ("PHONE", "(612) 555-0193, extension 2276"),
+        ("PHONE", "719.555.0104 EXT. 318"),
     ]
     assert gold("funeral_home_is_facility") == [
         ("FACILITY", "Felsham Funeral Chapel"),
