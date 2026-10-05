@@ -110,9 +110,12 @@ Not every row has an executable fixture yet.
 | URL | Scheme, such as `https://` | Inside the span |
 | LOCATION | City with its state | One LOCATION span including the state |
 | LOCATION | A ZIP code alone | LOCATION |
+| LOCATION | A county name | One LOCATION span including `County` (`Kestrine County`, `Tollund County, OR`) |
 | LOCATION | A state or a country alone | Not annotated |
 | FACILITY | A leading `the` used as an article (`seen at the Mayo Clinic`, sentence-initial `The Larkspur Pharmacy called`) | Outside the span |
-| FACILITY | A capitalised `The` that is part of the proper name (`The Marlowe at Fennick Ridge`) | Inside the span |
+| FACILITY | A capitalised `The` that is part of the proper name, including a service organisation's name (`The Marlowe at Fennick Ridge`, `The Hearth at Ombrey`) | Inside the span |
+| FACILITY, LOCATION | All-caps or lowercase text, where capitals give no signal (`THE HEARTH AT OMBREY`, `OMBREY CLINIC`, `harlow vane drug`) | The authored role decides, exactly as in normal case: a named site or pharmacy is FACILITY, `The` is inside only when part of the name, and a city modifying a generic site is LOCATION (places P7) |
+| Any | A place-word used as an ordinary word in all-caps or lowercase text (`READING GLASSES`) | Not annotated; case does not change the role |
 | FACILITY | A department word next to an institution name | Outside the span; FACILITY covers the institution name |
 | FACILITY | A named ward | FACILITY |
 | FACILITY | A named pharmacy | FACILITY |
@@ -120,7 +123,7 @@ Not every row has an executable fixture yet.
 | FACILITY | The same type words without a name (`home health referral sent`, `the hospice team`) | Not annotated |
 
 **Employer names.** Do not annotate an employer or other organisation that is
-not acting as a care site or serving the patient's care. Six census readers chose this and four chose
+not acting as a care site or serving the patient's care. Decide per occurrence: in `Works as a nurse at Ombrey General Hospital; admitted to Ombrey General Hospital`, the first mention is the employer role and is not annotated, the second is FACILITY. Six census readers chose this and four chose
 FACILITY; the owner decided it on 2026-10-04. An employer that is itself the
 patient's care site is FACILITY under the ordinary rule.
 

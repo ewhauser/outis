@@ -52,3 +52,51 @@ CARE_SITE_FIXTURES = (
         ["the_article", "facility_boundary"],
     ),
 )
+
+# Follow-up decisions of 2026-10-05 (cases left open by the tk13 author).
+CARE_SITE_FOLLOWUP_FIXTURES = (
+    # 1. A county name is LOCATION including "County".
+    _example(
+        "county_name_is_location",
+        "Lives in [[LOCATION|Kestrine County]]; moved from [[LOCATION|Tollund County, OR]].",
+        ["county_name", "location_boundary"],
+    ),
+    # 2. A capitalised site word in normal-case text names the site: FACILITY on the whole.
+    _example(
+        "capitalised_site_word_names_site",
+        "Seen at our [[FACILITY|Ombrey Clinic]]; labs at our [[LOCATION|Gorsefield]] clinic.",
+        ["p7_city_modifier", "facility_boundary"],
+    ),
+    # 2/3. In all-caps or lowercase text the authored role decides, not capitals.
+    _example(
+        "case_hidden_role_decides",
+        "SEEN AT [[FACILITY|OMBREY CLINIC]]. LIVES AT [[FACILITY|THE HEARTH AT OMBREY]]. "
+        "labs at our [[LOCATION|gorsefield]] clinic.",
+        ["case_variation", "the_in_name", "p7_city_modifier"],
+    ),
+    # 4. "The" inside a service organisation's name only when it is part of the name.
+    _example(
+        "the_service_organisation",
+        "Enrolled with [[FACILITY|The Hearth at Ombrey]] hospice program; "
+        "The [[FACILITY|Saint Brevin VNA]] nurse called.",
+        ["the_in_name", "the_article", "service_organisation"],
+    ),
+    # 5. P7 covers generic care-team phrases; a named pharmacy is FACILITY in any case.
+    _example(
+        "p7_care_team_and_lowercase_pharmacy",
+        "the [[LOCATION|Gorsefield]] hospice team visited; refills at [[FACILITY|harlow vane drug]].",
+        ["p7_city_modifier", "service_organisation", "case_variation"],
+    ),
+    # 6. A place-word used as an ordinary word stays unannotated in any case.
+    _example(
+        "ordinary_place_word_any_case",
+        "NEEDS READING GLASSES AND A MOBILE PHONE CHARGER.",
+        ["n5_place_word_other_role", "case_variation"],
+    ),
+    # 7. Per occurrence: employer role not annotated; care role is FACILITY.
+    _example(
+        "employer_and_care_roles",
+        "Works as a nurse at Ombrey General Hospital; admitted to [[FACILITY|Ombrey General Hospital]] overnight.",
+        ["employer_name", "same_spelling_different_context"],
+    ),
+)
