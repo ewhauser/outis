@@ -47,8 +47,12 @@ from clinical_deid.data.annotation_policy_places import (  # noqa: E402
 from clinical_deid.types import ENTITY_TYPES  # noqa: E402
 
 SEED = 13013
+SEED_V2 = 14013
+SUITE_V2 = "tk13_care_sites_localities_v2"
+BANK_VERSION_V2 = "tk13-v2"
 SUITE = "tk13_care_sites_localities"
 OUT = ROOT / "data" / "tk13_train_care_sites_localities.jsonl"
+OUT_V2 = ROOT / "data" / "tk13_train_care_sites_localities__v2.jsonl"
 REPORT_DIR = ROOT / "reports" / "takeover" / "author13_care_sites"
 
 SOURCE_PINS = {
@@ -74,6 +78,14 @@ SOURCE_DIR_CANDIDATES = (
     ),
 )
 
+FAMILY_ROWS_V2 = {
+    "city_modifier": 450,
+    "locality_short": 450,
+    "service_org": 650,
+    "practice_pharmacy": 450,
+    "senior_living_at": 350,
+    "town_narrative": 350,
+}
 FAMILY_ROWS = {
     "city_modifier": 400,
     "locality_short": 400,
@@ -121,6 +133,13 @@ BANNED_FRAGMENTS = (
     "ana maría",
     "imaginary lane",
     "mayo clinic",
+    "ombrey",
+    "gorsefield",
+    "kestrine",
+    "tollund",
+    "hearth at",
+    "saint brevin",
+    "harlow vane",
 )
 
 STATES = (
@@ -510,6 +529,23 @@ def load_places(directory: Path):
     return all_names
 
 
+def load_counties(directory: Path):
+    """Return sorted (value, state) for every county named `<Name> County`."""
+    with zipfile.ZipFile(directory / "2024_Gaz_counties_national.zip") as archive:
+        raw = archive.read(archive.namelist()[0]).decode("latin-1")
+    reader = csv.reader(io.StringIO(raw), delimiter="\t")
+    header = [h.strip() for h in next(reader)]
+    usps, name_idx = header.index("USPS"), header.index("NAME")
+    seen: dict[str, str] = {}
+    for row in reader:
+        if len(row) <= name_idx:
+            continue
+        full = row[name_idx].strip()
+        if full.endswith(" County") and full not in seen:
+            seen[full] = row[usps].strip()
+    return sorted(seen.items())
+
+
 def load_cms(directory: Path):
     names, cities = [], set()
     with (directory / "Hospital_General_Information.csv").open(
@@ -647,7 +683,8 @@ class Picker:
 class World:
     """Value pools shared by every row."""
 
-    def __init__(self, rng: random.Random):
+    def __init__(self, rng: random.Random, version: str = "v1"):
+        self.v2 = version == "v2"
         directory = find_sources()
         verify_pins(directory)
         self.rng = rng
@@ -716,6 +753,21 @@ class World:
             for n, p in SOURCE_PINS.items()
         }
         self.source_dir = directory
+        if self.v2:
+            counties = []
+            for value, state in load_counties(directory):
+                base = value[: -len(" County")]
+                if (
+                    NAME_RE.fullmatch(base)
+                    and len(base) >= 3
+                    and base not in first_names
+                    and not any(b in value.lower() for b in BANNED_FRAGMENTS)
+                    and place_value_pool(value) == "train"
+                ):
+                    counties.append((value, state))
+            self.county_picker = Picker(counties, rng)
+            self.county_count = len(counties)
+            self.pins["2024_Gaz_counties_national.zip"]["used"] = True
 
 
 class Ctx:
@@ -740,6 +792,11 @@ class Ctx:
         name, state, _ = (picker or self.w.city).next()
         self.record(name, "census_gazetteer_place_2024", role)
         return name, state
+
+    def county(self):
+        value, state = self.w.county_picker.next()
+        self.record(value, "census_gazetteer_counties_2024", "county_name")
+        return value, state
 
     def cms(self, role: str) -> str:
         title, raw = self.w.cms.next()
@@ -1769,6 +1826,342 @@ CORES = {
 # --------------------------------------------------------------------------- layouts
 
 
+# --------------------------------------------------------------------------- v2 cores
+# New cases from the follow-up decisions of 2026-10-05. Each returns a core tuple or None to
+# fall back to the v1 core. Only used when the world is v2, so v1 output is unchanged.
+
+SITE_HEADS = (
+    "Clinic",
+    "Medical Center",
+    "Health Center",
+    "Urgent Care",
+    "Family Clinic",
+    "Medical Group",
+    "Dialysis Center",
+)
+CARE_TEAM_TEMPLATES = (
+    "The {L} hospice team visited today.",
+    "The {L} home health team will call to schedule.",
+    "Our {L} palliative care team saw her this morning.",
+    "The {L} wound care team changed the dressing.",
+    "Spoke with the {L} care team about discharge.",
+    "The {L} dialysis team confirmed the chair time.",
+    "Our {L} infusion team will draw labs on Monday.",
+    "The {L} nursing team called with an update.",
+)
+JOBS = ("nurse", "aide", "cook", "technician", "janitor", "clerk", "driver", "cashier")
+EMPLOYER_TEMPLATES = (
+    "Works as a {J} at {O}",
+    "Employed by {O} as a {J}",
+    "Her husband works at {O}",
+    "Son is a {J} at {O}",
+    "Retired from {O} as a {J}",
+)
+CARE_ROLE_TEMPLATES = (
+    "admitted to {F} overnight",
+    "seen in the ED at {F} last month",
+    "had surgery at {F} in the spring",
+    "followed at {F} for the thyroid",
+)
+THE_ORG_ARTICLE = (
+    "The {O} nurse called back.",
+    "The {O} driver arrived early.",
+    "Spoke with the {O} intake coordinator.",
+    "The {O} social worker visited on Tuesday.",
+)
+THE_ORG_IN_NAME = (
+    "Enrolled with {O} hospice program.",
+    "Attends {O} adult day program three days a week.",
+    "Referred to {O} home health team.",
+    "Care is provided by {O} palliative program.",
+    "Started with {O} home health nursing.",
+)
+COUNTY_TEMPLATES = (
+    "Lives in {C}.",
+    "Pt from {C}.",
+    "Moved from {CS}.",
+    "Daughter lives in {C}.",
+    "Drives in from {C} for visits.",
+    "Moved to {CS} last spring.",
+    "Son lives in {CS}.",
+    "Family farm is in {C}.",
+)
+COUNTY_NEGATIVES = (
+    "The county health department sent a notice about flu shots.",
+    "Per county guidance, masks are optional in waiting rooms.",
+    "She volunteers at the county fair each August.",
+    "A county nurse called about the vaccine clinic.",
+    "Transport from the county senior van was arranged.",
+    "County records were not needed for the form.",
+)
+INVENTED_INSTRUMENT_WORDS = (
+    "criteria",
+    "Classification",
+    "Score",
+    "rule",
+    "Risk Model",
+    "Index",
+)
+INVENTED_DISEASE_WORDS = ("virus", "fever", "disease", "syndrome")
+
+
+def _org_name(c: Ctx) -> str:
+    """An employer or care organisation name: invented or a train-pool CMS name."""
+    r = c.rng
+    if r.random() < 0.5:
+        tail = r.choice(
+            (
+                "General Hospital",
+                "Medical Center",
+                "Community Hospital",
+                "Health System",
+            )
+        )
+        return f"{c.stem()} {tail}"
+    return c.cms("employer_care_org")
+
+
+def _employer_line(c: Ctx, care: bool):
+    r = c.rng
+    org = _org_name(c)
+    job = r.choice(JOBS)
+    first = r.choice(EMPLOYER_TEMPLATES).replace("{O}", org).replace("{J}", job)
+    if not care:
+        return first + "."
+    second = r.choice(CARE_ROLE_TEMPLATES).replace("{F}", lab("FACILITY", org))
+    subject = "she was " if first.startswith(("Her", "Son")) else ""
+    return f"{first}; {subject}{second}."
+
+
+def new_city_modifier(c: Ctx, positive: bool, case: str):
+    r = c.rng
+    if positive:
+        x = r.random()
+        if x < 0.22:
+            if r.random() < 0.5:
+                place, _ = c.city("named_site_place")
+            else:
+                place = c.stem()
+            site = lab("FACILITY", f"{place} {r.choice(SITE_HEADS)}")
+            if case == "normal":
+                line = r.choice(
+                    (
+                        "Seen at our {F}.",
+                        "Labs drawn at our {F}.",
+                        "Follow up at {F} next week.",
+                        "Records sent from {F}.",
+                        "Referred to the {F}.",
+                    )
+                )
+                tag = "named_site_capitalised"
+            else:
+                line = r.choice(
+                    (
+                        "Seen at {F}.",
+                        "Follow up at {F} next week.",
+                        "Records sent from {F}.",
+                        "Referred to {F}.",
+                        "Labs drawn at {F}.",
+                    )
+                )
+                tag = "named_site_case_hidden"
+            lines = [line.replace("{F}", site)]
+            phen = [tag, "facility_boundary"]
+            if r.random() < 0.5:
+                other, _ = c.city("city_modifier_locality")
+                lines.append(
+                    r.choice(
+                        (
+                            "Labs at our {L} clinic.",
+                            "Our {L} site sent records.",
+                            "Follow up at the {L} office.",
+                        )
+                    ).replace("{L}", lab("LOCATION", other))
+                )
+                phen.append("p7_city_modifier")
+            return lines, phen, None
+        if x < 0.40:
+            city, _ = c.city("care_team_locality")
+            line = r.choice(CARE_TEAM_TEMPLATES).replace("{L}", lab("LOCATION", city))
+            return [line], ["p7_city_modifier", "p7_care_team"], None
+        return None
+    if r.random() < 0.35:
+        stem = c.stem()
+        if r.random() < 0.55:
+            name = f"{stem} {r.choice(INVENTED_INSTRUMENT_WORDS)}"
+            line = r.choice(
+                (
+                    "Scored per the {X}.",
+                    "{X} reviewed with the resident.",
+                    "Risk estimated using the {X}.",
+                    "Assessed with the {X} today.",
+                )
+            )
+            return (
+                [line.replace("{X}", name)],
+                ["n1_named_instrument", "invented_place_decoy"],
+                "N1_invented",
+            )
+        name = f"{stem} {r.choice(INVENTED_DISEASE_WORDS)}"
+        line = r.choice(
+            (
+                "Tested for {X}; result pending.",
+                "No exposure risk for {X} identified.",
+                "Counselled about {X} prevention.",
+            )
+        )
+        return (
+            [line.replace("{X}", name)],
+            ["n2_place_disease", "invented_place_decoy"],
+            "N2_invented",
+        )
+    return None
+
+
+def new_locality_short(c: Ctx, positive: bool, case: str):
+    r = c.rng
+    if positive:
+        if r.random() >= 0.30:
+            return None
+        if r.random() < 0.6:
+            value, state = c.county()
+        else:
+            value, state = f"{c.stem()} County", r.choice(STATES)[0]
+        template = r.choice(COUNTY_TEMPLATES)
+        line = template.replace("{CS}", lab("LOCATION", f"{value}, {state}")).replace(
+            "{C}", lab("LOCATION", value)
+        )
+        return [line], ["county_name", "p1_patient_locality"], None
+    if r.random() < 0.12:
+        return [r.choice(COUNTY_NEGATIVES)], ["county_word_generic"], "county_generic"
+    return None
+
+
+def new_service_org(c: Ctx, positive: bool, case: str):
+    r = c.rng
+    if positive:
+        x = r.random()
+        if x < 0.10:
+            a, b = c.stem(), c.stem()
+            if r.random() < 0.5:
+                name = f"The {a} at {b} {r.choice(RIDGE_WORDS)}"
+                line = r.choice(THE_ORG_IN_NAME).replace("{O}", lab("FACILITY", name))
+            else:
+                tail = r.choice(("Hospice", "Home Health", "Adult Day Program"))
+                name = f"The {a} {tail}"
+                line = r.choice(
+                    (
+                        "Enrolled with {O}.",
+                        "Referred to {O} for care at home.",
+                        "Care is provided by {O}.",
+                    )
+                ).replace("{O}", lab("FACILITY", name))
+            return (
+                [line],
+                ["the_in_name", "the_service_org_in_name", "service_organisation"],
+                None,
+            )
+        if x < 0.20:
+            kind, form = r.choice([f for f in SERVICE_FORMS if "{X}" not in f[1]])
+            org = form.replace("{S}", c.stem())
+            line = r.choice(THE_ORG_ARTICLE).replace("{O}", lab("FACILITY", org))
+            return (
+                [line],
+                ["the_article", "the_service_org_article", "service_organisation"],
+                None,
+            )
+        if x < 0.28:
+            city, _ = c.city("care_team_locality")
+            line = r.choice(
+                (
+                    "The {L} hospice team visited on {D}.",
+                    "The {L} home health team starts care next week.",
+                    "Our {L} hospice nurse will call tomorrow.",
+                )
+            )
+            line = line.replace("{L}", lab("LOCATION", city)).replace(
+                "{D}", c.date(allow_range=False)
+            )
+            return (
+                [line],
+                ["p7_city_modifier", "p7_care_team", "service_organisation"],
+                None,
+            )
+        if x < 0.38:
+            return (
+                [_employer_line(c, True)],
+                ["employer_and_care_roles", "same_spelling_different_context"],
+                None,
+            )
+        return None
+    if r.random() < 0.12:
+        return [_employer_line(c, False)], ["employer_name"], "employer_only"
+    return None
+
+
+def new_practice_pharmacy(c: Ctx, positive: bool, case: str):
+    r = c.rng
+    if positive:
+        x = r.random()
+        if x < 0.14:
+            return (
+                [_employer_line(c, True)],
+                ["employer_and_care_roles", "same_spelling_different_context"],
+                None,
+            )
+        if x < 0.34:
+            form = r.choice(
+                ("{S} Drug", "{S} Pharmacy", "{S} Drug & Gift", "{S} Apothecary")
+            )
+            org = lab("FACILITY", form.replace("{S}", c.stem()))
+            line = r.choice(
+                (
+                    "Refills at {O}.",
+                    "Send it to {O}.",
+                    "Rx called in to {O}.",
+                    "Pick up at {O} after 4 pm.",
+                    "Pharmacy: {O}.",
+                )
+            ).replace("{O}", org)
+            return (
+                [line],
+                ["named_pharmacy", "practice_without_care_word", "facility_boundary"],
+                None,
+            )
+        return None
+    if r.random() < 0.12:
+        return [_employer_line(c, False)], ["employer_name"], "employer_only"
+    return None
+
+
+V2_NEW = {
+    "city_modifier": new_city_modifier,
+    "locality_short": new_locality_short,
+    "service_org": new_service_org,
+    "practice_pharmacy": new_practice_pharmacy,
+}
+
+
+def _wrap_v2(family):
+    base, new = CORES[family], V2_NEW.get(family)
+
+    def core(c, positive, case):
+        if new is not None:
+            result = new(c, positive, case)
+            if result is not None:
+                return result
+        return base(c, positive, case)
+
+    return core
+
+
+V2_CORES = {family: _wrap_v2(family) for family in CORES}
+
+
+def core_for(c: Ctx, family: str):
+    return (V2_CORES if c.w.v2 else CORES)[family]
+
+
 class Patient:
     def __init__(self, c: Ctx):
         self.c = c
@@ -1960,7 +2353,7 @@ def long_note(p: Patient, c: Ctx, family: str, case: str):
     )
     flavours = [True, False, True, True, False, True, True, False]
     for head, positive in zip(heads, flavours):
-        lines, ph, _ = CORES[family](c, positive, case)
+        lines, ph, _ = core_for(c, family)(c, positive, case)
         phen.update(ph)
         paragraph = " ".join(lines + c.fluff(5))
         sections.append(f"{head}\n{paragraph}")
@@ -1980,10 +2373,10 @@ def sha256_text(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def plan_units(rng: random.Random):
+def plan_units(rng: random.Random, family_rows=None):
     """Plan row units: pairs (positive + matched negative), single positives, long notes."""
     units = []
-    for family, rows in FAMILY_ROWS.items():
+    for family, rows in (family_rows or FAMILY_ROWS).items():
         long_rows = round(rows * LONG_FRACTION)
         unusual_rows = (
             round(rows * UNUSUAL_NAME_FRACTION) if family == "town_narrative" else 0
@@ -2041,27 +2434,35 @@ def assign_cases(units, rng: random.Random):
     return used
 
 
-def generate(seed: int = SEED):
+def generate(seed: int = SEED, version: str = "v1"):
     rng = random.Random(seed)
-    world = World(rng)
-    units = plan_units(rng)
+    world = World(rng, version)
+    units = plan_units(rng, FAMILY_ROWS_V2 if world.v2 else None)
+    suite = SUITE_V2 if world.v2 else SUITE
+    for unit in units:
+        unit["suite"] = suite
     texts_seen = set()
-    # Case is needed while authoring (named-site contrast), so draw a provisional case first.
-    # Units whose gold depends on capitalisation are then forced to normal case.
-    provisional = random.Random(seed + 1)
-    for unit in units:
-        unit["case"] = provisional.choices(
-            ("normal", "upper", "lower"), (0.6, 0.2, 0.2)
-        )[0]
-    for unit in units:
-        content = author_unit(world, rng, unit, texts_seen)
-        unit["content"] = content
-        if any("normal_only" in item["flags"] for item in content):
-            unit["normal_only"] = True
-    # Enforce the target mix over whole units (normal_only units stay normal).
-    assign_cases(units, random.Random(seed + 2))
-    # Re-render every unit under its final case; content marked strings are case-independent
-    # except for the normal_only choices, which were authored under a provisional case.
+    if world.v2:
+        # v2: the authored role decides in every case, so no row is forced to normal case and
+        # the final case is fixed before authoring (named-site wording depends on it).
+        assign_cases(units, random.Random(seed + 2))
+        for unit in units:
+            unit["content"] = author_unit(world, rng, unit, texts_seen)
+    else:
+        # Case is needed while authoring (named-site contrast), so draw a provisional case first.
+        # Units whose gold depends on capitalisation are then forced to normal case.
+        provisional = random.Random(seed + 1)
+        for unit in units:
+            unit["case"] = provisional.choices(
+                ("normal", "upper", "lower"), (0.6, 0.2, 0.2)
+            )[0]
+        for unit in units:
+            content = author_unit(world, rng, unit, texts_seen)
+            unit["content"] = content
+            if any("normal_only" in item["flags"] for item in content):
+                unit["normal_only"] = True
+        # Enforce the target mix over whole units (normal_only units stay normal).
+        assign_cases(units, random.Random(seed + 2))
     out = []
     for unit in units:
         if unit.get("normal_only") and unit["case"] != "normal":
@@ -2116,7 +2517,7 @@ def author_unit(world: World, rng: random.Random, unit: dict, seen: set) -> list
             polarities = ["positive", "negative"] if kind == "pair" else ["positive"]
             for polarity in polarities:
                 start = len(c.reals)
-                lines, phen, neg = CORES[family](
+                lines, phen, neg = core_for(c, family)(
                     c, polarity == "positive", unit["case"]
                 )
                 marked = LAYOUTS[layout](p, lines, c.fluff(3))
@@ -2141,7 +2542,7 @@ def author_unit(world: World, rng: random.Random, unit: dict, seen: set) -> list
             continue
         seen.update(keys)
         # A pair shares identity, pair id and layout; the negative inherits the same keys.
-        pair_id = f"tk13-{unit['serial']:05d}"
+        pair_id = f"{'tk13v2' if world.v2 else 'tk13'}-{unit['serial']:05d}"
         for number, item in enumerate(items):
             item["pair_id"] = pair_id
             item["row_number"] = number
@@ -2193,12 +2594,27 @@ def finish_row(
     for g in groups:
         assert identity_split(g) == "train", "identity outside the training partition"
     family = f"tk13_{item['family_key']}"
+    suite = unit.get("suite", SUITE)
+    phen = set(item["phenomena"])
+    if suite == SUITE_V2 and unit["case"] != "normal":
+        if "the_in_name" in phen:
+            phen.add("the_in_name_case_hidden")
+        if "p7_city_modifier" in phen:
+            phen.add("p7_case_hidden")
+        if "named_pharmacy" in phen:
+            phen.add("named_pharmacy_case_hidden")
+        if "n5_place_word_other_role" in phen and not phen & {
+            "name_boundaries",
+            "explicit_naming",
+        }:
+            phen.add("ordinary_place_word_case_hidden")
+    item = {**item, "phenomena": sorted(phen)}
     return {
-        "id": f"{SUITE}-{index:05d}",
+        "id": f"{suite}-{index:05d}",
         "text": text,
         "spans": spans,
         "split": "train",
-        "suite": SUITE,
+        "suite": suite,
         "annotation_policy": POLICY_VERSION,
         "cohort": item["cohort"],
         "family": family,
@@ -2218,19 +2634,21 @@ def finish_row(
 # --------------------------------------------------------------------------- output
 
 
-def write_bank(rows, world, seed: int = SEED):
+def write_bank(rows, world, seed: int = SEED, version: str = "v1"):
+    out = OUT_V2 if version == "v2" else OUT
     payload = (
         "\n".join(json.dumps(r, ensure_ascii=False, sort_keys=False) for r in rows)
         + "\n"
     ).encode("utf-8")
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_bytes(payload)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(payload)
     support = Counter(s["label"] for r in rows for s in r["spans"])
     label_support = {label: support[label] for label in ENTITY_TYPES}
     manifest = {
         "annotation_policy": POLICY_VERSION,
         "places_addendum": ADDENDUM,
-        "suite": SUITE,
+        "suite": SUITE_V2 if version == "v2" else SUITE,
+        "version": BANK_VERSION_V2 if version == "v2" else "tk13-v1",
         "split": "train",
         "rows": len(rows),
         "documents": len(rows),
@@ -2258,7 +2676,7 @@ def write_bank(rows, world, seed: int = SEED):
             "used": "train only",
         },
     }
-    Path(str(OUT) + ".manifest.json").write_text(
+    Path(str(out) + ".manifest.json").write_text(
         json.dumps(manifest, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     return manifest
@@ -2503,6 +2921,188 @@ def write_reports(rows, manifest, world):
     (REPORT_DIR / "spot_check_sample.md").write_text("\n".join(parts), encoding="utf-8")
 
 
+NEW_CASE_TAGS = (
+    "county_name",
+    "county_word_generic",
+    "named_site_capitalised",
+    "named_site_case_hidden",
+    "p7_care_team",
+    "p7_case_hidden",
+    "the_in_name_case_hidden",
+    "the_service_org_in_name",
+    "the_service_org_article",
+    "named_pharmacy",
+    "named_pharmacy_case_hidden",
+    "employer_and_care_roles",
+    "employer_name",
+    "invented_place_decoy",
+    "ordinary_place_word_case_hidden",
+)
+V2_MARKER = "<!-- tk13-v2-section -->"
+
+
+def _mark(row):
+    out, previous = [], 0
+    for s in sorted(row["spans"], key=lambda s: s["start"]):
+        out.append(row["text"][previous : s["start"]])
+        out.append(f"[{s['label']}|{s['text']}]")
+        previous = s["end"]
+    out.append(row["text"][previous:])
+    return "".join(out)
+
+
+def write_reports_v2(rows, manifest, world):
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    n = len(rows)
+    fam = Counter(r["family"] for r in rows)
+    lay = Counter(r["layout"] for r in rows)
+    case = Counter(r["case_mode"] for r in rows)
+    pol = Counter(r["polarity"] for r in rows)
+    tags = Counter(t for r in rows for t in r["phenomena"] if t in NEW_CASE_TAGS)
+    tag_case = Counter(
+        (t, r["case_mode"]) for r in rows for t in r["phenomena"] if t in NEW_CASE_TAGS
+    )
+    pools = Counter(x["pool"] for r in rows for x in r["pool"])
+    sources = Counter(x["source"] for r in rows for x in r["pool"])
+    shares = value_shares(rows)
+    span_shares = {k: v for k, v in shares.items() if not k.startswith("real:")}
+    real_shares = {k[5:]: v for k, v in shares.items() if k.startswith("real:")}
+    top_span = sorted(span_shares.items(), key=lambda kv: -kv[1])[:3]
+    top_real = sorted(real_shares.items(), key=lambda kv: -kv[1])[:3]
+    decoys = Counter()
+    for r in rows:
+        for x in r["pool"]:
+            if x["role"] in ("n1_named_instrument", "n2_place_disease"):
+                decoys[x["value"]] += 1
+    worst_decoy = max(decoys.items(), key=lambda kv: kv[1]) if decoys else ("", 0)
+    new_rows = sum(1 for r in rows if any(t in NEW_CASE_TAGS for t in r["phenomena"]))
+    lines = [
+        V2_MARKER,
+        "",
+        "# v2 bank: follow-up decisions of 2026-10-05",
+        "",
+        f"Bank: `data/tk13_train_care_sites_localities__v2.jsonl` ({n} rows, sha256 `{manifest['sha256']}`), "
+        f"seed {SEED_V2}, version `{BANK_VERSION_V2}`, generator sha256 `{manifest['author_provenance']['generator_sha256']}`. "
+        "The v1 bank and manifest are unchanged; v1 is reproduced by `generate(SEED, 'v1')` and by the v1 generator "
+        "commit `5f47de4`. Scores on this synthetic bank are not evidence of generalisation. The overlap audits were "
+        "not run by the author.",
+        "",
+        "## v2 rows per family",
+        "",
+        "| Family | Rows |",
+        "|---|---:|",
+        *[f"| {k} | {v} |" for k, v in sorted(fam.items())],
+        "",
+        f"Positive {pol['positive']}, matched negative {pol['negative']} ({pol['negative'] / n:.1%}). "
+        f"{len(lay)} layouts; the largest has {max(lay.values())} rows ({max(lay.values()) / n:.1%}). "
+        f"Case mix: normal {case['normal']} ({case['normal'] / n:.1%}), upper {case['upper']}, lower {case['lower']}. "
+        f"Cohorts: {dict(manifest['cohort_counts'])}.",
+        "",
+        "## Rows per new case",
+        "",
+        f"{new_rows} rows carry at least one new-case tag.",
+        "",
+        "| New case (phenomenon tag) | Rows | normal | upper | lower |",
+        "|---|---:|---:|---:|---:|",
+        *[
+            f"| {t} | {tags[t]} | {tag_case[(t, 'normal')]} | {tag_case[(t, 'upper')]} | {tag_case[(t, 'lower')]} |"
+            for t in NEW_CASE_TAGS
+        ],
+        "",
+        "Tag meanings: `county_name` LOCATION including `County` (with and without `, ST`; real train-pool counties "
+        "and invented `<stem> County`); `county_word_generic` negative with `county` as an ordinary word; "
+        "`named_site_capitalised` FACILITY on the whole of a capitalised site name in normal case (`our [X Clinic]`); "
+        "`named_site_case_hidden` a named site in all-caps or lowercase rows (FACILITY by authored role, written "
+        "without a determiner); `p7_care_team` LOCATION on the city in `the <city> hospice team`; `p7_case_hidden` "
+        "P7 rows in all-caps or lowercase; `the_in_name_case_hidden` D3 `The`-inside names in all-caps or "
+        "lowercase; `the_service_org_in_name` `The` inside a service organisation's name; `the_service_org_article` "
+        "`The` as an article before a service organisation (outside); `named_pharmacy` and `named_pharmacy_case_hidden` "
+        "named pharmacies (the latter in lowercase or all-caps); `employer_and_care_roles` the same organisation as an "
+        "unannotated employer then FACILITY in a care role; `employer_name` an unannotated employer; "
+        "`invented_place_decoy` decoys built on invented place-words (`<stem> criteria`, `<stem> virus`); "
+        "`ordinary_place_word_case_hidden` ordinary place-words in all-caps or lowercase, unannotated.",
+        "",
+        "## v2 label support",
+        "",
+        "| Label | Spans |",
+        "|---|---:|",
+        *[f"| {k} | {v} |" for k, v in manifest["label_support"].items()],
+        "",
+        "## v2 pool check",
+        "",
+        f"Real value uses: {sum(pools.values())}; pools: train {pools['train']}, heldout {pools['heldout']}. "
+        + ", ".join(f"{k} {v}" for k, v in sorted(sources.items()))
+        + f". Train-pool counties available: {world.county_count}.",
+        "",
+        f"Repetition limit {MAX_VALUE_SHARE:.1%} of rows ({MAX_VALUE_SHARE * n:.1f}). Largest FACILITY or LOCATION "
+        f"value: {top_span[0][1]} rows; largest real value: {top_real[0][1]} rows "
+        f"(`{top_real[0][0]}`); largest real instrument or disease decoy: `{worst_decoy[0]}` in {worst_decoy[1]} rows "
+        f"({worst_decoy[1] / n:.2%}).",
+        "",
+        "## v2 design notes",
+        "",
+        "- No row is forced to normal case. Case is assigned before authoring so the wording can respect the role.",
+        "- In all-caps and lowercase rows a named site is written without a determiner (`seen at <name> clinic`) "
+        "and the generic P7 form keeps `our` or `the`; in normal case both forms occur, with the capital site word "
+        "marking the name (`our [Name Clinic]` is FACILITY only in normal case).",
+        "- Decoys on real instrument and disease names are capped by the repetition limit; invented place-word "
+        "decoys have the same shape.",
+        "- Invented county, town, facility and site names exclude every Gazetteer place and CMS city.",
+        "",
+        "## v2 remaining unsettled cases",
+        "",
+        "1. **Capitalised site word with a determiner in all-caps or lowercase rows** (`OUR OMBREY CLINIC`): the "
+        "surface is identical for the P7 and named-site roles, so the generator uses the generic role only. "
+        "A named site in those cases is written without `our` or `the`. Left out rather than decided.",
+        "2. **County with a generic word after it** (`the Kestrine County office`): not authored.",
+        "3. **Invented `<stem> County` placed in a real state** is authored, which can resemble a real county; "
+        "stems exclude Gazetteer names but not county names from other states.",
+        "4. **A county written without the word `County`** (`lives in Kestrine`): not authored.",
+        "5. **`The` before a service organisation whose name begins with `The` in lowercase text** "
+        "(`enrolled with the hearth at ...`): authored with the role fixed by the author, as the policy says, "
+        "but the surface is ambiguous between an article and part of the name.",
+        "6. **Employer role when the employer is also the only care site named in a short note**: authored only with "
+        "an explicit employer cue (`works as`, `employed by`, `husband works at`, `son is`, `retired from`).",
+        "",
+    ]
+    report_path = REPORT_DIR / "AUTHOR_REPORT.md"
+    existing = report_path.read_text(encoding="utf-8")
+    if V2_MARKER in existing:
+        existing = existing[: existing.index(V2_MARKER)].rstrip() + "\n\n"
+    else:
+        existing = existing.rstrip() + "\n\n"
+    report_path.write_text(existing + "\n".join(lines), encoding="utf-8")
+
+    sampler = random.Random(13)
+    new = [r for r in rows if any(t in NEW_CASE_TAGS for t in r["phenomena"])]
+    old = [r for r in rows if not any(t in NEW_CASE_TAGS for t in r["phenomena"])]
+    chosen = sampler.sample(new, 55) + sampler.sample(old, 45)
+    sampler.shuffle(chosen)
+    parts = [
+        "# Spot-check sample v2: tk13 care sites and localities",
+        "",
+        "100 rows drawn with `random.Random(13)`: 55 exercise a v2 new case, 45 do not. Spans are `[LABEL|text]`. "
+        "Check against the policy and the follow-up decisions. Synthetic text; real names are Census and CMS train-pool values.",
+        "",
+    ]
+    for row in chosen:
+        new_tags = [t for t in row["phenomena"] if t in NEW_CASE_TAGS]
+        parts += [
+            f"### {row['id']}  ({row['family']}, {row['layout']}, {row['case_mode']}, {row['polarity']}"
+            + (f", {row['negative_type']}" if row["negative_type"] else "")
+            + ")"
+            + (f"  new: {', '.join(new_tags)}" if new_tags else ""),
+            "",
+            "```",
+            _mark(row),
+            "```",
+            "",
+        ]
+    (REPORT_DIR / "spot_check_sample_v2.md").write_text(
+        "\n".join(parts), encoding="utf-8"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -2510,13 +3110,29 @@ def main():
         action="store_true",
         help="also write the author report and spot-check sample",
     )
-    parser.add_argument("--seed", type=int, default=SEED)
+    parser.add_argument("--version", choices=("v1", "v2"), default="v2")
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument(
+        "--force-v1", action="store_true", help="allow rewriting the immutable v1 bank"
+    )
     args = parser.parse_args()
-    rows, world = generate(args.seed)
+    if args.version == "v1" and not args.force_v1:
+        raise SystemExit(
+            "v1 is immutable; reproduce it with generate(SEED, 'v1') or pass --force-v1"
+        )
+    seed = (
+        args.seed
+        if args.seed is not None
+        else (SEED_V2 if args.version == "v2" else SEED)
+    )
+    rows, world = generate(seed, args.version)
     check_bank(rows)
-    manifest = write_bank(rows, world, args.seed)
+    manifest = write_bank(rows, world, seed, args.version)
     if args.reports:
-        write_reports(rows, manifest, world)
+        if args.version == "v2":
+            write_reports_v2(rows, manifest, world)
+        else:
+            write_reports(rows, manifest, world)
     print(json.dumps({"rows": len(rows), "sha256": manifest["sha256"]}))
 
 

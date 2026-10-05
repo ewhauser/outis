@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 
 from clinical_deid.data.annotation_policy import annotation_errors
-from clinical_deid.data.annotation_policy_care_sites import CARE_SITE_FIXTURES
+from clinical_deid.data.annotation_policy_care_sites import (
+    CARE_SITE_FIXTURES,
+    CARE_SITE_FOLLOWUP_FIXTURES,
+)
 from clinical_deid.data.annotation_policy_places import PLACE_FIXTURES, place_value_pool
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -213,3 +216,174 @@ def test_no_reused_example_names_or_heldout_values(bank):
     for fragment in author13.BANNED_FRAGMENTS:
         assert fragment not in low
     assert not [x for r in bank for x in r["pool"] if x["pool"] != "train"]
+
+
+# --------------------------------------------------------------------------- v2
+
+
+@pytest.fixture(scope="module")
+def bank2():
+    rows, _world = author13.generate(author13.SEED_V2, "v2")
+    return rows
+
+
+def tagged(rows, tag):
+    # long notes mix many cases in one document, so they are checked by the generic tests only
+    return [r for r in rows if tag in r["phenomena"] and r["cohort"] != "long_document"]
+
+
+def test_v1_is_still_reproducible_from_the_current_generator():
+    import hashlib
+    import json
+
+    rows, _ = author13.generate(author13.SEED, "v1")
+    payload = (
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n"
+    ).encode()
+    manifest = json.loads(
+        (
+            ROOT / "data" / "tk13_train_care_sites_localities.jsonl.manifest.json"
+        ).read_text()
+    )
+    assert hashlib.sha256(payload).hexdigest() == manifest["sha256"]
+
+
+def test_v2_is_deterministic_and_sized(bank2):
+    again, _ = author13.generate(author13.SEED_V2, "v2")
+    assert [(r["id"], r["text"], r["spans"]) for r in bank2] == [
+        (r["id"], r["text"], r["spans"]) for r in again
+    ]
+    assert 2400 <= len(bank2) <= 2800
+    ids = {r["id"] for r in bank2}
+    assert len(ids) == len(bank2)
+    assert all(i.startswith("tk13_care_sites_localities_v2-") for i in ids)
+    for row in bank2:
+        assert not annotation_errors(row["text"], row["spans"])
+        assert row["split"] == "train" and row["family"] == row["template_family"]
+        assert all(
+            x["pool"] == "train" and place_value_pool(x["value"]) == "train"
+            for x in row["pool"]
+        )
+    layouts = [r["layout"] for r in bank2]
+    assert len(set(layouts)) >= 25
+    assert max(layouts.count(x) for x in set(layouts)) <= 0.08 * len(bank2)
+    case = [r["case_mode"] for r in bank2]
+    assert 0.58 <= case.count("normal") / len(case) <= 0.62
+
+
+def test_v2_repetition_and_banned_names(bank2):
+    shares = author13.value_shares(bank2)
+    assert max(shares.values()) <= 0.005 * len(bank2)
+    low = "\n".join(r["text"].casefold() for r in bank2)
+    for fragment in author13.BANNED_FRAGMENTS:
+        assert fragment not in low
+
+
+def test_v2_counties_are_location_including_county(bank2):
+    rows = tagged(bank2, "county_name")
+    assert rows
+    for row in rows:
+        spans = [s for s in row["spans"] if s["label"] == "LOCATION"]
+        assert spans
+        for span in spans:
+            assert re.fullmatch(r"(?i)[\w.' -]+ county(, [a-z]{2})?", span["text"])
+    for row in tagged(bank2, "county_word_generic"):
+        assert not any(s["label"] == "LOCATION" for s in row["spans"])
+
+
+def test_v2_named_sites_and_p7_in_all_cases(bank2):
+    cap = tagged(bank2, "named_site_capitalised")
+    assert cap
+    assert all(r["case_mode"] == "normal" for r in cap)
+    for row in cap:
+        assert any(s["label"] == "FACILITY" for s in row["spans"])
+    hidden = tagged(bank2, "named_site_case_hidden")
+    assert hidden
+    assert all(r["case_mode"] != "normal" for r in hidden)
+    for row in hidden:
+        for s in row["spans"]:
+            if s["label"] == "FACILITY":
+                before = row["text"][: s["start"]].lower().rstrip()
+                assert not before.endswith(("our", " the"))
+    assert tagged(bank2, "p7_case_hidden")
+    assert tagged(bank2, "the_in_name_case_hidden")
+    assert all(r["case_mode"] != "normal" for r in tagged(bank2, "p7_case_hidden"))
+
+
+def test_v2_care_team_pharmacy_the_and_employer_roles(bank2):
+    assert tagged(bank2, "p7_care_team")
+    for row in tagged(bank2, "p7_care_team"):
+        for s in row["spans"]:
+            if s["label"] == "LOCATION":
+                assert not re.search(r"team|hospice|nurse|clinic", s["text"].lower())
+    assert tagged(bank2, "named_pharmacy_case_hidden")
+    for row in tagged(bank2, "the_service_org_in_name"):
+        assert any(
+            s["label"] == "FACILITY" and s["text"].lower().startswith("the ")
+            for s in row["spans"]
+        )
+    for row in tagged(bank2, "the_service_org_article"):
+        for s in row["spans"]:
+            if s["label"] == "FACILITY" and row["text"][: s["start"]].lower().endswith(
+                "the "
+            ):
+                assert not s["text"].lower().startswith("the ")
+    both = tagged(bank2, "employer_and_care_roles")
+    assert both
+    for row in both:
+        facility = [s for s in row["spans"] if s["label"] == "FACILITY"]
+        assert len(facility) == 1
+        name = facility[0]["text"]
+        assert row["text"].count(name) >= 2
+        assert row["text"].index(name) < facility[0]["start"]
+    for tag in (
+        "employer_name",
+        "ordinary_place_word_case_hidden",
+        "invented_place_decoy",
+    ):
+        rows = tagged(bank2, tag)
+        assert rows
+        for row in rows:
+            assert not any(s["label"] in ("FACILITY", "LOCATION") for s in row["spans"])
+
+
+def test_followup_fixtures_are_rebuilt_exactly():
+    by_id = {e["id"]: e for e in CARE_SITE_FOLLOWUP_FIXTURES}
+    for example in CARE_SITE_FOLLOWUP_FIXTURES:
+        text, spans = build_row(author13.marked_from_example(example))
+        assert text == example["text"]
+        assert [(s["start"], s["end"], s["label"]) for s in spans] == [
+            (s["start"], s["end"], s["label"]) for s in example["spans"]
+        ]
+
+    def loc(v):
+        return lab("LOCATION", v)
+
+    def fac(v):
+        return lab("FACILITY", v)
+
+    built = {
+        "county_name_is_location": f"Lives in {loc('Kestrine County')}; moved from {loc('Tollund County, OR')}.",
+        "capitalised_site_word_names_site": f"Seen at our {fac('Ombrey Clinic')}; labs at our {loc('Gorsefield')} clinic.",
+        "case_hidden_role_decides": (
+            f"SEEN AT {fac('OMBREY CLINIC')}. LIVES AT {fac('THE HEARTH AT OMBREY')}. "
+            f"labs at our {loc('gorsefield')} clinic."
+        ),
+        "the_service_organisation": (
+            f"Enrolled with {fac('The Hearth at Ombrey')} hospice program; "
+            f"The {fac('Saint Brevin VNA')} nurse called."
+        ),
+        "p7_care_team_and_lowercase_pharmacy": (
+            f"the {loc('Gorsefield')} hospice team visited; refills at {fac('harlow vane drug')}."
+        ),
+        "ordinary_place_word_any_case": "NEEDS READING GLASSES AND A MOBILE PHONE CHARGER.",
+        "employer_and_care_roles": (
+            "Works as a nurse at Ombrey General Hospital; admitted to "
+            f"{fac('Ombrey General Hospital')} overnight."
+        ),
+    }
+    assert set(built) == set(by_id)
+    for key, marked in built.items():
+        text, spans = build_row(marked)
+        assert text == by_id[key]["text"], key
+        assert gold({"text": text, "spans": spans}) == gold(by_id[key]), key
