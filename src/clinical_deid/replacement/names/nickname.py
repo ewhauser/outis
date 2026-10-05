@@ -12,11 +12,12 @@ import re
 import unicodedata
 from bisect import bisect_left
 
-from clinical_deid.detection.context.identity import (
+from clinical_deid.replacement.names.aliases import full_identity_aliases
+from clinical_deid.replacement.names.identity import (
     human_person_context,
     pronoun_or_deictic,
 )
-from clinical_deid.detection.context.person import (
+from clinical_deid.replacement.names.person import (
     _bounded,
     _continues_name,
     _normalized,
@@ -25,7 +26,6 @@ from clinical_deid.detection.context.person import (
     _starts_inside_name,
     _valid_surface,
 )
-from clinical_deid.detection.name_aliases import full_identity_aliases
 from clinical_deid.types import Span
 
 _WRITE_NAME = re.compile(
@@ -35,6 +35,7 @@ _WRITE_NAME = re.compile(
     r"[ \t]+as[ \t]+",
     re.I,
 )
+
 _WRITE_TRAILER = re.compile(
     r"(?:[ \t]*(?:[.;!?\r\n]|\Z)|[ \t]*(?:,[ \t]*)?(?:in|on)[ \t]+"
     r"(?:(?:a|an|the|their|his|her)[ \t]+)?"
@@ -42,6 +43,7 @@ _WRITE_TRAILER = re.compile(
     r"letters?|documents?|paperwork|registration|signature[ \t]+(?:line|block))\b)",
     re.I,
 )
+
 _NICKNAME_RELATION = re.compile(
     r"[ \t]+(?:uses?|used|prefers?|preferred|responds?[ \t]+to|responded[ \t]+to|"
     r"(?:is|was)[ \t]+known[ \t]+by)[ \t]+"
@@ -49,24 +51,31 @@ _NICKNAME_RELATION = re.compile(
     r"(?P<personal>personal[ \t]+)?(?P<kind>nickname|alias)\b",
     re.I,
 )
+
 _ROLE_OWNER_PREFIX = re.compile(
     r"\b(?:the[ \t]+)?(?:patient|person|individual|caregiver|guardian|clinician|doctor|nurse)[ \t]+\Z",
     re.I,
 )
+
 _HUMAN_PREDICATE = re.compile(
     r"[ \t]+(?:asked|requests?|requested|reports?|reported|denies|denied|"
     r"answers?|answered|confirms?|confirmed|describes?|described|"
     r"attends?|attended|prefers?|preferred|wants?|wanted)[ \t]+[^.;!?\r\n]{1,140}\Z",
     re.I,
 )
+
 _UNSAFE_RELATION = re.compile(
     r"\b(?:not|never|neither|without|hypothetical|fictional|quoted|quotation|example|"
     r"public|published|teaching|device|medication|drug|test|study|trial|specimen|model)\b",
     re.I,
 )
+
 _AMBIGUOUS_CLAUSE = re.compile(r"\b(?:and|or|but|while|whereas)\b|[;,:\"“”]", re.I)
+
 _COMPATIBLE = {"NAME", "FACILITY", "LOCATION"}
+
 _QUOTES = {"'": "'", '"': '"', "‘": "’", "“": "”"}
+
 _INDEFINITE_SUBJECTS = {
     "someone",
     "somebody",
@@ -88,11 +97,13 @@ _INDEFINITE_SUBJECTS = {
     "neither",
     "both",
 }
+
 _OTHER_OWNER = re.compile(
     r"\b(?:(?:for|of)(?![ \t]+(?:himself|herself|themself|themselves)\b)|"
     r"belonging[ \t]+to|referring[ \t]+to|to[ \t]+refer[ \t]+to)\b",
     re.I,
 )
+
 _PERSONAL_ALIAS_DECLARATION = re.compile(
     # Start once per complete token; retrying inside a long opaque token would
     # make a failed declaration scan quadratic before geometric guards run.
@@ -102,17 +113,20 @@ _PERSONAL_ALIAS_DECLARATION = re.compile(
     r"(?:name|nickname|alias)[ \t]+(?:of|used[ \t]+by|belonging[ \t]+to)[ \t]+",
     re.I,
 )
+
 _HUMAN_OBJECT_PREFIX = re.compile(
     r"(?:\A|[.;!?\r\n])[ \t]*(?:the[ \t]+)?"
     r"(?:nurse|doctor|clinician|physician|caregiver|guardian|therapist|patient)"
     r"[ \t]+(?:asked|invited|encouraged|reminded|helped)[ \t]+\Z",
     re.I,
 )
+
 _NONLITERAL_ALIAS_SCOPE = re.compile(
     r"\b(?:public|published|teaching|hypothetical|fictional|example|quotation|"
     r"quoted|sentence|script|device|medication|drug|specimen|model|test|study|trial)\b",
     re.I,
 )
+
 _HUMAN_INFINITIVE = re.compile(
     r"[ \t]+to[ \t]+(?:"
     r"(?:choose|select)[ \t]+(?:(?:the|a|an|their)[ \t]+)?"
@@ -128,6 +142,7 @@ _HUMAN_INFINITIVE = re.compile(
     r"[ \t]*(?=[.;!?]|\Z)",
     re.I,
 )
+
 _PERSONAL_ALIAS_HEADING = re.compile(
     r"[ \t]*(?:(?:(?:care|clinical|patient|visit|discharge|follow[- ]?up)[ \t]+)?"
     r"(?:coordination|arrangements|planning|registration|preferences)|"
@@ -135,6 +150,7 @@ _PERSONAL_ALIAS_HEADING = re.compile(
     r"[ \t]*[:—][ \t]*\Z",
     re.I,
 )
+
 _SOURCE_ALIAS_PREFACE = re.compile(
     r"\b(?:public|published|teaching|hypothetical|fictional|quoted|invented)"
     r"(?:[ \t]+[^\W\d_]+){0,3}[ \t]+"

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import uvicorn
 
+from clinical_deid.paths import DEFAULT_MODEL_DIR
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -14,8 +16,7 @@ def main():
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
     project = Path(__file__).resolve().parents[1]
-    os.environ.setdefault("DEID_MODEL_DIR", str(project / "models/clinical-adapter"))
-    os.environ.setdefault("DEID_BASE_DIR", str(project / "models/privacy-filter-base"))
+    os.environ.setdefault("DEID_MODEL_DIR", str(project / DEFAULT_MODEL_DIR))
     os.environ.setdefault("DEID_DEVICE", args.device)
     if not os.environ.get("DEID_SECRET"):
         key_file = project / ".cache/local-api-secret"

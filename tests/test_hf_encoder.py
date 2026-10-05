@@ -4,7 +4,7 @@ torch = pytest.importorskip("torch")
 transformers = pytest.importorskip("transformers")
 tokenizers = pytest.importorskip("tokenizers")
 
-from clinical_deid.detection.adapter import TAGS  # noqa: E402
+from clinical_deid.detection.decoding import TAGS  # noqa: E402
 from clinical_deid.detection.hf_encoder import (  # noqa: E402
     ENCODER_KIND,
     HFTokenDetector,
@@ -82,7 +82,6 @@ def tiny_detector(max_length=16, batch_size=4):
     model = transformers.ModernBertForTokenClassification(config)
     return HFTokenDetector(
         None,
-        backend="model",
         device="cpu",
         batch_size=batch_size,
         model=model,
@@ -164,28 +163,20 @@ def test_trim_merged_punctuation_balances_parentheses_and_periods():
     assert text[slice(*trim_merged_punctuation(text, d, d + 14))] == "(617) 555-0101"
 
 
-def test_apply_label_modes_prefers_raw_for_selected_labels():
-    from clinical_deid.detection.hf_encoder import apply_label_modes
+def test_detect_batch_is_model_only():
+    detector = tiny_detector()
+    texts = ["Seen at UCSF on 03/02/2024 by Dr. Ana Ruiz."]
+    assert detector.detect_batch(texts) == detector.raw_batch(texts)
 
-    raw = [(0, 5, "NAME"), (10, 20, "FACILITY")]
-    hybrid = [
-        (0, 9, "NAME"),
-        (10, 14, "FACILITY"),
-        (15, 20, "LOCATION"),
-        (30, 40, "DATE"),
-    ]
-    assert apply_label_modes(raw, hybrid, []) == hybrid
-    assert apply_label_modes(raw, hybrid, ["NAME"]) == [
-        (0, 5, "NAME"),
-        (10, 14, "FACILITY"),
-        (15, 20, "LOCATION"),
-        (30, 40, "DATE"),
-    ]
-    assert apply_label_modes(raw, hybrid, ["FACILITY"]) == [
-        (0, 9, "NAME"),
-        (10, 20, "FACILITY"),
-        (30, 40, "DATE"),
-    ]
+
+def test_only_encoder_checkpoints_load(tmp_path):
+    import json
+
+    from clinical_deid.detection.hf_encoder import load_detector
+
+    (tmp_path / "config.json").write_text(json.dumps({"adapter": {"hidden_size": 640}}))
+    with pytest.raises(ValueError, match="only fine-tuned hf_token_classifier"):
+        load_detector(tmp_path)
 
 
 @pytest.mark.parametrize("size", [0, -1])

@@ -2,7 +2,7 @@
 license: apache-2.0
 language:
   - en
-base_model: openai/privacy-filter
+base_model: answerdotai/ModernBERT-base
 pipeline_tag: token-classification
 tags:
   - de-identification
@@ -13,34 +13,34 @@ tags:
   - synthetic-data
 ---
 
-# Clinical Deidentifier adapter
+# Clinical Deidentifier: ModernBERT mix5
 
-A clinical PHI token classifier built on the frozen
-[OpenAI Privacy Filter](https://huggingface.co/openai/privacy-filter) encoder.
-It is meant to run inside the
+A clinical PHI token classifier: ModernBERT-base fully fine-tuned as a BIOES
+tagger over 14 PHI types. It is meant to run inside the
 [Clinical Deidentifier](https://github.com/ewhauser/deidentifier) library,
-which adds structural extractors and synthetic replacement.
+which adds the decoder, policies and synthetic replacement. Detection is
+model-only; there is no rule layer.
 
 > [!WARNING]
-> Research software. It has not met its [project goal](GOALS.md) or its 99%
-> exact-span qualification target, and has
-> never been evaluated on real clinical records. It is not a substitute for a
+> Research software. It has never been evaluated on real clinical records, and
+> no sealed qualification has been run for it. It is not a substitute for a
 > HIPAA Safe Harbor review or an Expert Determination.
 
 ## Model details
 
 | | |
 |---|---|
-| Base model | `openai/privacy-filter` at revision `7ffa9a043d54d1be65afb281eddf0ffbe629385b` (frozen) |
-| Trained components | Residual bidirectional clinical adapter (hidden 640, bottleneck 160) and a linear BIOES head |
-| Trainable parameters | ~450K (1.8 MB `adapter.safetensors`) |
-| Context window | 512 tokens, with overlapping windows for longer text |
+| Base model | `answerdotai/ModernBERT-base` (149M parameters), fully fine-tuned |
+| Checkpoint | `models/takeover-mbbase-mix5-001/step-003803` (mix5, epoch 1) |
+| Weights | `hf/model.safetensors`, 599 MB, not stored in git |
+| Context window | 512 tokens, overlapping windows (overlap 128) for longer text |
 | Labels | BIOES tags over 14 types: NAME, DATE, ADDRESS, PHONE, EMAIL, MRN, SSN, ACCOUNT, ID, URL, IP, AGE, LOCATION, FACILITY |
-| License | Apache-2.0 (adapter and code) |
+| Decoding | Constrained Viterbi over legal BIOES transitions, exact character offsets |
+| License | Apache-2.0 (fine-tuned weights and code) |
 
-The default checkpoint (`models/clinical-adapter`) is the fourth stage of the
-lineage in the [training guide](docs/training.md). Later candidates are kept
-in the repository but have not been promoted.
+Promoted to the default on 2026-10-04 after passing the
+[GOALS.md](GOALS.md) regression rules and the blind places diagnostic. The
+selection record is `reports/takeover/mix5_001/selection.json`.
 
 ## Intended use
 
@@ -54,94 +54,79 @@ in the repository but have not been promoted.
 
 - Unreviewed release of clinical records, or any claim of regulatory
   de-identification based on this model alone.
-- Languages other than English, OCR output, scanned images and audio.
+- Languages other than English, OCR output, scanned images, and audio or call
+  transcripts (not yet measured).
 - Use as a calibrated risk score. Output scores are not probabilities of
   safety.
 
 ## Training data
 
-All task-specific data is synthetic and was authored by the generators in
-`src/clinical_deid/`. No external clinical dataset was downloaded or used.
-People, dates and identifiers are invented. The
-[places addendum](docs/annotation-policy-v2-places.md) lets newer generators
-also use real public place and care-site names from US government sources as
-surface values; the default checkpoint was not trained on them. The default
-checkpoint saw 22,800 training notes:
+All task-specific text is synthetic: written by this project's generators or
+by independently authored synthetic banks. No external clinical dataset was
+used. People, dates and identifiers are invented. The
+[places addendum](docs/annotation-policy-v2-places.md) curriculum also uses
+real public place and care-site names from US government sources as surface
+values.
 
-| Corpus | Notes | PHI spans |
-|---|---:|---:|
-| Base synthetic notes | 12,000 | 73,655 |
-| Development notes converted to training | 800 | 9,413 |
-| Dense augmentation | 4,000 | 52,610 |
-| Authored context (geography, ages, contacts) | 3,000 | 30,750 |
-| Authored coverage (roles, headers, name styles, care settings) | 3,000 | 51,000 |
-
-Checkpoint selection used 3,200 separate synthetic validation notes. The
-corpus text and annotations are released under CC0-1.0. Span conventions
-follow the [annotation policy](docs/annotation-policy-v2.md).
+The mixture (`reports/takeover/mix5_001/protocol.json`) has 34 banks, 93,805
+notes and 927,603 PHI spans: the earlier v12, remediation and v13 corpora,
+19 census-normalized author banks, 4 round-3 author banks, targeted
+supplements (correspondence, handoffs, spoken dates, long observations,
+identifier, facility, clinical-year, name, record-year and provider-organization
+contexts) and the places curriculum. Every bank passed a sanctioned overlap
+audit against the sealed qualification bank, and none has text, ID or identity
+overlap with the development banks. Span conventions follow the
+[annotation policy](docs/annotation-policy-v2.md).
 
 ## Training procedure
 
-The backbone stays frozen and its features are cached. The adapter and head
-are trained with token-level cross-entropy, resuming across four stages. The
-final stage used learning rate 1e-4, 16 epochs and seed 1729. It selected
-epoch 6 by mean validation cross-entropy, on Apple silicon (MPS) with float16
-features.
+Weights-only initialization from the mix3 checkpoint `step-003081`, then two
+epochs with a fresh optimizer: learning rate 2e-5, batch size 32, warmup 6%,
+weight decay 0.01, seed 20261003, Apple silicon (MPS), float32. Epoch 1 was
+selected; epoch 2 was blocked by a small loss of direct-identifier and NAME
+recall on the held-out gate bank.
 
 ## Evaluation
 
-The library runs this model in a **hybrid** detector together with
-deterministic structural extractors and context guards. Model-only and hybrid
-results are always reported separately. Metrics are exact typed-span
-precision, recall and F1 unless noted.
+All numbers are model-only and come from synthetic banks; none estimates
+accuracy on real notes. "Masked" means every character of a gold span is
+covered by some predicted span, whatever its label.
 
-### Default checkpoint: V4 frozen final test
+### Held-out synthetic authors
 
-1,200 synthetic notes and 14,121 PHI spans, evaluated once:
-
-| Detector | Precision | Recall | F1 |
-|---|---:|---:|---:|
-| Model only | 96.18% | 95.68% | 95.93% |
-| Hybrid | 97.39% | 97.28% | 97.34% |
-
-Hybrid PHI-character recall was 99.87%, and 97.25% of documents were
-leak-free. The validation set scored 99.82% F1, but that did not transfer to
-the final test. Later, independently authored banks were harder: on the V5
-blind bank a later checkpoint reached 79.74% hybrid F1.
-
-### Latest candidate: V14 qualification
-
-This run used the `clinical-adapter-v12-warm-001` epoch-2 weights with the V14
-hybrid layer. It was one frozen run on 2,160 synthetic notes and 16,632 spans,
-and passed 2 of 7 gates.
-
-| Detector | Precision | Recall | F1 | PHI-char recall | Leak-free PHI notes |
+| Bank | Direct identifiers masked | NAME masked (document 95% lower bound) | Indirect masked | Any-label precision | Exact typed F1 |
 |---|---:|---:|---:|---:|---:|
-| Model only | 96.46% | 94.33% | 95.38% | 98.19% | 60.17% |
-| Hybrid | 96.37% | 98.88% | 97.61% | 99.54% | 91.77% |
+| Geriatric (gate bank) | 99.78% | 99.75% (99.65%) | 99.49% | 99.80% | 99.24% |
+| Primary care | 99.71% | 99.62% (99.35%) | 98.10% | 99.77% | 99.16% |
 
-### External benchmark
+Banks written by the training generators score higher and are not evidence of
+generalisation.
 
-On [ASQ-PHI](https://doi.org/10.17632/csz5dzp7nx.1) (1,051 synthetic clinical
-search queries, MIT licence), the hybrid detector covered 95.25% of PHI
-characters and redacted 1.03% of non-PHI characters. MedDeID scored 99.14% and
-6.33% on the same measures. The full protocol and comparison are in
-[external verification](docs/external-verification.md).
+### Sealed places bank
 
-The complete record is in the [evaluation history](docs/evaluation-history.md).
+`blind_places_v1` (2,464 documents, independently authored and reviewed,
+scored once): 97.36% of held-out city, abbreviation and short care-site name
+characters were masked, against 79.58% for the previous checkpoint. All
+PHI-free public-reference documents (named instruments, place-named diseases,
+cited institutions, states, place-words) were left untouched.
+
+The complete record is in `reports/takeover/mix5_001/RESULTS.md` and the
+[evaluation history](docs/evaluation-history.md). Results for the removed
+Privacy-Filter adapter detector are kept there as history.
 
 ## Limitations and risks
 
-- **Missed PHI is the primary risk.** NAME recall is weakest, especially for
-  nicknames, aliases and single-token names in narrative text. On one
-  160-note development challenge, NAME recall was 38.4%.
-- **Synthetic-to-real gap.** Every internal score comes from text written by
-  this project's generators. Performance on real institutional notes is
-  unknown and probably lower.
-- **Location coverage.** On ASQ-PHI, the detector misses standalone city
-  names and institution abbreviations such as "UCSF".
-- **Over-redaction.** Bare years and medical eponyms ("Chaddock reflex")
-  sometimes cause false positives.
+- **Missed PHI is the primary risk.** About 0.2–0.3% of direct identifiers and
+  0.5–1.9% of indirect identifiers on held-out synthetic authors are not fully
+  masked.
+- **Synthetic-to-real gap.** Real institutional notes are unmeasured and may
+  be harder.
+- **Terse text.** Very short search-query style text is the weakest layout for
+  real place names (about 95% character recall).
+- **Over-redaction.** Some PHI-free notes still receive a span; on one
+  familiar bank 110 of 120 were left untouched.
+- **Identifier typing.** One familiar template ("request … record <code>")
+  types some MRNs as ID. The span stays masked.
 - **Surrogates are not anonymity.** Synthetic replacements can resemble real
   people, and date shifting changes seasonal context.
 
@@ -150,7 +135,7 @@ The complete record is in the [evaluation history](docs/evaluation-history.md).
 ```python
 from clinical_deid import Deidentifier
 
-deid = Deidentifier("models/clinical-adapter")
+deid = Deidentifier()  # loads the default checkpoint
 print(deid.deidentify("Mara Calder was seen on 2024-02-28.", mode="redact")["text"])
 ```
 

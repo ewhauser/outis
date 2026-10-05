@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking:** the rule layer. Detection is now model-only: the regex
+  extractors and context guards (`clinical_deid.detection.rules`,
+  `clinical_deid.detection.context`), the `backend` option of the service,
+  detector and evaluator, the `DEID_BASE_DIR` setting, and per-label
+  `model_labels` source selection are gone. On held-out authors the rules
+  masked no more direct identifiers than the model and cost precision, indirect
+  recall and about 2.4 points of exact typed F1.
+- **Breaking:** the OpenAI Privacy Filter adapter detector
+  (`clinical_deid.detection.adapter`), its trainer (`clinical_deid.training`),
+  `scripts/bootstrap.py`, and the adapter-era qualification, replay and
+  scoring scripts. Check out `cbaf3af` to reproduce historical adapter results.
+- `opf` is no longer a runtime dependency; it moved to the optional
+  `generators` extra used by two legacy corpus generators.
+
+### Changed
+
+- **Breaking:** the default model is ModernBERT-base mix5 epoch 1,
+  `models/takeover-mbbase-mix5-001/step-003803`, for the service, API, CLI and
+  local launcher. Its weights are not stored in git.
+- Name and record parsing used to link nickname identities during replacement
+  moved to `clinical_deid.replacement.names`; it never adds detections.
+- `scripts/takeover/eval_bank.py` reports one model-only result including the
+  `privacy` block; `scripts/takeover/train_hf.py` selects epochs on model-only
+  scores.
+
 ### Added
 
 - [GOALS.md](GOALS.md): the accepted project goal, measured as any-label

@@ -409,14 +409,38 @@ def generate_rows(count=4000, *, split="train", seed=630429):
         yield row
 
 
-def _token_statistics(row, encoding):
-    # Use the production offset and BIOES alignment functions. This only runs
-    # local tokenization; no encoder weights or GPU computation are loaded.
-    from clinical_deid.detection.adapter import TAGS, tokenize
-    from clinical_deid.training.train import align_labels
+def _token_offsets(text, encoding):
+    """o200k_base token ids and character ranges, for corpus statistics only."""
+    ids = encoding.encode(text, disallowed_special=())
+    _, starts = encoding.decode_with_offsets(ids)
+    ends = starts[1:] + [len(text)]
+    return ids, list(zip(starts, ends))
 
-    ids, offsets = tokenize(row["text"], encoding)
-    tags = Counter(TAGS[index] for index in align_labels(row, offsets))
+
+def _token_statistics(row, encoding):
+    """Token count and BIOES tag counts under o200k_base, for the manifest."""
+    ids, offsets = _token_offsets(row["text"], encoding)
+    tags = Counter()
+    for span in row["spans"]:
+        covered = [
+            (a, b)
+            for a, b in offsets
+            if a < span["end"]
+            and b > span["start"]
+            and row["text"][max(a, span["start"]) : min(b, span["end"])].strip()
+        ]
+        for k in range(len(covered)):
+            boundary = (
+                "S"
+                if len(covered) == 1
+                else "B"
+                if k == 0
+                else "E"
+                if k == len(covered) - 1
+                else "I"
+            )
+            tags[f"{boundary}-{span['label']}"] += 1
+    tags["O"] = len(ids) - sum(tags.values())
     return len(ids), tags
 
 

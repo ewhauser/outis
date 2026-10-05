@@ -17,7 +17,7 @@ import unicodedata
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from clinical_deid.detection.name_aliases import full_identity_aliases
+from clinical_deid.replacement.names.aliases import full_identity_aliases
 from clinical_deid.replacement.nicknames import nickname_bindings
 from clinical_deid.types import Span
 
@@ -623,7 +623,7 @@ def _shift_date(value: str, offset: int) -> tuple[str, str | None, bool]:
 
 
 def _age(value: str, mode: str) -> str:
-    from clinical_deid.detection.context.age import parse_english_age
+    from clinical_deid.replacement.names.age import parse_english_age
 
     match = re.fullmatch(
         r"\s*(\d{1,3}(?:\.\d+)?)\+?(?:[\s-]*(?:years?[\s-]*old|y/?o|years?|yrs?))?\s*",

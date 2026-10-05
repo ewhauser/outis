@@ -10,11 +10,11 @@ import re
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from clinical_deid.detection.context.nickname import (
+from clinical_deid.replacement.names.nickname import (
     _complete_identity,
     contextual_person_names,
 )
-from clinical_deid.detection.context.record import (
+from clinical_deid.replacement.names.record import (
     _OTHER_RECORD,
     _PATIENT_HEADER,
     _RECORD_HEADER,

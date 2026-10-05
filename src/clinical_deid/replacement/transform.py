@@ -21,8 +21,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from clinical_deid.detection.name_aliases import full_identity_aliases
 from clinical_deid.entities import Entity, checked_entities
+from clinical_deid.replacement.names.aliases import full_identity_aliases
 from clinical_deid.replacement.nicknames import NameBinding, nickname_bindings
 from clinical_deid.replacement.surrogates import (
     _canonical,

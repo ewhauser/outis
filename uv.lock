@@ -212,7 +212,6 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "opf" },
     { name = "pydantic" },
     { name = "python-dateutil" },
     { name = "regex" },
@@ -226,11 +225,15 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "httpx" },
+    { name = "opf" },
     { name = "psutil" },
     { name = "pypdf" },
     { name = "pytest" },
     { name = "reportlab" },
     { name = "ruff" },
+]
+generators = [
+    { name = "opf" },
 ]
 pdf = [
     { name = "pypdf" },
@@ -239,13 +242,13 @@ pdf = [
 
 [package.metadata]
 requires-dist = [
-    { name = "clinical-deid", extras = ["pdf"], marker = "extra == 'dev'" },
+    { name = "clinical-deid", extras = ["pdf", "generators"], marker = "extra == 'dev'" },
     { name = "defusedxml", specifier = ">=0.7" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
     { name = "huggingface-hub", specifier = ">=0.35" },
     { name = "numpy", specifier = ">=2.0" },
-    { name = "opf", url = "https://github.com/openai/privacy-filter/archive/f7f00ca7fb869683eb732c010299d901457f19c3.tar.gz" },
+    { name = "opf", marker = "extra == 'generators'", url = "https://github.com/openai/privacy-filter/archive/f7f00ca7fb869683eb732c010299d901457f19c3.tar.gz" },
     { name = "psutil", marker = "extra == 'dev'", specifier = ">=6" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pypdf", marker = "extra == 'pdf'", specifier = ">=6.19.0" },
@@ -260,7 +263,7 @@ requires-dist = [
     { name = "transformers", specifier = ">=5.6" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
-provides-extras = ["pdf", "dev"]
+provides-extras = ["pdf", "generators", "dev"]
 
 [[package]]
 name = "colorama"

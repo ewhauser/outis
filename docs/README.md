@@ -12,14 +12,14 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
   file processing and WebSockets.
 - [Synthetic replacement](replacement.md): secrets, patient anchors, date
   shifting and identity linking.
-- [Deployment](deployment.md): local launcher, detector backends, batch limits
+- [Deployment](deployment.md): local launcher, default model, batch limits
   and security controls.
 
 ## Model
 
 - [Model card](../MODEL_CARD.md): architecture, training data, evaluation and
   limitations.
-- [Training](training.md): reproducing the default adapter and generating
+- [Training](training.md): training detector candidates and generating
   synthetic corpora.
 - [Annotation policy](annotation-policy-v2.md): the only annotation policy.
   Span conventions for every corpus and bank, including the conventions

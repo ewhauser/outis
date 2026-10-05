@@ -2,7 +2,7 @@
 
 Token accuracy is intentionally absent: abundant non-PHI tokens can make an
 unsafe detector appear accurate.  The CLI verifies a frozen corpus manifest
-before loading a detector and separates model-only from hybrid results.
+before loading the detector. Detection is model-only; there is no rule layer.
 """
 
 from __future__ import annotations
@@ -130,7 +130,6 @@ def evaluate(
     rows: Iterable[dict[str, Any]],
     predictor: Callable[[str], list[Span]] | Any,
     *,
-    backend: str = "unspecified",
     max_failures: int = 100,
     minimum_label_support: int = 200,
     batch_size: int = 16,
@@ -141,8 +140,6 @@ def evaluate(
     span.  This privacy metric ignores type disagreements; exact typed-span F1
     reports those independently.  Failures include only this synthetic corpus.
     """
-    if backend not in ("unspecified", "model", "hybrid"):
-        raise ValueError("backend must be model, hybrid, or unspecified")
     detect = predictor.detect if hasattr(predictor, "detect") else predictor
     if not callable(detect):
         raise TypeError("predictor must be callable or expose detect(text)")
@@ -401,7 +398,7 @@ def evaluate(
     }
     return {
         "schema_version": 1,
-        "backend": backend,
+        "backend": "model",
         "documents": documents,
         "typed_span": span_result,
         "privacy": privacy,
@@ -526,7 +523,7 @@ def detector_source_manifest() -> dict[str, str]:
     """Pin transitive package-local detector helpers as well as entry points."""
     from clinical_deid.paths import source_manifest
 
-    return source_manifest("detection/adapter.py", "detection/rules.py", "types.py")
+    return source_manifest("detection/hf_encoder.py", "types.py")
 
 
 def main() -> None:
@@ -534,7 +531,6 @@ def main() -> None:
     parser.add_argument("--data", required=True)
     parser.add_argument("--model-dir", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--backend", choices=("model", "hybrid"), default="hybrid")
     parser.add_argument("--max-failures", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument(
@@ -544,18 +540,14 @@ def main() -> None:
     rows, manifest = load_verified_corpus(args.data)
     before = model_manifest(args.model_dir)
     source_before = detector_source_manifest()
-    from clinical_deid.detection.adapter import Detector
+    from clinical_deid.detection.hf_encoder import load_detector
 
-    detector = Detector(
-        args.model_dir,
-        backend=args.backend,
-        device=args.device,
-        batch_size=args.batch_size,
+    detector = load_detector(
+        args.model_dir, device=args.device, batch_size=args.batch_size
     )
     result = evaluate(
         rows,
         detector,
-        backend=args.backend,
         max_failures=args.max_failures,
         batch_size=args.batch_size,
     )

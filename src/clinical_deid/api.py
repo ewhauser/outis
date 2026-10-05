@@ -23,6 +23,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from clinical_deid.paths import DEFAULT_MODEL_DIR
 from clinical_deid.policy import DetectionPolicy
 from clinical_deid.replacement.transform import ReidentifyRequest, ReplacementOptions
 from clinical_deid.service import Deidentifier
@@ -389,10 +390,9 @@ def create_app(service=None, *, api_key=None):
     @asynccontextmanager
     async def lifespan(app):
         app.state.service = service_arg or Deidentifier(
-            os.environ.get("DEID_MODEL_DIR", "models/clinical-adapter"),
+            os.environ.get("DEID_MODEL_DIR", DEFAULT_MODEL_DIR),
             secret=os.environ.get("DEID_SECRET"),
             device=os.environ.get("DEID_DEVICE", "auto"),
-            base_dir=os.environ.get("DEID_BASE_DIR"),
         )
         yield
 

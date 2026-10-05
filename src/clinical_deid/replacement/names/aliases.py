@@ -25,48 +25,8 @@ _PARTICLES = {
     "den",
     "des",
 }
+
 _SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v", "vi"}
-_FUNCTION_WORDS = {
-    "a",
-    "an",
-    "the",
-    "for",
-    "to",
-    "in",
-    "on",
-    "of",
-    "as",
-    "at",
-    "by",
-    "from",
-    "have",
-    "has",
-    "had",
-    "do",
-    "does",
-    "did",
-    "be",
-    "is",
-    "are",
-    "was",
-    "were",
-    "will",
-    "may",
-    "can",
-    "no",
-    "not",
-    "but",
-    "and",
-    "or",
-    "na",
-    "if",
-    "so",
-}
-
-
-def alias_function_word(value: str) -> bool:
-    """A grammar collision needs an explicit title/naming proof at each mention."""
-    return unicodedata.normalize("NFC", value).casefold() in _FUNCTION_WORDS
 
 
 def _word(value: str) -> bool:

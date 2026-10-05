@@ -116,13 +116,14 @@ def test_wilson_interval_and_empty_evaluation():
         evaluate([row()], lambda text: [{"start": 0, "end": 100, "label": "NAME"}])
 
 
-def test_model_and_hybrid_reports_are_explicitly_separate():
+def test_reports_record_the_model_only_detector():
     class Detector:
         def detect(self, text):
             return [Span(0, 3, "NAME")]
 
-    assert evaluate([row()], Detector(), backend="model")["backend"] == "model"
-    assert evaluate([row()], Detector(), backend="hybrid")["backend"] == "hybrid"
+    assert evaluate([row()], Detector())["backend"] == "model"
+    with pytest.raises(TypeError):
+        evaluate([row()], Detector(), backend="hybrid")
 
 
 def test_batch_predictions_use_fast_path_and_validate_batch_size():
@@ -133,7 +134,7 @@ def test_batch_predictions_use_fast_path_and_validate_batch_size():
         def detect_batch(self, texts):
             return [[Span(0, 3, "NAME")] for text in texts]
 
-    result = evaluate([row()], Detector(), backend="model")
+    result = evaluate([row()], Detector())
     assert result["typed_span"]["f1"] == 1
     with pytest.raises(ValueError, match="batch_size"):
         evaluate([row()], Detector(), batch_size=0)
@@ -151,8 +152,7 @@ def test_detector_source_manifest_includes_changed_transitive_helpers(
     import clinical_deid.paths as paths
 
     for name, text in {
-        "detection/adapter.py": "from clinical_deid.types import Span\n",
-        "detection/rules.py": "from clinical_deid.detection.helper import refine\n",
+        "detection/hf_encoder.py": "from clinical_deid.detection.helper import refine\n",
         "detection/helper.py": "from clinical_deid.types import Span\ndef refine(): pass\n",
         "types.py": "class Span: pass\n",
     }.items():
@@ -161,8 +161,7 @@ def test_detector_source_manifest_includes_changed_transitive_helpers(
     monkeypatch.setattr(paths, "PACKAGE_ROOT", tmp_path)
     before = evaluation.detector_source_manifest()
     assert set(before) == {
-        "detection/adapter.py",
-        "detection/rules.py",
+        "detection/hf_encoder.py",
         "detection/helper.py",
         "types.py",
     }

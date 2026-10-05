@@ -1,9 +1,7 @@
 """Frozen manifest compatibility and cached metric implementation provenance."""
 
 import hashlib
-import importlib.util
 import json
-from pathlib import Path
 
 import pytest
 
@@ -105,39 +103,3 @@ def test_zero_count_preserves_existing_empty_loader_semantics(tmp_path, key):
     manifest["label_support"] = dict.fromkeys(ENTITY_TYPES, 0)
     sidecar.write_text(json.dumps(manifest))
     assert evaluation.load_verified_corpus(path) == ([], manifest)
-
-
-def test_cached_runtime_provenance_pins_evaluator_implementation(tmp_path, monkeypatch):
-    scripts = Path(__file__).parents[1] / "scripts"
-    monkeypatch.syspath_prepend(str(scripts))
-    spec = importlib.util.spec_from_file_location(
-        "v12_manifest_provenance_scorer", scripts / "score_cached_candidates.py"
-    )
-    scorer = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(scorer)
-    monkeypatch.setattr(scorer, "neural_runtime_manifest", dict)
-    monkeypatch.setattr(scorer, "rules_source_manifest", dict)
-    monkeypatch.setattr(
-        scorer.train, "loaded_function_fingerprint", lambda function: function.__name__
-    )
-    metric_source = tmp_path / "evaluate.py"
-    metric_source.write_text("def evaluate(): return 1\n")
-    monkeypatch.setattr(evaluation, "__file__", str(metric_source))
-    before = scorer.runtime_provenance()
-    assert (
-        before["evaluation_source_sha256"]
-        == hashlib.sha256(metric_source.read_bytes()).hexdigest()
-    )
-    assert scorer.runtime_provenance() == before
-    metric_source.write_text("def evaluate(): return 2\n")
-    after = scorer.runtime_provenance()
-    assert (
-        after["evaluation_source_sha256"]
-        == hashlib.sha256(metric_source.read_bytes()).hexdigest()
-    )
-    assert after["evaluation_source_sha256"] != before["evaluation_source_sha256"]
-    assert {
-        key: value for key, value in after.items() if key != "evaluation_source_sha256"
-    } == {
-        key: value for key, value in before.items() if key != "evaluation_source_sha256"
-    }

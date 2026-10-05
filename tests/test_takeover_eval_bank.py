@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.detection import hf_encoder, rules
+from clinical_deid.detection import hf_encoder
 from clinical_deid.types import ENTITY_TYPES, Span
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +24,6 @@ def load_script(name):
 
 
 evaluation = load_script("eval_bank")
-selection = load_script("select_sources")
 
 
 def bank(tmp_path, name="development", extra=None):
@@ -79,10 +78,6 @@ def fake_cli(tmp_path, monkeypatch, *, corpus=None, predictions=True, extra=()):
         str(report),
         "--device",
         "cpu",
-        "--model-labels",
-        "",
-        "--base-dir",
-        str(tmp_path / "base"),
     ]
     if predictions:
         args += ["--predictions", str(prediction_path)]
@@ -90,16 +85,15 @@ def fake_cli(tmp_path, monkeypatch, *, corpus=None, predictions=True, extra=()):
     monkeypatch.setattr(sys, "argv", args)
 
     class Detector:
-        config = {"model_labels": []}
+        config = {}
         encoding = None
 
-        def raw_batch(self, texts):
+        def detect_batch(self, texts):
             return [
                 [Span(0, 3, "NAME")] if text.startswith("Zoë") else [] for text in texts
             ]
 
     monkeypatch.setattr(hf_encoder, "load_detector", lambda *a, **k: Detector())
-    monkeypatch.setattr(rules, "augment", lambda text, spans: spans)
     monkeypatch.setattr(
         evaluation,
         "neural_runtime_manifest",
@@ -111,15 +105,19 @@ def fake_cli(tmp_path, monkeypatch, *, corpus=None, predictions=True, extra=()):
     return corpus, model_dir, report, prediction_path
 
 
-def test_producer_envelope_roundtrips_through_selection(tmp_path, monkeypatch):
-    corpus, _, report, predictions = fake_cli(tmp_path, monkeypatch)
+def test_report_and_predictions_share_one_provenance(tmp_path, monkeypatch):
+    _, _, report, predictions = fake_cli(tmp_path, monkeypatch)
     evaluation.main()
     result = json.loads(report.read_text())
     envelope = json.loads(predictions.read_text())
     assert result["model"]["typed_span"]["f1"] == 1
+    assert "privacy" in result["model"]
+    assert "hybrid" not in result
     assert result["neural_runtime"] == envelope["neural_runtime"]
     assert result["source_manifest"] == envelope["source_manifest"]
-    assert selection.score(selection.load([f"{corpus}={predictions}"]), set())[0] == 1
+    assert envelope["predictions"][0]["spans"] == [
+        {"start": 0, "end": 3, "label": "NAME", "score": 1.0, "source": "model"}
+    ]
 
 
 @pytest.mark.parametrize("kind", ["model", "runtime", "source", "corpus"])
@@ -232,7 +230,7 @@ def test_proxy_aggregate_report_contains_no_failures_or_predictions(
     evaluation.main()
     result = json.loads(report.read_text())
     assert result["failures_written"] is False
-    assert "failures" not in result["model"] and "failures" not in result["hybrid"]
+    assert "failures" not in result["model"]
     assert not predictions.exists()
 
 
@@ -290,7 +288,7 @@ def test_detector_missing_rows_cannot_be_silently_scored(tmp_path, monkeypatch):
     _, _, report, predictions = fake_cli(tmp_path, monkeypatch)
 
     class ShortDetector:
-        def raw_batch(self, texts):
+        def detect_batch(self, texts):
             return [[]]
 
     monkeypatch.setattr(hf_encoder, "load_detector", lambda *a, **k: ShortDetector())

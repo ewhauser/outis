@@ -36,13 +36,17 @@ dependencies = [
     "numpy>=2.0",
     "regex>=2024.11",
     "defusedxml>=0.7",
-    "opf @ https://github.com/openai/privacy-filter/archive/f7f00ca7fb869683eb732c010299d901457f19c3.tar.gz",
 ]
 
 [project.optional-dependencies]
 # Native PDF input and output for /v1/files.
 pdf = ["pypdf>=6.19.0", "reportlab>=4"]
-dev = ["clinical-deid[pdf]", "pytest>=8", "httpx>=0.28", "ruff>=0.11", "psutil>=6"]
+# Token character offsets used by the legacy remediation and generalization
+# corpus generators to reproduce their recorded statistics. Detection does not use it.
+generators = [
+    "opf @ https://github.com/openai/privacy-filter/archive/f7f00ca7fb869683eb732c010299d901457f19c3.tar.gz",
+]
+dev = ["clinical-deid[pdf,generators]", "pytest>=8", "httpx>=0.28", "ruff>=0.11", "psutil>=6"]
 
 [project.urls]
 Homepage = "https://github.com/ewhauser/deidentifier"

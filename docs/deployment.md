@@ -15,31 +15,28 @@ restarts. A configured `DEID_SECRET` takes precedence. Preserve the key to keep
 patient mappings stable; do not commit it or share it with API clients.
 
 `clinical-deid serve` is the packaged equivalent. It reads `DEID_MODEL_DIR`
-(default `models/clinical-adapter`) and refuses to start without a trained
-adapter. On Apple silicon, set `DEID_DEVICE=mps`; CPU is supported.
+(default `models/takeover-mbbase-mix5-001/step-003803`) and refuses to start
+without a fine-tuned encoder checkpoint there. On Apple silicon, set
+`DEID_DEVICE=mps`; CPU is supported.
 
-## Detector backends
+## Detector
 
-The default API uses the hybrid detector. NER reads the original clinical text;
-structural extractors then scan that same complete text and merge their matches
-with the learned spans. An email does not need a successful NER prediction to
-be detected. The email recognizer supports ASCII aliases and punctuation,
-Unicode mailbox text and domains, punycode domains, quoted mailbox names, and
-IP address literals while preserving original character offsets. Regression
-tests force NER to return no PHI and verify both redaction and synthetic
-replacement through the public Python API. Obfuscated forms such as
-`alice [at] example [dot] org` remain outside this deterministic grammar.
-`backend="model"` is available for evaluating NER separately and skips the
-structural extractors.
+Detection is model-only: a fine-tuned ModernBERT token classifier reads the
+original text in overlapping windows and a constrained BIOES decoder returns
+spans at exact original character offsets. There are no regex extractors or
+context guards; the rule layer was removed on 2026-10-04 because it cost
+precision and recall on unseen authors without masking more direct
+identifiers. Explicit `custom_entities` patterns in a request policy are still
+applied as requested.
 
 ## Batch limits and response contents
 
 `POST /v1/batch` accepts `{"items":[...requests...]}`. There are at most 16
 requests and 100,000 total characters per batch. Responses include transformed
 text, original **character offsets** of detected entities, entity types,
-replacement strings, model/rule confidence scores, warnings, and a model version.
+replacement strings, model confidence scores, warnings, and a model version.
 Response metadata contains no original PHI, patient anchor, date offset, or key.
-Scores are model probabilities or rule scores, not calibrated safety estimates.
+Scores are model probabilities, not calibrated safety estimates.
 
 ## Security controls
 

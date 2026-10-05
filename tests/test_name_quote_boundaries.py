@@ -4,7 +4,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from clinical_deid.detection.adapter import TAGS, decode_bioes  # noqa: E402
+from clinical_deid.detection.decoding import TAGS, decode_bioes  # noqa: E402
 
 
 def _decode(text, offsets, labels=None):

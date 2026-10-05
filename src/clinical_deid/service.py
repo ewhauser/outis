@@ -10,6 +10,7 @@ from threading import Lock
 
 from clinical_deid.entities import checked_entities
 from clinical_deid.operations import Usage
+from clinical_deid.paths import DEFAULT_MODEL_DIR
 from clinical_deid.replacement.surrogates import _validated_secret, replace
 
 
@@ -33,31 +34,22 @@ def _model_version(model_dir, detector):
             with path.open("rb") as stream:
                 digest.update(hashlib.file_digest(stream, "sha256").digest())
         return digest.hexdigest()[:16]
-    path = Path(model_dir) / "adapter.safetensors"
-    return (
-        hashlib.sha256(path.read_bytes()).hexdigest()[:16]
-        if path.is_file() and loaded_dir is not None
-        else "injected-detector"
-    )
+    return "injected-detector"
 
 
 class Deidentifier:
     def __init__(
         self,
-        model_dir="models/clinical-adapter",
+        model_dir=DEFAULT_MODEL_DIR,
         *,
         secret=None,
         device="auto",
-        backend="hybrid",
         detector=None,
-        base_dir=None,
     ):
         if detector is None:
             from clinical_deid.detection.hf_encoder import load_detector
 
-            detector = load_detector(
-                model_dir, device=device, backend=backend, base_dir=base_dir
-            )
+            detector = load_detector(model_dir, device=device)
         self.detector = detector
         self.secret = secret
         self.lock = Lock()

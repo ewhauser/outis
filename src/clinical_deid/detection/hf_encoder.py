@@ -1,10 +1,10 @@
 """Fully fine-tuned Hugging Face token-classification encoders.
 
 The encoder emits one score per BIOES tag for every tokenizer token. Windows
-overlap and each token's emissions come from the window that owns it, exactly
-like :class:`clinical_deid.detection.adapter.Detector`; the whole document is then decoded
-once with :func:`clinical_deid.detection.adapter.decode_bioes` and, for the hybrid backend,
-passed through the same deterministic rules.
+overlap and each token's emissions come from the window that owns it; the whole
+document is then decoded once with
+:func:`clinical_deid.detection.decoding.decode_bioes`. Detection is model-only:
+there is no rule layer.
 """
 
 from __future__ import annotations
@@ -14,8 +14,7 @@ from pathlib import Path
 
 import torch
 
-from clinical_deid.detection.adapter import TAGS, choose_device, decode_bioes
-from clinical_deid.types import ENTITY_TYPES
+from clinical_deid.detection.decoding import TAGS, choose_device, decode_bioes
 
 ENCODER_KIND = "hf_token_classifier"
 # Separators that subword tokenizers sometimes merge into a PHI token ("=(617)")
@@ -68,39 +67,6 @@ def refine_boundaries(spans, text):
     return refined
 
 
-def _parts(span):
-    if isinstance(span, tuple):
-        return span
-    return span.start, span.end, span.label
-
-
-def apply_label_modes(raw, hybrid, model_labels):
-    """Use raw encoder spans for labels in model_labels and hybrid spans otherwise.
-
-    Raw spans of a model-mode label replace every hybrid span of that label, and
-    win any overlap with hybrid spans of other labels. Works on Span objects or
-    (start, end, label) tuples.
-    """
-    model_labels = set(model_labels or ())
-    if not model_labels:
-        return list(hybrid)
-    chosen = [span for span in raw if _parts(span)[2] in model_labels]
-
-    def overlaps(span):
-        a, b, _ = _parts(span)
-        return any(a < _parts(c)[1] and _parts(c)[0] < b for c in chosen)
-
-    kept = [
-        span
-        for span in hybrid
-        if _parts(span)[2] not in model_labels and not overlaps(span)
-    ]
-    return sorted(
-        kept + chosen,
-        key=lambda span: (_parts(span)[0], _parts(span)[1], _parts(span)[2]),
-    )
-
-
 def window_jobs(n_tokens: int, content_window: int):
     """Yield (start, stop, owned_left, owned_right) windows covering n tokens."""
     if content_window < 1 or n_tokens < 0:
@@ -143,15 +109,12 @@ class HFTokenDetector:
         self,
         model_dir,
         *,
-        backend="hybrid",
         device="auto",
         batch_size=8,
         model=None,
         tokenizer=None,
         config=None,
     ):
-        if backend not in {"model", "hybrid"}:
-            raise ValueError("backend must be model or hybrid")
         if type(batch_size) is not int or batch_size < 1:
             raise ValueError("batch_size must be a positive integer")
         from transformers import AutoModelForTokenClassification, AutoTokenizer
@@ -162,11 +125,6 @@ class HFTokenDetector:
             raise ValueError("model directory is not an hf_token_classifier")
         if "tags" in self.config and self.config["tags"] != TAGS:
             raise ValueError("encoder tag ordering does not match the BIOES tag set")
-        modes = self.config.get("model_labels", [])
-        if not isinstance(modes, list) or any(
-            label not in ENTITY_TYPES for label in modes
-        ):
-            raise ValueError("model_labels must be a list of supported PHI labels")
         self.device = choose_device(device)
         hf_dir = str(self.model_dir / "hf") if model is None else None
         self.tokenizer = tokenizer or AutoTokenizer.from_pretrained(
@@ -178,7 +136,6 @@ class HFTokenDetector:
         self.model.to(self.device).eval()
         if self.model.config.num_labels != len(TAGS):
             raise ValueError("encoder head does not match the BIOES tag set")
-        self.backend = backend
         self.batch_size = batch_size
         self.max_length = int(self.config.get("max_length", 512))
         self.prefix, self.suffix = special_layout(self.tokenizer)
@@ -237,42 +194,21 @@ class HFTokenDetector:
         ]
 
     def detect_batch(self, texts):
-        results = self.raw_batch(texts)
-        if self.backend == "hybrid":
-            from clinical_deid.detection.rules import augment
-
-            model_labels = self.config.get("model_labels", [])
-            results = [
-                apply_label_modes(s, augment(t, s), model_labels)
-                for t, s in zip(texts, results)
-            ]
-        return results
+        return self.raw_batch(texts)
 
 
-def load_detector(
-    model_dir, *, backend="hybrid", device="auto", batch_size=8, base_dir=None
-):
-    """Construct the right detector class for a model directory."""
+def load_detector(model_dir, *, device="auto", batch_size=8):
+    """Load the encoder detector stored in a checkpoint directory."""
     directory = Path(model_dir)
     if (directory / "publication_in_progress.json").exists():
         raise ValueError("checkpoint publication is in progress")
     config = json.loads((directory / "config.json").read_text())
-    if config.get("encoder") == ENCODER_KIND:
-        return HFTokenDetector(
-            model_dir, backend=backend, device=device, batch_size=batch_size
-        )
-    if "model_type" in config and "adapter" not in config:
+    if "model_type" in config and "encoder" not in config:
         raise ValueError(
             "Pass the detector checkpoint directory containing hf/, not the nested Hugging Face directory"
         )
-    if config.get("encoder") is not None:
-        raise ValueError("Unsupported detector encoder kind")
-    from clinical_deid.detection.adapter import Detector
-
-    return Detector(
-        model_dir,
-        backend=backend,
-        device=device,
-        base_dir=base_dir,
-        batch_size=batch_size,
-    )
+    if config.get("encoder") != ENCODER_KIND:
+        raise ValueError(
+            "Unsupported detector: only fine-tuned hf_token_classifier checkpoints are supported"
+        )
+    return HFTokenDetector(model_dir, device=device, batch_size=batch_size)

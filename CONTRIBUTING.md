@@ -9,8 +9,8 @@ Thanks for your interest in improving Clinical Deidentifier.
   rewrite it with invented values before sharing it.
 - **No external data in training.** Public benchmarks are for evaluation only.
   See the rules in [external verification](docs/external-verification.md).
-- **Report results honestly.** Report model-only and hybrid results
-  separately. Do not merge development and qualification numbers.
+- **Report results honestly.** Name the bank behind every number. Do not
+  merge development and qualification numbers.
 - **Privacy first.** The [project goal](GOALS.md) is that identifiers stay
   masked. A wrong type on a masked span is an engineering cost, not a leak.
 
@@ -19,7 +19,6 @@ Thanks for your interest in improving Clinical Deidentifier.
 ```sh
 uv venv --python 3.13
 uv pip install --python .venv/bin/python -e '.[dev]'
-.venv/bin/python scripts/bootstrap.py   # only needed for model inference
 ```
 
 ## Checks
@@ -49,13 +48,12 @@ CI.
 src/clinical_deid/
   service.py, api.py, cli.py   Deidentifier facade, HTTP API and CLI
   policy.py, entities.py, types.py, analysis.py, operations.py
-  detection/                   adapter model, hf_encoder, structural rules
-    context/                   context guards (names, dates, records, places, …)
+  detection/                   ModernBERT token classifier and BIOES decoder
   replacement/                 surrogates, nickname identities, transforms
+    names/                     name and record witnesses for identity linking
   formats/                     structured data and native files
   data/                        annotation policy, corpus checks, generators
     generators/  v12/  v13/
-  training/                    adapter training
   evaluation/                  metrics and HTML reports
 ```
 

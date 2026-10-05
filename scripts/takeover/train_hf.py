@@ -2,8 +2,8 @@
 
 Training windows match inference: content windows of (max_length - specials)
 tokens, overlap 128, and only the tokens a window owns carry labels. After each
-epoch the full detector (model-only and hybrid with the deterministic rules) is
-evaluated on development selection banks; the best epoch is kept.
+epoch the detector is evaluated on development selection banks; the best epoch
+is kept. Detection is model-only; there is no rule layer.
 
   PYTHONPATH=src python scripts/takeover/train_hf.py --model-name answerdotai/ModernBERT-base \
       --train data/v12_train.jsonl data/remediation_v1_train.jsonl \
@@ -34,10 +34,21 @@ os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(ROOT / ".cache" / "tiktoken"))
 import torch  # noqa: E402
 
 from clinical_deid.data.annotation_policy import POLICY_VERSION  # noqa: E402
-from clinical_deid.evaluation.evaluate import evaluate, load_verified_corpus  # noqa: E402
-from clinical_deid.detection.hf_encoder import (ENCODER_KIND, LEADING_SEPARATORS, TRAILING_SEPARATORS, HFTokenDetector,  # noqa: E402
-                                      encode_text, special_layout, trim_merged_punctuation, window_jobs)
-from clinical_deid.detection.adapter import TAGS  # noqa: E402
+from clinical_deid.detection.decoding import TAGS  # noqa: E402
+from clinical_deid.detection.hf_encoder import (  # noqa: E402
+    ENCODER_KIND,
+    LEADING_SEPARATORS,
+    TRAILING_SEPARATORS,
+    HFTokenDetector,
+    encode_text,
+    special_layout,
+    trim_merged_punctuation,
+    window_jobs,
+)
+from clinical_deid.evaluation.evaluate import (  # noqa: E402
+    evaluate,
+    load_verified_corpus,
+)
 from clinical_deid.types import ENTITY_TYPES  # noqa: E402
 
 TAG_INDEX = {tag: i for i, tag in enumerate(TAGS)}
@@ -302,10 +313,8 @@ class Precomputed:
 
 
 def evaluate_banks(model, tokenizer, config, banks, device, eval_batch):
-    from clinical_deid.detection.rules import augment
-
     model.eval()
-    detector = HFTokenDetector(None, backend="model", device=device, batch_size=eval_batch,
+    detector = HFTokenDetector(None, device=device, batch_size=eval_batch,
                                model=model, tokenizer=tokenizer, config=config)
     report = {}
     for name, rows in banks.items():
@@ -315,10 +324,9 @@ def evaluate_banks(model, tokenizer, config, banks, device, eval_batch):
             chunk = texts[o:o + 16]
             for text, spans in zip(chunk, detector.raw_batch(chunk)):
                 raw[text] = spans
-        hybrid = {t: augment(t, s) for t, s in raw.items()}
         entry = {}
-        for backend, table in (("model", raw), ("hybrid", hybrid)):
-            result = evaluate(rows, Precomputed(table), backend=backend, max_failures=0)
+        for backend, table in (("model", raw),):
+            result = evaluate(rows, Precomputed(table), max_failures=0)
             entry[backend] = {
                 "typed_span": result["typed_span"],
                 "character_recall": result["character"]["recall"],
@@ -335,7 +343,7 @@ def evaluate_banks(model, tokenizer, config, banks, device, eval_batch):
 def selection_score(report):
     values = []
     for entry in report.values():
-        ts = entry["hybrid"]["typed_span"]
+        ts = entry["model"]["typed_span"]
         values.append(min(ts["precision"], ts["recall"]))
     return sum(values) / len(values) if values else 0.0
 
@@ -486,7 +494,7 @@ def main():
                 "corpus_audit": corpus_audit, "initialization": initialization,
                 "status": status, "last_evaluated_step": history[-1]["step"] if history else None,
                 "completed_steps": step, "planned_steps": total_steps,
-                "selection_metric": "mean_bank_min_hybrid_precision_recall" if select_banks else "latest_checkpoint_no_selection",
+                "selection_metric": "mean_bank_min_model_precision_recall" if select_banks else "latest_checkpoint_no_selection",
                 "device": args.device, "torch": torch.__version__}
 
     atomic_json(output / "training_summary.json", make_summary("training"))

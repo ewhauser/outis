@@ -7,10 +7,10 @@
 Local PHI detection, typed redaction and patient-consistent synthetic
 replacement for English clinical text.
 
-The detector adds a small trainable clinical adapter and BIOES NER head to the
-frozen [OpenAI Privacy Filter](https://huggingface.co/openai/privacy-filter)
-encoder. Deterministic structural extractors for emails, phones, identifiers
-and other formats run alongside it. Everything runs on your machine; no text
+The detector is a fully fine-tuned
+[ModernBERT-base](https://huggingface.co/answerdotai/ModernBERT-base) token
+classifier with a constrained BIOES decoder. There is no rule layer: every
+detected span comes from the model. Everything runs on your machine; no text
 is sent to a hosted service. It ships as a Python library, a CLI and a FastAPI
 server.
 
@@ -28,8 +28,8 @@ server.
 - **Redaction or replacement**: typed markers or masks, or fictional values that
   stay consistent per patient. Dates shift by a stable per-patient offset that
   preserves intervals.
-- **Hybrid detection**: learned NER plus structural extractors, merged with the
-  original character offsets intact.
+- **Model-only detection**: one fine-tuned encoder, decoded to exact original
+  character offsets.
 - **Configurable policies**: per-type actions, custom identifier rules, linked
   messages, explicit restoration, and JSON, CSV, XML and plain-text file input.
 - **Local by design**: loopback-only by default, optional API key, no request
@@ -44,20 +44,19 @@ git clone https://github.com/ewhauser/deidentifier.git
 cd deidentifier
 uv venv --python 3.13
 uv pip install --python .venv/bin/python -e .
-.venv/bin/python scripts/bootstrap.py   # downloads the pinned base encoder
 ```
 
-The trained adapter is included in `models/clinical-adapter`. Add the `pdf`
-extra (`-e '.[pdf]'`) for PDF file input.
+The default model is `models/takeover-mbbase-mix5-001/step-003803`. Its
+configuration and tokenizer are in the repository; the 599 MB weight file
+(`hf/model.safetensors`) is not, and must be placed there from the project's
+model store. Add the `pdf` extra (`-e '.[pdf]'`) for PDF file input.
 
 ### Python
 
 ```python
 from clinical_deid import Deidentifier
 
-deid = Deidentifier(
-    "models/clinical-adapter", secret=b"application-secret-at-least-32-bytes"
-)
+deid = Deidentifier(secret=b"application-secret-at-least-32-bytes")
 
 result = deid.deidentify("Mara Calder was seen on 2024-02-28.", mode="redact")
 print(result["text"])
@@ -100,53 +99,42 @@ secret in `.cache/local-api-secret`. For other deployments, see
 ## How it works
 
 ```
-text ─▶ OpenAI Privacy Filter encoder (frozen)
-          └─▶ residual bidirectional clinical adapter ─▶ BIOES NER head ─┐
-text ─▶ structural extractors (email, phone, IDs, dates, …) ─────────────┼─▶ merge ─▶ redact / replace
-                                                                         │
-          clinical context guards (care sites, names, record fields) ───┘
+text ─▶ ModernBERT-base token classifier (overlapping 512-token windows)
+          └─▶ constrained BIOES decoder ─▶ spans at original offsets ─▶ redact / replace
 ```
 
-The default adapter has about 450K trainable parameters (1.8 MB). It was
-trained on 22,800 synthetic notes written by the generators in this
-repository. No real clinical data was used for training. See the
-[model card](MODEL_CARD.md) for details.
+The default model was fine-tuned on 93,805 synthetic notes from 34 banks
+written by the generators and independent authors in this repository. No real
+clinical data was used for training. See the [model card](MODEL_CARD.md).
 
 ## Results
 
-All figures are exact typed-span metrics unless noted. They come from
-synthetic or public benchmarks and are **not** estimates of accuracy on real
-clinical notes.
+These figures come from synthetic or public benchmarks and are **not**
+estimates of accuracy on real clinical notes.
 
-**Internal qualification (V14).** This was one frozen run on 2,160
-independently authored synthetic notes with 16,632 PHI spans. It used the
-`clinical-adapter-v12-warm-001` epoch-2 weights, which are not yet the default
-checkpoint, and passed 2 of 7 gates.
+**Default model (mix5 epoch 1), held-out synthetic authors.** Two
+development banks written by authors the training data never saw. "Masked"
+means every character of a gold span is covered under any label.
 
-| Detector | Precision | Recall | F1 | PHI-char recall | Leak-free PHI notes |
+| Bank | Direct identifiers masked | NAME masked (document 95% lower bound) | Indirect masked | Any-label precision | Exact typed F1 |
 |---|---:|---:|---:|---:|---:|
-| Model only | 96.46% | 94.33% | 95.38% | 98.19% | 60.17% |
-| Hybrid | 96.37% | 98.88% | 97.61% | 99.54% | 91.77% |
+| Geriatric | 99.78% | 99.75% (99.65%) | 99.49% | 99.80% | 99.24% |
+| Primary care | 99.71% | 99.62% (99.35%) | 98.10% | 99.77% | 99.16% |
 
-**External: [ASQ-PHI](https://doi.org/10.17632/csz5dzp7nx.1)** (1,051
-synthetic clinical search queries, label-agnostic):
+**Sealed places bank.** Held-out real city, abbreviation and short care-site
+names: 97.36% of characters masked; all public-reference negative families
+(instruments, diseases, cited institutions, states, place-words) left
+untouched. See [mix5 results](reports/takeover/mix5_001/RESULTS.md).
 
-| System | Char recall | Non-PHI redaction | Exact-span F1 | Clean hard negatives |
-|---|---:|---:|---:|---:|
-| This project (hybrid, pre-fix) | 95.25% | 1.03% | 83.19% | 84.47% |
-| MedDeID (`meddeid-english-synth`) | 99.14% | 6.33% | 79.79% | 14.61% |
-| GLiNER-PII + facility label | 96.81% | 8.27% | 70.65% | 27.40% |
-
-This detector over-redacts the least but misses more PHI, mostly standalone
-cities and institution abbreviations. ASQ-PHI has since guided a fix, so it is
-now development evidence. See [external verification](docs/external-verification.md)
-and the [full evaluation history](docs/evaluation-history.md).
+Historical results for the removed adapter detector, including the V14
+qualification and the ASQ-PHI comparison, are in the
+[evaluation history](docs/evaluation-history.md) and
+[external verification](docs/external-verification.md).
 
 ## Limitations
 
-- **NAME recall is the main weakness.** On a 160-note development challenge,
-  the current system found 38.4% of NAME spans and 5.7% of nicknames and
-  aliases.
+- **Not yet measured on real notes.** Held-out synthetic authors are the best
+  available evidence; real institutional notes may differ substantially.
 - **Synthetic evaluation only.** Training and internal test text comes from
   this project's own generators. Real institutional formats, rare identifying
   narratives and unseen identity styles are not measured.
@@ -155,8 +143,7 @@ and the [full evaluation history](docs/evaluation-history.md).
 - **Some options return PHI.** Restoration mappings, sensitive entity analysis
   and per-type `keep` deliberately return original values. Treat those
   responses as PHI.
-- **Scores are not calibrated.** Model and rule scores are not safety
-  probabilities.
+- **Scores are not calibrated.** Model scores are not safety probabilities.
 - **Replacement is not anonymity.** Fictional values can resemble real people,
   and date shifting changes seasonal context. Surrogates do not guarantee
   resistance to re-identification.
@@ -171,9 +158,9 @@ any output.
 | [Goals](GOALS.md) | The accepted project goal, targets and regression rules |
 | [API guide](docs/api.md) | Endpoints, policies, masks, structured data, files, WebSockets |
 | [Synthetic replacement](docs/replacement.md) | Secrets, patient anchors, date shifting, identity linking |
-| [Deployment](docs/deployment.md) | Launcher, backends, batch limits, security controls |
+| [Deployment](docs/deployment.md) | Launcher, default model, batch limits, security controls |
 | [Model card](MODEL_CARD.md) | Architecture, training data, evaluation, risks |
-| [Training](docs/training.md) | Reproducing the adapter and generating corpora |
+| [Training](docs/training.md) | Training candidates and generating corpora |
 | [Evaluation history](docs/evaluation-history.md) | All qualification and development results |
 | [External verification](docs/external-verification.md) | Public benchmark protocol and results |
 | [Annotation policy](docs/annotation-policy-v2.md) | Span conventions for every entity type |
@@ -191,7 +178,7 @@ If you use this project, please cite it using [CITATION.cff](CITATION.cff).
 
 ## License
 
-Source code and the fine-tuned adapter are licensed under
+Source code and the fine-tuned model are licensed under
 [Apache-2.0](LICENSE). Generated synthetic corpus text and annotations are
-dedicated to the public domain under CC0-1.0. The OpenAI Privacy Filter base
-model is Apache-2.0; see [NOTICE](NOTICE).
+dedicated to the public domain under CC0-1.0. The ModernBERT-base base model
+is Apache-2.0; see [NOTICE](NOTICE).
