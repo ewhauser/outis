@@ -38,6 +38,8 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
   training.
 - [Blind places bank brief](blind-places-bank-brief.md): the isolated
   diagnostic bank for place-recognition work.
+- [Care-site and locality bank brief](care-site-locality-bank-brief.md):
+  draft brief for the tk13 training bank; three policy decisions pending.
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 
