@@ -48,7 +48,9 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
 - [Transcript bank brief](transcript-bank-brief.md): tk16, phone and
   telehealth transcripts.
 - [Held-out development bank brief](heldout-dev-bank-brief.md): a fresh,
-  uninspected development bank for the next promotion decision (draft).
+  uninspected development bank for the next promotion decision.
+- [Lab and pathology bank brief](lab-pathology-bank-brief.md): tk17.
+- [Radiology bank brief](radiology-bank-brief.md): tk18.
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 

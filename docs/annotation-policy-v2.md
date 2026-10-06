@@ -86,6 +86,8 @@ Not every row has an executable fixture yet.
 | ID | Insurance member, policy, group and claim numbers | ID |
 | ID | Encounter, visit and CSN numbers | ID |
 | ID | Accession and specimen numbers | ID |
+| ID | Laboratory identifiers: CLIA and laboratory licence numbers | ID |
+| Any | Series and image numbers, LOINC and CPT codes, reference ranges, reagent lot numbers, instrument identifiers | Not annotated |
 | ID | Device serial numbers | ID |
 | ID | Visit, session, meeting or call identifiers, and patient-tied portal activation or one-time access codes (`session VX-4471`) | ID; a meeting link stays URL; software version strings are not annotated |
 | ID | Driver's licence, passport and similar licence numbers | ID |
@@ -97,6 +99,7 @@ Not every row has an executable fixture yet.
 | NAME | Generational suffix, such as `Jr.` | Inside the span |
 | NAME | Possessive `'s` | Outside the span |
 | NAME | Initials | Inside the span |
+| NAME | A person referred to only by initials (`Tech: JKL`, `Verified by: MKT`) | NAME |
 | NAME | Clinician names | NAME, without the honorific or credentials |
 | NAME | A person's name in a transcript speaker label (`dr Marwick:`, `CLINICIAN (Brannock):`) | NAME on the name; honorific, role words and punctuation outside; role-only labels (`Patient:`) not annotated |
 | NAME | Nickname written in quote marks | NAME, without the quote marks |
