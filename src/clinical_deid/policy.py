@@ -96,6 +96,9 @@ class DetectionPolicy(BaseModel):
     medical_terms: dict[Literal["CONDITION", "MEDICATION"], list[str]] = Field(
         default_factory=dict
     )
+    # The detector finds every age. "over_89" (default) leaves ages of 89 and
+    # under untouched, as the Safe Harbor age rule allows; "all" removes every age.
+    ages: Literal["over_89", "all"] = "over_89"
 
     @field_validator("allowlist", "blocklist")
     @classmethod
@@ -147,7 +150,31 @@ def policy_metadata(policy: DetectionPolicy | dict | None) -> dict:
         "allowlist_count": len(policy.allowlist),
         "blocklist_count": len(policy.blocklist),
         "medical_dictionary_labels": sorted(policy.medical_terms),
+        "ages": policy.ages,
     }
+
+
+def age_value(value: str) -> float | None:
+    """Numeric value of an age span such as ``72``, ``72-year-old`` or ``seventy-two``; None if unparsed."""
+    from clinical_deid.replacement.names.age import parse_english_age
+
+    match = regex.fullmatch(
+        r"\s*(\d{1,3}(?:\.\d+)?)\+?(?:[\s-]*(?:years?[\s-]*old|y/?o|years?|yrs?))?\s*",
+        value,
+        regex.I,
+    )
+    if match:
+        return float(match[1])
+    parsed = parse_english_age(value)
+    return None if parsed is None else float(parsed)
+
+
+def _keep_age(text: str, span, ages: str) -> bool:
+    """Ages of 89 and under are left in place unless the policy removes all ages; unparsed ages stay removed."""
+    if span.label != "AGE" or ages == "all":
+        return True
+    value = age_value(text[span.start : span.end])
+    return value is None or value > 89
 
 
 # Context-bound patterns deliberately avoid interpreting arbitrary clinical
@@ -275,6 +302,7 @@ def apply_policy(
         raise ValueError("Invalid detection output") from None
     if any(span.end > len(text) for span in original):
         raise ValueError("Invalid detection offsets")
+    original = [span for span in original if _keep_age(text, span, policy.ages)]
     if policy == DetectionPolicy():
         return original
 

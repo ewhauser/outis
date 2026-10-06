@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import platform
 import sys
@@ -19,6 +20,40 @@ ROOT = HERE.parents[1]
 CORPORA = HERE / "corpora"
 PREDICTIONS = HERE / "predictions"
 RESULTS = HERE / "results"
+# Benchmarks under a data use agreement. Their converted corpora and raw
+# predictions (which contain note text) live outside every git repository;
+# only aggregate scores are written to RESULTS.
+RESTRICTED_BENCHMARKS = frozenset({"n2c2_2014_train", "n2c2_2014_test"})
+
+
+def restricted_root() -> Path:
+    """Directory for restricted data, from DEID_RESTRICTED_DIR; refused inside any git repository."""
+    root = Path(os.environ.get("DEID_RESTRICTED_DIR", "~/working/deid/restricted")).expanduser().resolve()
+    for candidate in (root, *root.parents):
+        if (candidate / ".git").exists():
+            raise ValueError(f"restricted data must not live inside a git repository: {candidate}")
+    return root
+
+
+def is_restricted(benchmark: str) -> bool:
+    return benchmark in RESTRICTED_BENCHMARKS
+
+
+# Benchmarks kept uninspected (evaluation-only terms or used as held-out
+# evidence): scoring writes no failure examples for them.
+UNINSPECTED_BENCHMARKS = RESTRICTED_BENCHMARKS | {"meddeid_en", "technetium_test5k", "technetium_test"}
+
+
+def writes_failures(benchmark: str) -> bool:
+    return benchmark not in UNINSPECTED_BENCHMARKS
+
+
+def corpora_dir(benchmark: str) -> Path:
+    return restricted_root() / "corpora" if is_restricted(benchmark) else CORPORA
+
+
+def predictions_dir(benchmark: str) -> Path:
+    return restricted_root() / "predictions" if is_restricted(benchmark) else PREDICTIONS
 
 
 def digest_bytes(payload: bytes) -> str:
@@ -52,7 +87,7 @@ def write_jsonl(path: str | Path, rows: Iterable[dict[str, Any]]) -> bytes:
 
 
 def corpus_path(benchmark: str) -> Path:
-    return CORPORA / f"{benchmark}.jsonl"
+    return corpora_dir(benchmark) / f"{benchmark}.jsonl"
 
 
 def load_corpus(benchmark: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -114,7 +149,7 @@ def write_predictions(benchmark: str, system: str, rows: list[dict[str, Any]],
                 raise ValueError(f"invalid predicted offsets in {row['id']}: {span}")
             span["text"] = text[span["start"]:span["end"]]
         records.append({"id": row["id"], "spans": deduplicate(spans)})
-    path = PREDICTIONS / f"{benchmark}.{system}.jsonl"
+    path = predictions_dir(benchmark) / f"{benchmark}.{system}.jsonl"
     payload = write_jsonl(path, records)
     corpus_manifest = json.loads(corpus_path(benchmark).with_suffix(".jsonl.manifest.json").read_text())
     write_json(path.with_suffix(".receipt.json"), {

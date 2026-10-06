@@ -722,8 +722,11 @@ def test_older_ages_are_generalized(age):
     assert synthetic(age, spans)["text"] == "90+"
 
 
-def test_normal_ages_can_retain_clinical_value_in_synthetic_mode():
-    assert synthetic("52 years old", [Span(0, 12, "AGE")])["text"] == "52 years old"
+def test_ages_89_and_under_that_reach_replacement_are_removed():
+    # Ages of 89 and under are kept by the request policy's default (ages="over_89")
+    # before replacement; one that reaches replacement was selected for removal.
+    assert synthetic("52 years old", [Span(0, 12, "AGE")])["text"] == "[AGE]"
+    assert replace("52", [Span(0, 2, "AGE")])["text"] == "[AGE]"
 
 
 def test_contact_and_identifier_replacements_are_fictional():

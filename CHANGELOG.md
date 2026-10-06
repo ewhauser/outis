@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Ages.** The annotation policy now detects every age of the patient or a
+  relative or household member (previously only ages over 89). A new request
+  policy setting, `ages`, controls release: `over_89` (default) leaves ages of
+  89 and under in place, `all` removes every age. Replacement now removes any
+  age of 89 and under that reaches it, since only `ages: "all"` sends one there.
+  Evaluation reports ages of 89 and under as `AGE_89_AND_UNDER`, outside the
+  GOALS.md gate groups.
+
 ### Removed
 
 - The tracked Privacy-Filter adapter checkpoints (`models/clinical-adapter*`)

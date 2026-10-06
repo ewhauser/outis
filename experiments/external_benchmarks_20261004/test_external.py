@@ -13,6 +13,8 @@ from common import windows  # noqa: E402
 from labels import project_label  # noqa: E402
 from score import age_characters, merge_names  # noqa: E402
 from score_aligned import bare_year_characters, gold_values  # noqa: E402
+import common  # noqa: E402
+import n2c2_2014  # noqa: E402
 
 
 class AsqPhiConversionTest(unittest.TestCase):
@@ -97,6 +99,29 @@ class PolicyAlignedNeutralTest(unittest.TestCase):
     def test_honorific_and_credentials_are_neutral(self):
         self.assertEqual(self.kept("Seen by Dr. Anna Smith, MD today.", "Dr. Anna Smith, MD", "NAME"), "AnnaSmith")
 
+    def test_spelled_out_professional_titles_are_neutral(self):
+        self.assertEqual(self.kept("Validated by Doctor Geraert.", "Doctor Geraert", "NAME"), "Geraert")
+        self.assertEqual(self.kept("by Prof. Dr. Iepermans today", "Prof. Dr. Iepermans", "NAME"), "Iepermans")
+        self.assertEqual(self.kept("Radiologist Jan Aerschot, Doctor", "Jan Aerschot, Doctor", "NAME"), "JanAerschot")
+        self.assertEqual(self.kept("Mr De Meyer received it", "De Meyer", "NAME"), "DeMeyer")
+
+    def test_age_units_are_neutral_and_young_ages_count(self):
+        self.assertEqual(self.kept("The patient is 23 years old.", "23 years", "AGE"), "23")
+        self.assertEqual(self.kept("A 65-year-old man", "65-year-old", "AGE"), "65")
+        self.assertEqual(self.kept("aged sixty-five years", "sixty-five years", "AGE"), "sixtyfive")
+
+    def test_facility_generic_words_are_neutral(self):
+        self.assertEqual(self.kept("seen at the burn centre at Middelheim.", "burn centre at Middelheim", "FACILITY"),
+                         "Middelheim")
+        self.assertEqual(self.kept("admitted to Leuven University Hospital.", "Leuven University Hospital", "FACILITY"),
+                         "LeuvenUniversityHospital")
+
+    def test_country_or_province_alone_is_neutral_but_city_is_not(self):
+        self.assertIsNone(self.kept("moved from the province of Limburg", "province of Limburg", "LOCATION"))
+        self.assertIsNone(self.kept("born in Belgium", "Belgium", "LOCATION"))
+        self.assertEqual(self.kept("holiday home in Nice", "Nice", "LOCATION"), "Nice")
+        self.assertEqual(self.kept("lives in Antwerp", "Antwerp", "LOCATION"), "Antwerp")
+
     def test_identifier_field_label_and_hash_are_neutral(self):
         self.assertEqual(self.kept("(Patient ID: ABCD1234)", "Patient ID: ABCD1234", "ID"), "ABCD1234")
         self.assertEqual(self.kept("plan #DB-2345678.", "#DB-2345678", "ID"), "DB2345678")
@@ -115,6 +140,77 @@ class PolicyAlignedNeutralTest(unittest.TestCase):
     def test_bare_years_only(self):
         text = "Dx in 2021; seen 12/11/1958 and 2020-03-04."
         self.assertEqual("".join(text[i] for i in sorted(bare_year_characters(text))), "2021")
+
+
+SAMPLE_N2C2 = (b'<?xml version="1.0" encoding="UTF-8" ?>\n<deIdi2b2><TEXT><![CDATA[Record date: 2091-04-02\n'
+               b'Lorna Vexley, 64, a welder, seen by Dr. Quill at Ombrey General in Tollund, Ohio.\n]]></TEXT><TAGS>'
+               b'<DATE id="P0" start="13" end="23" text="2091-04-02" TYPE="DATE" comment="" />'
+               b'<NAME id="P1" start="24" end="36" text="Lorna Vexley" TYPE="PATIENT" comment="" />'
+               b'<AGE id="P2" start="38" end="40" text="64" TYPE="AGE" comment="" />'
+               b'<PROFESSION id="P3" start="44" end="50" text="welder" TYPE="PROFESSION" comment="" />'
+               b'<NAME id="P4" start="64" end="69" text="Quill" TYPE="DOCTOR" comment="" />'
+               b'<LOCATION id="P5" start="0" end="0" text="Ombrey General" TYPE="HOSPITAL" comment="" />'
+               b'<LOCATION id="P6" start="91" end="98" text="Tollund" TYPE="CITY" comment="" />'
+               b'<LOCATION id="P7" start="100" end="104" text="Ohio" TYPE="STATE" comment="" />'
+               b'</TAGS></deIdi2b2>')
+
+
+class N2c2ConversionTest(unittest.TestCase):
+    def test_restricted_paths_stay_outside_git(self):
+        import os
+        import tempfile
+        old = os.environ.get("DEID_RESTRICTED_DIR")
+        try:
+            os.environ["DEID_RESTRICTED_DIR"] = str(common.ROOT / "tmp_restricted")
+            with self.assertRaises(ValueError):
+                common.restricted_root()
+            with tempfile.TemporaryDirectory() as outside:
+                os.environ["DEID_RESTRICTED_DIR"] = outside
+                self.assertTrue(str(common.corpus_path("n2c2_2014_test")).startswith(str(Path(outside).resolve())))
+                self.assertEqual(common.corpus_path("asq_phi").parent, common.CORPORA)
+        finally:
+            if old is None:
+                os.environ.pop("DEID_RESTRICTED_DIR", None)
+            else:
+                os.environ["DEID_RESTRICTED_DIR"] = old
+
+    def test_converter_maps_types_aligns_offsets_and_drops_profession(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "100-01.xml"
+            path.write_bytes(SAMPLE_N2C2)
+            rows, report = n2c2_2014.convert_files([path])
+        row = rows[0]
+        got = [(row["text"][s["start"]:s["end"]], s["label"], s["source_label"], s["in_policy"]) for s in row["spans"]]
+        self.assertEqual(got, [
+            ("2091-04-02", "DATE", "DATE", True),
+            ("Lorna Vexley", "NAME", "PATIENT", True),
+            ("64", "AGE", "AGE", True),
+            ("Quill", "NAME", "DOCTOR", True),
+            ("Ombrey General", "FACILITY", "HOSPITAL", True),
+            ("Tollund", "LOCATION", "CITY", True),
+            ("Ohio", "LOCATION", "STATE", False),
+        ])
+        self.assertEqual(report["alignment_methods"], {"exact": 7, "nearest": 1})
+        self.assertEqual(len(row["source_tags"]), 8)
+
+    def test_policy_aligned_view_neutralises_out_of_policy_spans_and_keeps_all_ages(self):
+        text = "Lorna Vexley, 64, from Ohio; aged 93."
+        spans = [{"start": 0, "end": 12, "label": "NAME"},
+                 {"start": 14, "end": 16, "label": "AGE"},
+                 {"start": 23, "end": 27, "label": "LOCATION", "in_policy": False},
+                 {"start": 34, "end": 36, "label": "AGE"}]
+        kept = [label for label, _ in gold_values(text, spans)]
+        self.assertEqual(kept, ["NAME", "AGE", "AGE"])
+
+    def test_unknown_subtype_is_an_error(self):
+        import tempfile
+        bad = SAMPLE_N2C2.replace(b'TYPE="CITY"', b'TYPE="PLANET"')
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "x.xml"
+            path.write_bytes(bad)
+            with self.assertRaises(ValueError):
+                n2c2_2014.convert_files([path])
 
 
 if __name__ == "__main__":

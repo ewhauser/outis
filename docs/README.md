@@ -40,6 +40,21 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
   diagnostic bank for place-recognition work.
 - [Care-site and locality bank brief](care-site-locality-bank-brief.md):
   brief for the tk13 training bank, ready to author.
+- [Targeted gaps bank brief](targeted-gaps-bank-brief.md): brief for the
+  tk14 training bank (history years, pharmacy ZIPs, phone extensions, funeral
+  homes).
+- [Name mentions bank brief](name-mentions-bank-brief.md): tk15, first-name
+  and short name mentions.
+- [Transcript bank brief](transcript-bank-brief.md): tk16, phone and
+  telehealth transcripts.
+- [Held-out development bank brief](heldout-dev-bank-brief.md): a fresh,
+  uninspected development bank for the next promotion decision.
+- [Lab and pathology bank brief](lab-pathology-bank-brief.md): tk17.
+- [Radiology bank brief](radiology-bank-brief.md): tk18.
+- [Spoken PHI bank brief](spoken-phi-bank-brief.md): tk19, spoken and spelled
+  PHI in transcripts.
+- [FHIR bank brief](fhir-bank-brief.md): tk20, FHIR resources, bundles and
+  narratives.
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 

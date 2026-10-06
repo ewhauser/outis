@@ -340,6 +340,88 @@ gold error: ASQ-PHI tags the word "email". The neutral rules are the project's
 own judgement, so quote this view next to the as-published one, never instead
 of it.
 
+## Results: public synthetic benchmarks, 2026-10-06
+
+Both benchmarks are kept uninspected: scoring writes no failure examples, and
+neither is used to choose experiments. Models: mix5 epoch 1 (the default) and
+`roberta_mix6_001` epoch 2.
+
+**MedDeID English synthetic benchmark** (`meddeid_en`, 300 notes, CC BY 4.0,
+evaluation only). It is a held-out partition of MedDeID's own synthetic corpus,
+so it favours MedDeID the way our generator banks favour us.
+
+| System | Char recall (published) | Non-PII redaction | Leak-free docs (published) | Value-char recall (aligned) | Direct (aligned) | NAME (aligned) | Indirect (aligned) | Leak-free docs (aligned) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| RoBERTa mix6 | 94.43% | 0.02% | 49.67% | 98.79% | 97.45% | 95.50% | 97.07% | 88.67% |
+| mix5 | 95.04% | 0.03% | 51.00% | 98.66% | 97.02% | 95.65% | 97.07% | 86.67% |
+| MedDeID | 99.16% | 0.14% | 92.33% | 99.19% | 99.74% | 99.84% | 95.20% | 93.00% |
+| GLiNER (facility arm) | 89.54% | 0.61% | 29.33% | 94.69% | 91.66% | 93.63% | 98.40% | 69.33% |
+
+MedDeID leads on names even under the project policy; the project models lead
+on dates and indirect identifiers.
+
+**Technetium-I** (`technetium_test5k`: a fixed random 5,000-note sample of the
+74,700-note test split, EUPL-1.2). Gold resolution: overlapping NAME spans
+(name parts annotated with the full name) merged; AGE spans overlapping another
+type dropped as spurious. The notes are heavily templated: under the project
+policy all three systems mask every direct identifier, and the two project
+models produce identical spans. As published, MedDeID leads (99.70% character
+recall and 84.6% leak-free documents against 96.89% and 6.8%) because the gold
+annotates every age and the project policy masks only ages over 89; MedDeID
+redacts twice as much non-PHI text (1.61% against 0.74%). The benchmark is
+saturated and does not separate strong systems.
+
+### Aligned view 2 (2026-10-06)
+
+`score_aligned.py` now writes `results/<benchmark>.aligned2.*`; the earlier
+`.aligned.*` files are kept as view 1. View 2 applies the all-ages policy and
+the conventions in MedDeID's published annotation guidelines (read without
+inspecting any benchmark note or failure). Every rule comes from our policy:
+
+| Change | Policy basis |
+|---|---|
+| Ages of every value are required; units and suffixes in an AGE span are neutral (`23 years`, `65-year-old`) | AGE row: every age, value only |
+| Spelled-out titles in NAME are neutral (`Doctor Geraert`, `Jan Aerschot, Doctor`) | NAME excludes honorifics |
+| Lowercase words in FACILITY are neutral (`burn centre at Middelheim`) | Department and generic care-site words stay outside |
+| A LOCATION span that is only a country or a province is neutral | Places addendum N4 |
+
+On ASQ-PHI nothing changes. On `meddeid_en` the name and place gaps are
+unchanged (NAME 95.50% for RoBERTa mix6 against 99.84%; LOCATION 26 of 30
+against 29 of 30): none of the gold names carried a spelled-out title, and no
+place span was a country or province alone. These are model misses under our
+own policy, not convention differences. FACILITY gains one span (135 of 141).
+AGE is now scored: 0 of 100 for both project models, which were trained before
+the all-ages change, against 100 for MedDeID. On Technetium-I, AGE is 7.14%
+against 91.02%, and indirect recall 75.11% against 97.59%.
+
+MedDeID's healthcare organisation label also covers ward, room and route
+codes, hospital software, file names and health-insurance funds. The policy
+does not decide these, so view 2 still counts them as required.
+
+## Restricted benchmark: n2c2 2014
+
+The n2c2 (i2b2/UTHealth) 2014 de-identification dataset is real clinical text
+with surrogate PHI, distributed under a data use agreement through the
+[DBMI Data Portal](https://portal.dbmi.hms.harvard.edu/projects/n2c2-nlp/).
+The owner approved its use for evaluation only on 2026-10-06 (AGENTS.md).
+
+- Each person obtains it under their own agreement. Keep the raw files outside
+  every git repository.
+- `n2c2_2014.py --split test --raw <folder of XML files>` converts it into
+  `$DEID_RESTRICTED_DIR/corpora/n2c2_2014_test.jsonl` (default
+  `~/working/deid/restricted`). Predictions for restricted benchmarks are
+  written under `$DEID_RESTRICTED_DIR/predictions/`. The harness refuses a
+  restricted folder inside a git repository.
+- `score.py` writes no failure examples for restricted benchmarks; results
+  files hold aggregate scores only and may be committed.
+- Native subtypes map to project types (`n2c2_2014.TYPE_MAP`); PROFESSION has
+  no project type and is excluded from gold. The policy-aligned view
+  (`score_aligned.py`) treats STATE, COUNTRY, DEPARTMENT, ORGANIZATION and ROOM
+  spans as neutral; view 1 also treated gold ages of 89 or under as neutral.
+- Published n2c2 2014 results use specific matching rules (strict or relaxed
+  spans, token or entity level, the full PHI set or a HIPAA subset). Match the
+  metric exactly before comparing with any paper.
+
 ## Reading results
 
 - **Lead with character recall and non-PII redaction together.** Either can be

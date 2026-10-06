@@ -50,14 +50,26 @@ dictionary of common names.
 | Plausible personal names | `Zoë O’Rían-Soto`, `Ana María de la Cruz`, the personal `Wilson` in a named person | Honorifics such as `Dr.`, credentials such as `MD`, a disease eponym such as `Wilson disease` |
 | Aliases | A preferred or otherwise explicitly established personal alias, including an occurrence before its full identity when the document establishes the relationship | Ambiguous ordinary words without personal naming evidence |
 | DATE | Complete patient-specific dates, partial dates and patient-specific years; `October 2, 2024`, `March 2021`, `1930` in `born in 1930`. A written date range is one span including its connector: `03/02/2024 to 03/09/2024`, `March 2-9, 2024`, `March 28 - April 4, 2024` | Public study years, publication dates, durations, doses and clinical stages; a leading `from` or `between` before a range; dates written as a separate list (`on 03/02/2024 and 03/09/2024`) are separate spans |
-| AGE | Only the numeric or spelled-out age value when greater than 89 | Prefixes, units, suffixes, sex markers and ages at or below 89 |
+| AGE | The numeric or spelled-out age value of the patient or of a relative or household member, at any age (changed 2026-10-06: previously only ages over 89), including ages in months, weeks or days for infants | Prefixes, units, suffixes, sex markers; public or guideline ages (`screen from age 45`), durations (`5-year survival`, `10-year history`) |
 | LOCATION | The maximal authored locality expression, e.g. `Cedar Haven, UT` or `North Cedar Haven` | Prepositions and adjacent facility/address fields |
 | FACILITY | The authored facility name, e.g. `Silver Finch Medical Center`, including an `at <name>` continuation such as `Lakeshore Family Medicine at Ellery Falls` | An adjacent locality introduced by `in` or a comma; an `at` locality with a state or postal qualifier (`Brackenwheel Health Center` at `Brackenford, NM`); an adjacent address; the parent facility of a named unit (`Larkspur Ward` at `Mossmere Health Hub` is two FACILITY spans) |
 | ADDRESS | The complete authored address as one span | Nested LOCATION annotations, field labels, trailing sentence punctuation |
 
 AGE boundaries are deliberately consistent across surface forms: annotate
 `92` in `92F`, `92yo`, `92 y/o`, `92-year-old`, and `92 years old`; annotate
-`ninety-two` in `ninety-two years old`. The suffix is context for recognizing
+`ninety-two` in `ninety-two years old`. The same applies at any age: `72` in
+`72M`, `seventy-two` in `seventy-two years old`, `6` in `6-month-old`.
+
+**All ages, release by policy (2026-10-06).** Detection finds every age so that
+scores are comparable with benchmarks that annotate all ages. What is removed
+is a release decision: the request policy's `ages` setting defaults to
+`over_89`, which leaves ages of 89 and under in place as the Safe Harbor age
+rule allows; `all` removes every age. GOALS.md continues to gate ages over 89;
+evaluation reports ages of 89 and under separately (`AGE_89_AND_UNDER`).
+Fixtures: `src/clinical_deid/data/annotation_policy_ages.py`. The age examples
+in `POLICY_FIXTURES` that leave ages of 89 and under unannotated predate this
+change and are superseded; corpora relabelled under it carry the `__allages1`
+suffix. The suffix is context for recognizing
 age, not part of its gold span. A hyphen internal to a spelled-out number stays
 inside the span. This convention may differ from historical annotations;
 comparisons must disclose that policy difference.
@@ -86,30 +98,52 @@ Not every row has an executable fixture yet.
 | ID | Insurance member, policy, group and claim numbers | ID |
 | ID | Encounter, visit and CSN numbers | ID |
 | ID | Accession and specimen numbers | ID |
+| ID | Laboratory identifiers: CLIA and laboratory licence numbers | ID |
+| ID, URL | FHIR resource ids and references tied to the patient (`"id": "pt-77"`, `"reference": "Patient/pt-77"`, a bundle `fullUrl`) | ID on the logical id (also inside a reference); a `fullUrl` to the patient's record is URL; `meta.versionId` and meta timestamps are not annotated |
+| Any | FHIR coding and identifier system URIs and OIDs (`http://loinc.org`, `urn:oid:...`, an identifier `system`) | Not annotated; the identifier `value` takes its own type |
+| DATE | A FHIR date-time (`2026-03-14T07:42:00-05:00`) | DATE on the date part; time and timezone outside |
+| Any | Structured records (FHIR JSON, NDJSON, narratives) | Each string value is its own span (`family` and `given` NAME, `line` ADDRESS, `city` and `postalCode` LOCATION; `state` and `country` alone not annotated); keys, quotes, JSON punctuation and XHTML tags always outside |
+| Any | Series and image numbers, LOINC and CPT codes, reference ranges, reagent lot numbers, instrument identifiers | Not annotated |
 | ID | Device serial numbers | ID |
+| ID | Visit, session, meeting or call identifiers, and patient-tied portal activation or one-time access codes (`session VX-4471`) | ID; a meeting link stays URL; software version strings are not annotated |
 | ID | Driver's licence, passport and similar licence numbers | ID |
 | ID | Clinician NPI and licence numbers | ID |
+| ID | Prescription numbers (`Rx #8830167`) | ID on the number; the `Rx #` caption stays outside |
 | ACCOUNT | Billing, patient and guarantor account numbers | ACCOUNT |
 | MRN | A record number written with a prefix, such as `QX-0041122` | One MRN span including the prefix |
 | MRN | A field caption before the value, such as `MRN:` or `MRN#` | Outside the span |
 | NAME | Generational suffix, such as `Jr.` | Inside the span |
 | NAME | Possessive `'s` | Outside the span |
 | NAME | Initials | Inside the span |
+| NAME | A person referred to only by initials (`Tech: JKL`, `Verified by: MKT`) | NAME |
 | NAME | Clinician names | NAME, without the honorific or credentials |
+| NAME | A person's name in a transcript speaker label (`dr Marwick:`, `CLINICIAN (Brannock):`) | NAME on the name; honorific, role words and punctuation outside; role-only labels (`Patient:`) not annotated |
 | NAME | Nickname written in quote marks | NAME, without the quote marks |
 | DATE | A weekday written before a date | Inside the span |
 | DATE | A clock time next to a date | Outside the span |
+| DATE | A time-only stamp (elapsed `[00:08:22]`, clock `10:43 AM`) | Not annotated |
 | DATE | Relative expressions, such as `three days ago` | Not annotated |
-| DATE | A patient-specific year alone | DATE |
+| DATE | A spoken patient-specific date in any form (`oh three, oh three, forty-one`, `the third of March`, `march third`, `back in oh nine`, `born in forty-one`, `on the twelfth` for a specific date) | DATE, one span; a leading `the` of an ordinal date is inside |
+| DATE | A patient-specific year alone, including years in history and screening lists (`bone density scan 2011`, `shingles vaccine 2019`, `cholecystectomy (1988)`) | DATE. Stricter than Safe Harbor, which permits a year alone; kept so years can be shifted consistently with full dates. Owner decision, 2026-10-05 |
 | DATE | A written date range | One DATE span, as in the table above |
+| DATE | A diagnosis-onset, year-range or future patient-specific year (`diagnosed in 1997`, `smoked 1984-2003`, `next due 2028`) | DATE; a year range is one span |
 | AGE | A decade over 89, such as `nineties` | AGE |
 | PHONE | Extension | Inside the span |
 | PHONE | Leading `+1` country code | Inside the span |
 | PHONE | Fax numbers | PHONE |
+| PHONE | Pager numbers | PHONE |
+| PHONE, SSN, MRN, ACCOUNT, ID, LOCATION | An identifier or ZIP code said as words or mixed words and digits (`five five five, uh, oh one four two`) | One span of its type from the first to the last spoken part, including internal commas and fillers; captions outside; a part said separately later (`area code six one two`) is its own span |
+| Any | Letter-by-letter spelling (`b r a n n o c k`) | The type of what is spelled, over the spelled run |
+| EMAIL, URL | A spoken address (`dally dot brannock at example dot com`) | One EMAIL or URL span |
+| Any | A spoken correction (`five five six, sorry, five five seven …`) | Every attempt is annotated |
+| PHONE | An extension written with no phone number (`ward phone ext. 4412`) | Not annotated |
 | ADDRESS | Street, unit, city, state and postal code written together | One ADDRESS span |
+| ADDRESS | A street-level part of the patient's address said or written alone, as in verification (`wenlow lane`, `four twelve`, `apartment two b`) | ADDRESS on each part; city and state follow the place rules; a ZIP alone is LOCATION |
+| Any | PHI split across speakers or turns, and read-backs and confirmations (`march...` / `third, forty-one`) | Each piece annotated with the same type; spans never cross a speaker label |
 | URL | Scheme, such as `https://` | Inside the span |
 | LOCATION | City with its state | One LOCATION span including the state |
 | LOCATION | A ZIP code alone | LOCATION |
+| LOCATION | A ZIP+4 code (`53728-4416`) | One LOCATION span including the +4 |
 | LOCATION | A county name | One LOCATION span including `County` (`Kestrine County`, `Tollund County, OR`); followed by a generic site word, the word stays outside (`the [Kestrine County] office`, places P7); written without `County`, an ordinary locality (`grew up in [Kestrine]`) |
 | LOCATION | A state or a country alone | Not annotated |
 | FACILITY | A leading `the` used as an article (`seen at the Mayo Clinic`, sentence-initial `The Larkspur Pharmacy called`) | Outside the span |
@@ -119,7 +153,7 @@ Not every row has an executable fixture yet.
 | FACILITY | A department word next to an institution name | Outside the span; FACILITY covers the institution name |
 | FACILITY | A named ward | FACILITY |
 | FACILITY | A named pharmacy | FACILITY |
-| FACILITY | A named organisation that provides care, services, supplies or housing to the patient: home health agency or VNA, hospice, durable medical equipment supplier, laboratory, adult day program, senior-living community, mail-order or specialty pharmacy | FACILITY, including its type words (`Vossmere VNA`, `Saint Odile Adult Day Program`) |
+| FACILITY | A named organisation that provides care, services, supplies or housing to the patient: home health agency or VNA, hospice, durable medical equipment supplier, laboratory, adult day program, senior-living community, mail-order or specialty pharmacy, funeral home handling the patient's arrangements | FACILITY, including its type words (`Vossmere VNA`, `Saint Odile Adult Day Program`) |
 | FACILITY | The same type words without a name (`home health referral sent`, `the hospice team`) | Not annotated |
 
 **Employer names.** Do not annotate an employer or other organisation that is
