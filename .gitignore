@@ -45,3 +45,4 @@ models/privacy-filter-base/
 vendor/
 # Held-out development bank: rows never committed; hash record lives in reports/heldout_dev_v1/.
 data/heldout_dev_v1/
+data/heldout_dev_v2/
