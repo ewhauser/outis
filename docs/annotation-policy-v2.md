@@ -122,6 +122,8 @@ Not every row has an executable fixture yet.
 | Any | A spoken correction (`five five six, sorry, five five seven …`) | Every attempt is annotated |
 | PHONE | An extension written with no phone number (`ward phone ext. 4412`) | Not annotated |
 | ADDRESS | Street, unit, city, state and postal code written together | One ADDRESS span |
+| ADDRESS | A street-level part of the patient's address said or written alone, as in verification (`wenlow lane`, `four twelve`, `apartment two b`) | ADDRESS on each part; city and state follow the place rules; a ZIP alone is LOCATION |
+| Any | PHI split across speakers or turns, and read-backs and confirmations (`march...` / `third, forty-one`) | Each piece annotated with the same type; spans never cross a speaker label |
 | URL | Scheme, such as `https://` | Inside the span |
 | LOCATION | City with its state | One LOCATION span including the state |
 | LOCATION | A ZIP code alone | LOCATION |

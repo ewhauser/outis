@@ -42,6 +42,20 @@ SPOKEN_FIXTURES = (
         "felt worse last week.",
         ["spoken_date", "relative_date"],
     ),
+    # S6: street-level address parts tied to the patient are ADDRESS; a spoken ZIP is LOCATION.
+    _example(
+        "partial_address_verification",
+        "agent: still on [[ADDRESS|wenlow lane]]? patient: yes, [[ADDRESS|four twelve]], [[ADDRESS|apartment two b]]. "
+        "agent: zip? patient: [[LOCATION|five three seven two eight]].",
+        ["partial_address", "spoken_identifier"],
+    ),
+    # S7: PHI split across speakers: each piece annotated with the same type; spans never cross a speaker label.
+    _example(
+        "split_across_turns",
+        "agent: date of birth [[DATE|march]]... patient: [[DATE|third, forty-one]]. "
+        "agent: so that's [[PHONE|five five five, oh one four two]]? patient: correct.",
+        ["split_turns", "read_back", "spoken_date"],
+    ),
     # S5: every attempt in a correction is annotated.
     _example(
         "spoken_correction",

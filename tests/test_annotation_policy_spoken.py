@@ -36,3 +36,17 @@ def test_spoken_decisions():
         ("PHONE", "five five six"),
         ("PHONE", "five five seven, oh one four two"),
     ]
+
+
+def test_verification_decisions():
+    assert gold("partial_address_verification") == [
+        ("ADDRESS", "wenlow lane"),
+        ("ADDRESS", "four twelve"),
+        ("ADDRESS", "apartment two b"),
+        ("LOCATION", "five three seven two eight"),
+    ]
+    assert gold("split_across_turns") == [
+        ("DATE", "march"),
+        ("DATE", "third, forty-one"),
+        ("PHONE", "five five five, oh one four two"),
+    ]
