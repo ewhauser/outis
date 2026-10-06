@@ -34,6 +34,7 @@ os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(ROOT / ".cache" / "tiktoken"))
 import torch  # noqa: E402
 
 from clinical_deid.data.annotation_policy import POLICY_VERSION  # noqa: E402
+from clinical_deid.detection.deberta_attention import apply_gather_free_attention  # noqa: E402
 from clinical_deid.detection.decoding import TAGS  # noqa: E402
 from clinical_deid.detection.hf_encoder import (  # noqa: E402
     ENCODER_KIND,
@@ -446,6 +447,8 @@ def main():
     model = AutoModelForTokenClassification.from_pretrained(
         source, num_labels=len(TAGS), id2label=dict(enumerate(TAGS)), label2id=TAG_INDEX,
         ignore_mismatched_sizes=bool(args.resume_weights is None), dtype=torch.float32)
+    # DeBERTa-v2/v3 only: same outputs and gradients, without the slow gather.
+    gather_free_attention = apply_gather_free_attention(model)
     device = torch.device(args.device)
     model.to(device)
     config = {"encoder": ENCODER_KIND, "base_model": args.model_name, "max_length": args.max_length,
@@ -497,7 +500,8 @@ def main():
                 "status": status, "last_evaluated_step": history[-1]["step"] if history else None,
                 "completed_steps": step, "planned_steps": total_steps,
                 "selection_metric": "mean_bank_min_model_precision_recall" if select_banks else "latest_checkpoint_no_selection",
-                "device": args.device, "torch": torch.__version__}
+                "device": args.device, "torch": torch.__version__,
+                "deberta_gather_free_attention": gather_free_attention}
 
     atomic_json(output / "training_summary.json", make_summary("training"))
     done = False

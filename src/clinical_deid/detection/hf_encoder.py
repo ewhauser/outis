@@ -14,6 +14,7 @@ from pathlib import Path
 
 import torch
 
+from clinical_deid.detection.deberta_attention import apply_gather_free_attention
 from clinical_deid.detection.decoding import TAGS, choose_device, decode_bioes
 
 ENCODER_KIND = "hf_token_classifier"
@@ -133,6 +134,8 @@ class HFTokenDetector:
         self.model = model or AutoModelForTokenClassification.from_pretrained(
             hf_dir, local_files_only=True
         )
+        # Identical results, faster on Apple MPS; no-op for other encoders.
+        apply_gather_free_attention(self.model)
         self.model.to(self.device).eval()
         if self.model.config.num_labels != len(TAGS):
             raise ValueError("encoder head does not match the BIOES tag set")

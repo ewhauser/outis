@@ -28,6 +28,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- DeBERTa-v2/v3 encoders use a gather-free relative-attention bias
+  (`clinical_deid.detection.deberta_attention`) in training and inference.
+  Outputs and gradients match the stock transformers code to float32
+  rounding; on Apple MPS a training step is about 1.8 times faster. It is
+  applied only when the stock code matches the checked transformers version.
+  Other encoders are unchanged.
+- `scripts/takeover/train_hf.py` loads base models in fp32.
 - **Breaking:** the default model is ModernBERT-base mix5 epoch 1,
   `models/takeover-mbbase-mix5-001/step-003803`, for the service, API, CLI and
   local launcher. Its weights are not stored in git.
