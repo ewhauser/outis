@@ -16,6 +16,8 @@ from clinical_deid.data.annotation_policy_targeted import (
     TARGETED_FIXTURES,
     TARGETED_FOLLOWUP_FIXTURES,
 )
+from clinical_deid.data.annotation_policy_transcripts import TRANSCRIPT_FIXTURES
+from clinical_deid.data.generators.places import excluded_sequences, excluded_value
 
 SCRIPT = (
     Path(__file__).resolve().parents[1]
@@ -182,8 +184,17 @@ def test_labels_supported(bank):
         assert support[label] > 0
 
 
+V3_TRANSCRIPT_FIXTURES = tuple(
+    f
+    for f in TRANSCRIPT_FIXTURES
+    if f["id"] in ("session_and_access_codes", "timestamp_with_date")
+)
+
+
 @pytest.mark.parametrize(
-    "fixture", (*TARGETED_FIXTURES, *TARGETED_FOLLOWUP_FIXTURES), ids=lambda f: f["id"]
+    "fixture",
+    (*TARGETED_FIXTURES, *TARGETED_FOLLOWUP_FIXTURES, *V3_TRANSCRIPT_FIXTURES),
+    ids=lambda f: f["id"],
 )
 def test_span_logic_rebuilds_every_targeted_fixture(fixture):
     """Rebuild each fixture through the generator's own RowBuilder and compare exact offsets."""
@@ -383,3 +394,176 @@ def test_v2_new_case_conventions(bank_v2):
                 assert not re.match(
                     r"[ ,]*(ext\.?|extension|x)\s*#?\s*\d", text[s["end"] :], re.I
                 )
+
+
+# ---------------------------------------------------------------------------
+# tk14 v3
+# ---------------------------------------------------------------------------
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+V2_DATA = DATA_DIR / "tk14_train_targeted_gaps__v2.jsonl"
+V3_DATA = DATA_DIR / "tk14_train_targeted_gaps__v3.jsonl"
+WEEKDAY_START = re.compile(r"(?i)(mon|tue|wed|thu|fri|sat|sun)[a-z]*[.,]? ")
+
+
+@pytest.fixture(scope="module")
+def bank_v3():
+    return gen.generate("v3")
+
+
+@pytest.mark.skipif(not V2_DATA.exists(), reason="v2 data file not present")
+def test_generator_still_reproduces_v2_byte_for_byte(bank_v2):
+    rows, _ = bank_v2
+    assert gen.serialise(rows) == V2_DATA.read_bytes()
+
+
+def test_v3_is_deterministic_and_differs_from_v2(bank_v2, bank_v3):
+    rows, _ = bank_v3
+    again, _ = gen.generate("v3")
+    assert gen.serialise(rows) == gen.serialise(again)
+    assert gen.serialise(rows) != gen.serialise(bank_v2[0])
+
+
+@pytest.mark.skipif(not V3_DATA.exists(), reason="v3 data file not present")
+def test_v3_file_matches_the_generator(bank_v3):
+    assert gen.serialise(bank_v3[0]) == V3_DATA.read_bytes()
+
+
+def test_v3_composition_and_limits(bank_v3):
+    rows, metas = bank_v3
+    assert len(rows) == 2950
+    assert all(r["id"].endswith("_v3") and r["suite"] == gen.SUITE3 for r in rows)
+    assert all(r["version"] == "tk14-v3" and r["split"] == "train" for r in rows)
+    assert len({r["id"] for r in rows}) == len(rows)
+    assert len({r["text"] for r in rows}) == len(rows)
+    families = Counter(r["target_family"] for r in rows)
+    assert families["signature_dates"] == 150 and families["rare_identifiers"] == 150
+    layouts = Counter(r["layout"] for r in rows)
+    assert len(layouts) >= 20 and max(layouts.values()) / len(rows) <= 0.08
+    negatives = sum(r["polarity"] == "negative" for r in rows)
+    assert 0.30 <= negatives / len(rows) <= 0.37
+    assert Counter(r["cohort"] for r in rows)["realistic"] > 0.85 * len(rows)
+    years = Counter(y for m in metas for y in m["years"])
+    assert min(years) >= 1950 and max(years) <= 2026
+    assert max(years.values()) / sum(years.values()) <= 0.03
+    values: Counter = Counter()
+    for row in rows:
+        for label in ("FACILITY", "LOCATION"):
+            for value in {
+                s["text"].casefold() for s in row["spans"] if s["label"] == label
+            }:
+                values[(label, value)] += 1
+    assert max(values.values()) <= 0.005 * len(rows)
+    for row in rows:
+        assert annotation_errors(row["text"], row["spans"]) == []
+        assert identity_split(row["identity_group"]) == "train"
+        assert all(int(g[:8], 16) % 10 < 8 for g in row["identity_groups"])
+
+
+def test_v3_additions_have_counts_cases_and_matched_negatives(bank_v3):
+    rows, _ = bank_v3
+    expected = {"hist_v3": 300, "sig_weekday": 150, "rare_id": 150}
+    for case, count in expected.items():
+        group = [r for r in rows if r["new_case"] == case]
+        assert len(group) == count
+        negatives = sum(r["polarity"] == "negative" for r in group)
+        assert 0.30 <= negatives / count <= 0.37
+        assert {r["case_mode"] for r in group} == {"normal", "upper", "lower"}
+        assert {r["cohort"] for r in group} == {"realistic"}
+    hist = [r for r in rows if r["new_case"] == "hist_v3"]
+    upper_core = [
+        r
+        for r in hist
+        if r["case_mode"] == "upper" and r["layout"] in ("awv_note", "soap_note")
+    ]
+    assert len(upper_core) >= 150
+    # every v2 case is still present
+    for case in gen.NEW_CASES:
+        assert any(r["new_case"] == case for r in rows)
+
+
+def test_v3_weekday_signature_lines(bank_v3):
+    rows, metas = bank_v3
+    time_pattern = re.compile(r"\d{1,2}:\d{2}|\b\d{4}\b")
+    for row, meta in zip(rows, metas):
+        if row["new_case"] != "sig_weekday":
+            continue
+        sig_dates = [v for tag, v in meta["tags"] if tag == "sigdate"]
+        if row["polarity"] == "negative":
+            assert not sig_dates
+            continue
+        assert sig_dates
+        for span in row["spans"]:
+            if span["label"] == "DATE" and span["text"] in sig_dates:
+                # the weekday is inside the span, the clock time outside it
+                assert WEEKDAY_START.match(span["text"]), span["text"]
+                assert not re.search(r"\d{1,2}:\d{2}", span["text"])
+                line_end = row["text"].find("\n", span["end"])
+                tail = row["text"][span["end"] : line_end if line_end != -1 else None]
+                start = row["text"].rfind("\n", 0, span["start"]) + 1
+                before = row["text"][start : span["start"]]
+                assert time_pattern.search(tail) or time_pattern.search(before)
+    modes = {
+        r["case_mode"]
+        for r in rows
+        if r["new_case"] == "sig_weekday" and r["polarity"] == "positive"
+    }
+    assert modes == {"normal", "upper", "lower"}
+
+
+def test_v3_rare_identifier_rows(bank_v3):
+    rows, metas = bank_v3
+    version = re.compile(
+        r"(?i)\b(app version|firmware v|software build)\s?\d+\.\d+\.\d+"
+    )
+    seen_kinds = set()
+    for row, meta in zip(rows, metas):
+        if row["new_case"] != "rare_id":
+            continue
+        ids = [s for s in row["spans"] if s["label"] == "ID"]
+        tagged = [(t, v) for t, v in meta["tags"] if t in gen.RARE_TAGS]
+        if row["polarity"] == "negative":
+            assert not ids and not tagged
+        else:
+            assert tagged and len(ids) >= len(tagged)
+            seen_kinds |= {t for t, _ in tagged}
+        for span in ids:
+            # captions stay outside; software versions are never annotated
+            assert not re.match(
+                r"(?i)(serial|s/n|session|call |code|visit)", span["text"]
+            )
+            assert not re.fullmatch(r"\d+\.\d+\.\d+", span["text"])
+        for match in version.finditer(row["text"]):
+            assert not any(
+                s["start"] < match.end() and match.start() < s["end"]
+                for s in row["spans"]
+            )
+        for span in row["spans"]:
+            if span["label"] == "URL":
+                assert span["text"].lower().startswith("https://")
+    assert seen_kinds == set(gen.RARE_TAGS)
+
+
+def test_v3_history_additions_have_years_only_in_positives(bank_v3):
+    rows, metas = bank_v3
+    for row, meta in zip(rows, metas):
+        if row["new_case"] != "hist_v3":
+            continue
+        assert bool(meta["years"]) == (row["polarity"] == "positive")
+
+
+def test_v3_has_zero_exclusion_matches(bank_v3):
+    """Counts only: never print which strings matched."""
+    rows, _ = bank_v3
+    assert sum(excluded_sequences(r["text"]) > 0 for r in rows) == 0
+    assert sum(excluded_value(s["text"]) for r in rows for s in r["spans"]) == 0
+
+
+@pytest.mark.skipif(not V3_DATA.exists(), reason="v3 data file not present")
+def test_v3_data_file_has_zero_exclusion_matches():
+    import json
+
+    lines = V3_DATA.read_text(encoding="utf-8").splitlines()
+    rows = [json.loads(line) for line in lines]
+    assert len(rows) == 2950
+    assert sum(excluded_sequences(r["text"]) > 0 for r in rows) == 0
+    assert sum(excluded_value(s["text"]) for r in rows for s in r["spans"]) == 0

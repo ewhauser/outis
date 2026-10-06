@@ -42,12 +42,20 @@ from clinical_deid.data.annotation_policy import (  # noqa: E402
     canonical_identity_group,
     identity_split,
 )
+from clinical_deid.data.generators.places import (  # noqa: E402
+    excluded_sequences,
+    excluded_value,
+)
 from clinical_deid.types import ENTITY_TYPES  # noqa: E402
 
 SEED = 20261014
 SUITE = "tk14_targeted_gaps"
 SEED2 = 20261015  # tk14-v2
 SUITE2 = "tk14_targeted_gaps_v2"
+SEED3 = 20261016  # tk14-v3
+SUITE3 = "tk14_targeted_gaps_v3"
+YEAR_CAP3 = 85  # v3 history-year cap (under 2.8% of roughly 3,100 spans)
+EXCLUSIONS_PATH = ROOT / "data" / "places_exclusions.sha256.json"
 YEAR_CAP2 = 68  # v2 history-year cap (under 2.7% of roughly 2,500 spans)
 FUTURE_CAP = 40
 CAP = (
@@ -121,6 +129,41 @@ NEW_CASES = {
     "bare_extension": (0, 40, "phone_extension", PHONE_NEW_LAYOUTS),
 }
 HIST_NEW = ("onset_year", "year_range", "future_year")
+
+# v3 additions (2026-10-06): (family, layouts with row counts, case plan)
+V3_HIST_LAYOUTS_UPPER = [("awv_note", 80), ("soap_note", 80)]  # all-caps
+V3_HIST_LAYOUTS_OTHER = [
+    ("screening_schedule", 18),
+    ("surgical_history_list", 18),
+    ("immunization_record", 18),
+    ("problem_list", 18),
+    ("nursing_intake_history", 17),
+    ("telegraphic_oneliner", 17),
+    ("portal_message_history", 17),
+    ("referral_letter", 17),
+]
+V3_SIG_LAYOUTS = [
+    "sig_progress_note",
+    "sig_attestation",
+    "sig_telephone_encounter",
+    "sig_discharge_summary",
+    "sig_nursing_note",
+    "sig_addendum",
+]
+V3_RARE_LAYOUTS = [
+    "device_record_note",
+    "telehealth_visit_note",
+    "call_center_log",
+    "portal_activation_message",
+    "device_registration_form",
+    "after_visit_summary",
+]
+V3_CASES = {
+    "hist_v3": "history_years",
+    "sig_weekday": "signature_dates",
+    "rare_id": "rare_identifiers",
+}
+RARE_TAGS = ("serial", "session", "call", "activation")
 
 # ---------------------------------------------------------------------------
 # Value pools (all invented)
@@ -736,6 +779,12 @@ class Registry:
         self.uses: Counter = Counter()
         self.years: Counter = Counter()
         self.future: Counter = Counter()
+
+    def snapshot(self):
+        return Counter(self.uses), Counter(self.years), Counter(self.future)
+
+    def restore(self, snapshot):
+        self.uses, self.years, self.future = (Counter(part) for part in snapshot)
 
     def pick(self, rng, make, kind, cap=CAP):
         for _ in range(400):
@@ -1518,6 +1567,8 @@ def hist_new_neg(c, sentence):
 
 
 def hist_pos(c, sentence=False):
+    if c.newcase == "hist_v3":
+        return hist_v3_pos(c, sentence)
     if c.newcase in HIST_NEW and (not c.hit or c.rng.random() < 0.6):
         return hist_new_pos(c, sentence)
     rng = c.rng
@@ -1568,6 +1619,10 @@ def hist_neg(c, sentence=False):
     """A history-flavoured item with no patient-specific year (public years, durations, doses, stages, ages <= 89)."""
     if c.newcase in HIST_NEW and (not c.neghit or c.rng.random() < 0.6):
         return hist_new_neg(c, sentence)
+    if c.newcase == "hist_v3":
+        item = hist_v3_neg(c, sentence)
+        if item is not None:
+            return item
     rng = c.rng
     Tl = rng.choice(TESTS)[0]
     T = cap_first(rng, Tl)
@@ -1605,6 +1660,150 @@ def hist_neg(c, sentence=False):
         f"{T}: {R} (per the {py} {TG} guideline, next in {n} years)",
     ]
     text = rng.choice(options)
+    if sentence:
+        text = text[0].upper() + text[1:] + "."
+    return [text]
+
+
+# ---------------------------------------------------------------------------
+# v3 history-year variety (phrasings written for v3; years stay DATE)
+# ---------------------------------------------------------------------------
+TEST_V3 = [
+    lambda T, d, R: [T, " completed ", d],
+    lambda T, d, R: [T, ": negative (", d, ")"],
+    lambda T, d, R: [T, " ", d, " - ", R],
+    lambda T, d, R: [T, " (", d, ") ", R],
+    lambda T, d, R: [T, " last done ", d, "; ", R],
+    lambda T, d, R: ["Last ", T, " (", d, "): ", R],
+    lambda T, d, R: [T, ", result ", R, " (", d, ")"],
+    lambda T, d, R: [d, " ", T, " - ", R],
+    lambda T, d, R: [T, " report dated ", d, " on file"],
+    lambda T, d, R: [T, " done ", d, ", ", R, ", no follow-up needed"],
+    lambda T, d, R: [T, " -- ", d, " -- ", R],
+    lambda T, d, R: [T, " (outside records, ", d, ")"],
+    lambda T, d, R: [T, " ", d],
+    lambda T, d, R: [T, " normal (", d, ")"],
+]
+SENT_TEST_V3 = [
+    lambda T, d, R: [T, " completed ", d, ", ", R, "."],
+    lambda T, d, R: ["Last ", T, " (", d, "): ", R, "."],
+    lambda T, d, R: ["Records show ", T, " ", d, ", result ", R, "."],
+    lambda T, d, R: ["Most recent ", T, " was ", d, "; no repeat needed yet."],
+    lambda T, d, R: [T, ": negative (", d, ")."],
+    lambda T, d, R: ["Screening history: ", T, " ", d, ", ", R, "."],
+    lambda T, d, R: ["Pt had ", T, " in ", d, "; ", R, "."],
+    lambda T, d, R: [T, " ", d, " - ", R, "."],
+]
+VAX_V3 = [
+    lambda V, d, d2, k: [V, " ", d],
+    lambda V, d, d2, k: [V, " completed ", d],
+    lambda V, d, d2, k: [V, " (", d, "): tolerated well"],
+    lambda V, d, d2, k: ["Immunized: ", V, " ", d],
+    lambda V, d, d2, k: (
+        [V, " given ", d, " and ", d2] if d2 else [V, " administered ", d]
+    ),
+    lambda V, d, d2, k: [V, " dose ", str(k), " - ", d],
+    lambda V, d, d2, k: [V, ", last documented ", d],
+    lambda V, d, d2, k: [V, " per registry ", d],
+    lambda V, d, d2, k: [V, " ", d, "; next per schedule"],
+]
+SENT_VAX_V3 = [
+    lambda V, d, d2, k: [V, " ", d, "."],
+    lambda V, d, d2, k: ["Immunization history: ", V, " ", d, "."],
+    lambda V, d, d2, k: [V, " completed ", d, ", no reaction."],
+    lambda V, d, d2, k: ["Up to date on ", V, " (", d, ")."],
+    lambda V, d, d2, k: [V, " administered ", d, " per registry."],
+]
+PROC_V3 = [
+    lambda P, d, X: [P, " ", d, ", ", X],
+    lambda P, d, X: ["S/p ", P, " (", d, ")"],
+    lambda P, d, X: [P, " completed ", d],
+    lambda P, d, X: [P, " - ", d, " - ", X],
+    lambda P, d, X: [d, " ", P, ", ", X],
+    lambda P, d, X: [P, " done ", d, "; ", X],
+    lambda P, d, X: ["Remote ", P, " (", d, ")"],
+    lambda P, d, X: [P, ", ", d, " (outside hospital)"],
+]
+SENT_PROC_V3 = [
+    lambda P, d, X: ["Surgical history: ", P, " (", d, ")."],
+    lambda P, d, X: [P, " completed ", d, "."],
+    lambda P, d, X: ["Status post ", P, " ", d, ", ", X, "."],
+    lambda P, d, X: ["Remote ", P, " in ", d, "."],
+    lambda P, d, X: [P, " ", d, "; ", X, "."],
+]
+
+
+def hist_v3_pos(c, sentence):
+    rng = c.rng
+    for _ in range(60):
+        kind = rng.choices(["test", "vax", "proc"], [46, 24, 30])[0]
+        if kind == "test":
+            T, miny = rng.choice(TESTS)
+            got = c.dp(miny)
+            if got is None:
+                continue
+            R = results_for(rng, T)
+            T = T if sentence else cap_first(rng, T)
+            item = (rng.choice(SENT_TEST_V3) if sentence else rng.choice(TEST_V3))(
+                T, got[0], R
+            )
+        elif kind == "vax":
+            V, miny = rng.choice(VACCINES)
+            got = c.dp(miny)
+            if got is None:
+                continue
+            d2 = None
+            if rng.random() < 0.25:
+                second = c.dp(got[1] + 1, floor=got[1] + 1)
+                d2 = second[0] if second else None
+            V = V if sentence else cap_first(rng, V)
+            item = (rng.choice(SENT_VAX_V3) if sentence else rng.choice(VAX_V3))(
+                V, got[0], d2, rng.randint(1, 3)
+            )
+        else:
+            P = rng.choice(PROCEDURES)
+            got = c.dp(PROC_MIN.get(P, 1950))
+            if got is None:
+                continue
+            P = P if sentence else cap_first(rng, P)
+            item = (rng.choice(SENT_PROC_V3) if sentence else rng.choice(PROC_V3))(
+                P, got[0], rng.choice(PROC_DETAIL)
+            )
+        c.hit = True
+        return sentence_case(item) if sentence else flat(item)
+    raise RuntimeError("no feasible v3 history year item")
+
+
+def hist_v3_neg(c, sentence):
+    """A year-free v3 history item, or None to fall back to the general negatives."""
+    rng = c.rng
+    if rng.random() < 0.4:
+        return None
+    Tl = rng.choice(TESTS)[0]
+    T = cap_first(rng, Tl)
+    V = cap_first(rng, rng.choice(VACCINES)[0])
+    P = cap_first(rng, rng.choice(PROCEDURES))
+    a = min(c.age, 89)
+    x = rng.randint(20, max(21, a - 3))
+    n = rng.choice([2, 3, 5, 7, 10])
+    py, TG, R = pub_year(rng), topic_for(Tl), results_for(rng, Tl)
+    text = rng.choice(
+        [
+            f"{T}: negative; date not recorded",
+            f"{T} completed, date unknown",
+            f"{T}: {R} (per patient report, no date given)",
+            f"{V} completed in childhood",
+            f"{V}: series completed, dates not documented",
+            f"{V} given at age {x}",
+            f"{P} completed, date not recorded",
+            f"{P} at age {x}, no complications",
+            f"{T}: negative (per the {py} {TG} guideline, repeat in {n} years)",
+            f"{T} due in {n} years",
+            f"{V} due this season",
+            f"{T} ordered; result pending",
+        ]
+    )
+    c.neghit = True
     if sentence:
         text = text[0].upper() + text[1:] + "."
     return [text]
@@ -1799,7 +1998,9 @@ def L_surgical_history_list(c):
             got = c.dp(PROC_MIN.get(P.lower(), 1950))
             if got is None:
                 continue
-            body = rng.choice(PROC_LIST)(P, got[0], rng.choice(PROC_DETAIL))
+            body = rng.choice(PROC_V3 if c.newcase == "hist_v3" else PROC_LIST)(
+                P, got[0], rng.choice(PROC_DETAIL)
+            )
         else:
             body = [
                 pick(
@@ -1870,7 +2071,9 @@ def L_immunization_record(c):
             if rng.random() < 0.25:
                 second = c.dp(got[1] + 1, floor=got[1] + 1)
                 d2 = second[0] if second else None
-            body = rng.choice(VAX_LIST)(V, got[0], d2, rng.randint(1, 3))
+            body = rng.choice(VAX_V3 if c.newcase == "hist_v3" else VAX_LIST)(
+                V, got[0], d2, rng.randint(1, 3)
+            )
         else:
             body = [
                 pick(
@@ -2870,6 +3073,529 @@ def L_nursing_expiration(c):
     )
 
 
+# ---------------------------------------------------------------------------
+# v3: weekday before a date in signature and attestation lines
+# ---------------------------------------------------------------------------
+CREDS = ["MD", "RN", "NP", "PA-C", "DO", "LPN", "PharmD", "RD", "LCSW", "PT", "OT"]
+
+
+def sig_who(c):
+    rng = c.rng
+    name = c.person()
+    if rng.random() < 0.25:
+        return ["Dr. ", ("NAME", name)]
+    return [("NAME", name), ", ", rng.choice(CREDS)]
+
+
+def sig_clock(rng):
+    h, m = rng.randint(0, 23), rng.randint(0, 59)
+    h12 = h % 12 or 12
+    suffix = "AM" if h < 12 else "PM"
+    return rng.choice(
+        [
+            f"{h:02d}:{m:02d}",
+            f"{h:02d}{m:02d}",
+            f"{h12}:{m:02d} {suffix}",
+            f"{h:02d}:{m:02d} hrs",
+            f"{h12}:{m:02d}{suffix.lower()}",
+            f"{h:02d}:{m:02d}:{rng.randint(0, 59):02d}",
+        ]
+    )
+
+
+def sig_date(c):
+    """A weekday and a date, one DATE span; the weekday matches the calendar."""
+    rng = c.rng
+    year = c.note_year
+    month, day = rng.randint(1, 12), rng.randint(1, 28)
+    if year >= 2026:
+        month = rng.randint(1, 9)
+    index = date(year, month, day).weekday()
+    full, ab = WEEKDAYS[index], WEEKDAYS[index][:3]
+    text = rng.choice(
+        [
+            f"{ab}, {day} {MON3[month - 1]} {year}",
+            f"{full}, {MONFULL[month - 1]} {day}, {year}",
+            f"{ab} {month:02d}/{day:02d}/{year}",
+            f"{ab}, {month}/{day}/{year % 100:02d}",
+            f"{full} {MON3[month - 1]} {day}, {year}",
+            f"{ab}, {year}-{month:02d}-{day:02d}",
+            f"{ab}. {month}/{day}/{year}",
+            f"{full}, {day} {MONFULL[month - 1]} {year}",
+            f"{ab}, {MON3[month - 1]} {day}, {year}",
+        ]
+    )
+    return ("DATE", text, "sigdate")
+
+
+def sig_line(c, positive):
+    rng = c.rng
+    who, t = sig_who(c), sig_clock(rng)
+    if positive:
+        d = sig_date(c)
+        return rng.choice(
+            [
+                ["Note completed by ", who, ", ", d, " at ", t],
+                ["Electronically signed by ", who, " on ", d, " at ", t],
+                ["Attested by ", who, ", ", d, ", ", t],
+                ["Signed: ", who, " | ", d, " ", t],
+                ["Reviewed and cosigned by ", who, " ", d, " at ", t, "."],
+                ["Documentation completed ", d, " ", t, " by ", who],
+                ["Addendum entered by ", who, " on ", d, " at ", t],
+                ["Dictated by ", who, ", ", d, " (", t, ")"],
+                ["Authenticated ", d, " ", t, " - ", who],
+                ["Chart closed by ", who, ", ", d, " at ", t],
+            ]
+        )
+    elapsed = (
+        f"{rng.randint(0, 1):02d}:{rng.randint(0, 59):02d}:{rng.randint(0, 59):02d}"
+    )
+    return rng.choice(
+        [
+            ["Note completed by ", who, " at ", t],
+            ["Electronically signed by ", who, " at ", t],
+            ["Attested by ", who, ", ", t],
+            [f"[{elapsed}] Note completed by ", who],
+            ["Signed: ", who, " | ", t],
+            ["Pending signature: ", who],
+            ["Addendum entered by ", who, " at ", t],
+            ["Reviewed and cosigned by ", who, " (time ", t, ")"],
+            ["Signature pending; ", who, " notified"],
+            ["Dictated by ", who, " at ", t, " today"],
+        ]
+    )
+
+
+def sig_lines(c, low, high):
+    rng, out = c.rng, []
+    for i in range(rng.randint(low, high)):
+        if i:
+            out.append("\n")
+        out.append(sig_line(c, c.positive and (i == 0 or rng.random() < 0.6)))
+    return out
+
+
+def L_sig_progress_note(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "PROGRESS NOTE",
+                "Clinic progress note",
+                "Follow-up visit note",
+                "Office visit",
+            ],
+        ),
+        "\n",
+    )
+    rb.add(
+        c.hdr(
+            ["name", "mrn", "dos"][: rng.randint(2, 3)], sep=pick(rng, ["\n", " | "])
+        ),
+        "\n\n",
+    )
+    rb.add(c.age_parts(), " patient seen for follow-up. ", c.fill(rng.randint(2, 3)))
+    rb.add("\n\n", sig_lines(c, 1, 2))
+
+
+def L_sig_attestation(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(rng, ["RESIDENT NOTE", "Teaching service note", "Fellow consult note"]),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "mrn"], sep=" | "), "\n")
+    rb.add(c.fill(2), "\n\n")
+    rb.add(
+        pick(
+            rng,
+            [
+                "ATTENDING ATTESTATION: I saw and examined the patient and agree with the plan.",
+                "Attending attestation: patient seen and discussed with the resident.",
+                "Attestation - I reviewed the findings and agree as documented.",
+            ],
+        ),
+        "\n",
+        sig_lines(c, 1, 2),
+    )
+
+
+def L_sig_telephone_encounter(c):
+    rb, rng = c.rb, c.rng
+    rb.add(pick(rng, ["TELEPHONE ENCOUNTER", "Phone call note", "Call note"]), "\n")
+    rb.add(c.hdr(["name", "dos"], sep=" | "), "\n")
+    rb.add(
+        pick(rng, ["Spoke with ", "Returned call to ", "Message left for "]),
+        c.relative(),
+        ". ",
+        c.fill(2),
+        "\n",
+        sig_lines(c, 1, 1),
+    )
+
+
+def L_sig_discharge_summary(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng, ["DISCHARGE SUMMARY", "Discharge summary", "Hospital course summary"]
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "mrn", "dos"], sep="\n"), "\n\n")
+    rb.add(c.age_parts(), " patient. ", c.fill(2), "\nDischarge medications:\n")
+    for med in rng.sample(MEDS, rng.randint(2, 4)):
+        rb.add(c.bullet, med, "\n")
+    rb.add("\n", sig_lines(c, 1, 2))
+
+
+def L_sig_nursing_note(c):
+    rb, rng = c.rb, c.rng
+    rb.add(pick(rng, ["Nursing note", "RN shift note", "Nursing narrative"]), "\n")
+    rb.add(c.hdr(["name", "dos"], sep=" | "), "\n")
+    rb.add(c.fill(2), " Report given to ", c.clinician(), ".\n", sig_lines(c, 1, 2))
+
+
+def L_sig_addendum(c):
+    rb, rng = c.rb, c.rng
+    rb.add(pick(rng, ["ADDENDUM", "Late entry addendum", "Chart addendum"]), "\n")
+    rb.add(c.hdr(["name", "mrn"], sep=" | "), "\n")
+    rb.add(c.fill(1), "\n", sig_lines(c, 2, 3))
+
+
+# ---------------------------------------------------------------------------
+# v3: rare identifier formats (device serials, session/visit/call ids, access codes)
+# ---------------------------------------------------------------------------
+DEVICES = [
+    "pacemaker",
+    "insulin pump",
+    "CPAP machine",
+    "glucose meter",
+    "hearing aid",
+    "continuous glucose monitor",
+    "nerve stimulator",
+    "oxygen concentrator",
+    "defibrillator",
+    "infusion pump",
+    "nebulizer",
+    "cardiac event monitor",
+    "home ventilator",
+    "bone growth stimulator",
+    "cochlear processor",
+    "blood pressure monitor",
+]
+ID_LETTERS = "ABCDEFGHJKLMNPRSTUVWXYZ"
+ID_ALNUM = "ABCDEFGHJKLMNPRSTUVWXYZ23456789"
+
+
+def rdigits(rng, n):
+    return "".join(rng.choice("0123456789") for _ in range(n))
+
+
+def rletters(rng, n, alphabet=ID_LETTERS):
+    return "".join(rng.choice(alphabet) for _ in range(n))
+
+
+def serial_value(rng):
+    return rng.choice(
+        [
+            f"SN{rdigits(rng, 8)}",
+            f"{rletters(rng, 2)}{rdigits(rng, 7)}",
+            f"{rdigits(rng, 4)}-{rdigits(rng, 5)}",
+            f"{rletters(rng, 3)}-{rdigits(rng, 6)}",
+            f"{rdigits(rng, 2)}{rletters(rng, 2)}{rdigits(rng, 6)}",
+            f"{rletters(rng, 1)}{rdigits(rng, 3)}-{rletters(rng, 2)}{rdigits(rng, 4)}",
+            f"{rletters(rng, 4, ID_ALNUM)}{rdigits(rng, 6)}",
+        ]
+    )
+
+
+def session_value(rng):
+    return rng.choice(
+        [
+            f"{rletters(rng, 2)}-{rdigits(rng, rng.randint(4, 6))}",
+            f"{rdigits(rng, 3)}-{rdigits(rng, 3)}-{rdigits(rng, 3)}",
+            f"{rletters(rng, 1)}{rdigits(rng, 7)}",
+            f"S-{rdigits(rng, 6)}",
+            f"{rdigits(rng, 4)}-{rdigits(rng, 4)}",
+            f"{rletters(rng, 3)}{rdigits(rng, 5)}",
+        ]
+    )
+
+
+def call_value(rng):
+    return rng.choice(
+        [
+            f"CALL-{rdigits(rng, 6)}",
+            f"C{rdigits(rng, 8)}",
+            f"{rdigits(rng, 5)}-{rdigits(rng, 3)}",
+            f"NL{rdigits(rng, 7)}",
+            f"{rletters(rng, 2)}{rdigits(rng, 6)}",
+        ]
+    )
+
+
+def activation_value(rng):
+    return rng.choice(
+        [
+            f"{rletters(rng, 4, ID_ALNUM)}-{rletters(rng, 4, ID_ALNUM)}",
+            rdigits(rng, 6),
+            f"ACT{rdigits(rng, 6)}",
+            rletters(rng, 8, ID_ALNUM),
+            f"{rletters(rng, 3, ID_ALNUM)}-{rdigits(rng, 3)}-{rletters(rng, 3, ID_ALNUM)}",
+            rdigits(rng, 8),
+        ]
+    )
+
+
+def meeting_link(rng):
+    host = rng.choice(
+        [
+            "visit.example.test",
+            "telehealth.example.org",
+            "meet.example.net",
+            "room.clinic.test",
+            "video.example.com",
+        ]
+    )
+    return (
+        "URL",
+        f"https://{host}/{rng.choice(['r', 'join', 'room', 'v'])}/{rletters(rng, 3, ID_ALNUM)}{rdigits(rng, rng.randint(3, 5))}",
+    )
+
+
+def serial_item(c):
+    rng = c.rng
+    dev = rng.choice(DEVICES)
+    sid = ("ID", serial_value(rng), "serial")
+    return rng.choice(
+        [
+            ["Device: ", dev, ", serial number ", sid],
+            [dev.capitalize(), " (S/N ", sid, ") in use at home"],
+            ["Serial #", sid, " - ", dev],
+            ["Implant card: ", dev, ", SN ", sid],
+            [dev.capitalize(), " serial: ", sid, "; settings reviewed"],
+            ["Returned ", dev, " for service, serial no. ", sid, "."],
+            ["Registered ", dev, " under serial ", sid, "."],
+            ["Device serial ", sid, " (", dev, ")"],
+        ]
+    )
+
+
+def session_item(c):
+    rng = c.rng
+    sid = ("ID", session_value(rng), "session")
+    link = meeting_link(rng)
+    lang = rng.choice(["Spanish", "Mandarin", "Somali", "Hmong", "Arabic"])
+    return rng.choice(
+        [
+            ["Video session ", sid, " joined from ", link],
+            ["Telehealth visit ID: ", sid],
+            ["Session ", sid, " ended after ", str(rng.randint(12, 55)), " minutes"],
+            ["Interpreter session ", sid, " (", lang, ")"],
+            ["Visit reference ", sid],
+            ["Meeting ID ", sid, "; link ", link],
+            ["Virtual visit session ID ", sid, " recorded"],
+            ["Joined ", link, " as session ", sid],
+        ]
+    )
+
+
+def call_item(c):
+    rng = c.rng
+    cid = ("ID", call_value(rng), "call")
+    return rng.choice(
+        [
+            ["Call ID ", cid, " logged by the nurse line"],
+            ["Call reference ", cid],
+            ["Inbound call ", cid, ", triaged by phone"],
+            ["Call ID: ", cid],
+            ["Recorded call ", cid, " reviewed by the supervisor"],
+        ]
+    )
+
+
+def activation_item(c):
+    rng = c.rng
+    aid = ("ID", activation_value(rng), "activation")
+    hours = str(rng.choice([24, 48, 72]))
+    return rng.choice(
+        [
+            ["Portal activation code ", aid, " issued to the patient"],
+            ["One-time access code: ", aid],
+            ["Enrollment code ", aid, " expires in ", hours, " hours"],
+            ["Activation code for the home monitoring app: ", aid],
+            ["Pairing code ", aid, " entered at the kiosk"],
+            ["Sign-up code ", aid, " given at checkout"],
+            ["Access code ", aid, " sent by text"],
+            ["Invite code: ", aid],
+        ]
+    )
+
+
+RARE_POS = {
+    "serial": serial_item,
+    "session": session_item,
+    "call": call_item,
+    "activation": activation_item,
+}
+
+
+def rare_neg_item(c):
+    rng = c.rng
+    ver = f"{rng.randint(1, 9)}.{rng.randint(0, 29)}.{rng.randint(0, 9)}"
+    dev = rng.choice(DEVICES)
+    n = rng.randint(2, 9)
+    m = n + rng.randint(1, 4)
+    return rng.choice(
+        [
+            [f"App version {ver} installed on the tablet"],
+            [f"Firmware v{ver} current on the {dev}"],
+            [f"Software build {ver} running; no updates pending"],
+            [f"Session {n} of {m} completed"],
+            [f"Visit {n} of {m} scheduled"],
+            [f"Call lasted {rng.randint(3, 40)} minutes"],
+            [f"Session length {rng.randint(15, 60)} minutes"],
+            [f"Serial BP checks every {rng.choice([2, 4, 6])} hours"],
+            [f"Serial troponins x{rng.randint(2, 4)} negative"],
+            ["Activation code not yet issued"],
+            ["No activation code received by the patient"],
+            [f"{dev.capitalize()} battery at {rng.randint(10, 95)}%"],
+            ["Device serial number to follow from the manufacturer"],
+            ["Visit ID not available at the time of this note"],
+            ["Video session cancelled; patient will call back"],
+            ["Join link: ", meeting_link(rng)],
+            ["Telehealth link sent: ", meeting_link(rng)],
+        ]
+    )
+
+
+def rare_item(c, kinds, positive=None):
+    positive = c.positive if positive is None else positive
+    if not positive:
+        return rare_neg_item(c)
+    return RARE_POS[c.rng.choice(kinds)](c)
+
+
+def rare_lines(c, kinds, low, high):
+    rng, out = c.rng, []
+    for i in range(rng.randint(low, high)):
+        if i:
+            out.append("\n")
+        out.append(rare_item(c, kinds, c.positive and (i == 0 or rng.random() < 0.7)))
+    if rng.random() < 0.3:
+        out.append(
+            f"\nApp version {rng.randint(1, 9)}.{rng.randint(0, 29)}.{rng.randint(0, 9)}."
+        )
+    return out
+
+
+def L_device_record_note(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            ["DEVICE RECORD", "Medical device summary", "Home and implanted devices"],
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "mrn", "dos"][: rng.randint(2, 3)], sep=" | "), "\n")
+    rb.add(rare_lines(c, ["serial"], 2, 3), "\n", c.fill(1), " ", c.clinician())
+
+
+def L_telehealth_visit_note(c):
+    rb, rng = c.rb, c.rng
+    rb.add(pick(rng, ["TELEHEALTH VISIT", "Virtual visit note", "Video visit"]), "\n")
+    rb.add(c.hdr(["name", "dos"], sep=" | "), "\n")
+    rb.add(
+        rare_lines(c, ["session"], 1, 2), "\n", c.fill(2), "\nProvider: ", c.clinician()
+    )
+
+
+def L_call_center_log(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(rng, ["NURSE LINE CALL LOG", "Triage call log", "Call center record"]),
+        "\n",
+    )
+    rb.add(c.hdr(["name"], sep=" | "), "\n")
+    rb.add("Caller: ", c.relative(), ", ", c.phone(), "\n")
+    rb.add(rare_lines(c, ["call"], 1, 2), "\n", c.fill(2))
+
+
+def L_portal_activation_message(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "Patient portal message",
+                "Portal welcome message",
+                "Account setup message",
+            ],
+        ),
+        "\nTo: ",
+        ("NAME", c.patient),
+        "\n",
+    )
+    rb.add(pick(rng, ["Hello, ", "Welcome, ", "Hi, "]))
+    rb.add(
+        pick(
+            rng,
+            [
+                "your portal account is ready to be set up. ",
+                "use the code below to finish setting up your account. ",
+                "here is what you need to sign in for the first time. ",
+            ],
+        ),
+        "\n",
+        rare_lines(c, ["activation"], 1, 2),
+        "\n",
+        pick(rng, ["Need help? ", "Sign-in help: ", "Questions? Call "]),
+        c.phone(),
+        ". ",
+        c.fill(1),
+    )
+
+
+def L_device_registration_form(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng,
+            [
+                "DEVICE REGISTRATION",
+                "Device enrollment form",
+                "Remote monitoring enrollment",
+            ],
+        ),
+        "\n",
+    )
+    rb.add("Name: ", ("NAME", c.patient), "\n")
+    if rng.random() < 0.6:
+        rb.add("DOB: ", c.full_date(c.birth_year)[:1], "\n")
+    rb.add("Phone: ", c.phone(), "\n")
+    rb.add(rare_lines(c, ["serial", "activation"], 2, 3), "\n", c.fill(1))
+
+
+def L_after_visit_summary(c):
+    rb, rng = c.rb, c.rng
+    rb.add(
+        pick(
+            rng, ["AFTER-VISIT SUMMARY", "Visit summary for the patient", "NEXT STEPS"]
+        ),
+        "\n",
+    )
+    rb.add(c.hdr(["name", "dos"], sep=" | "), "\n")
+    rb.add(
+        c.fill(2),
+        "\n",
+        rare_lines(c, ["session", "call", "serial", "activation"], 2, 3),
+    )
+    rb.add("\n", c.clinician())
+
+
 LAYOUT_FUNCS = {
     "awv_note": L_awv_note,
     "soap_note": L_soap_note,
@@ -2897,19 +3623,33 @@ LAYOUT_FUNCS = {
     "hospice_discharge": L_hospice_discharge,
     "social_work_bereavement": L_social_work_bereavement,
     "nursing_expiration": L_nursing_expiration,
+    "sig_progress_note": L_sig_progress_note,
+    "sig_attestation": L_sig_attestation,
+    "sig_telephone_encounter": L_sig_telephone_encounter,
+    "sig_discharge_summary": L_sig_discharge_summary,
+    "sig_nursing_note": L_sig_nursing_note,
+    "sig_addendum": L_sig_addendum,
+    "device_record_note": L_device_record_note,
+    "telehealth_visit_note": L_telehealth_visit_note,
+    "call_center_log": L_call_center_log,
+    "portal_activation_message": L_portal_activation_message,
+    "device_registration_form": L_device_registration_form,
+    "after_visit_summary": L_after_visit_summary,
 }
 FAMILY_PHENOMENA = {
     "history_years": ["history_year", "date_boundaries"],
     "pharmacy_zip": ["pharmacy_zip", "facility_boundary"],
     "phone_extension": ["phone_extension"],
     "funeral_homes": ["service_organisation", "funeral_home"],
+    "signature_dates": ["weekday_date", "date_boundaries"],
+    "rare_identifiers": ["device_serial", "session_identifier", "access_code"],
 }
 
 
 # ---------------------------------------------------------------------------
 # Plan and generation
 # ---------------------------------------------------------------------------
-def build_plan(seed=SEED, with_new=False):
+def build_plan(seed=SEED, with_new=False, with_v3=False):
     rng = random.Random(f"{seed}:plan")
     plan = []
     for family, total in FAMILY_ROWS.items():
@@ -2951,7 +3691,44 @@ def build_plan(seed=SEED, with_new=False):
                     }
                 )
         rng.shuffle(plan)
+    if with_v3:
+        plan += v3_plan(rng)
+        rng.shuffle(plan)
     return plan
+
+
+def v3_plan(rng):
+    """The v3 additions: history-year variety, weekday signature lines, rare identifiers."""
+
+    def group(newcase, family, layouts, case_cycle):
+        items = []
+        for layout, count in layouts:
+            negatives = round(count / 3)
+            items += [
+                {
+                    "family": family,
+                    "layout": layout,
+                    "positive": k >= negatives,
+                    "cohort": "realistic",
+                    "newcase": newcase,
+                }
+                for k in range(count)
+            ]
+        rng.shuffle(items)
+        for index, item in enumerate(items):
+            item["case"] = case_cycle[index % len(case_cycle)]
+        return items
+
+    five = ["normal", "normal", "normal", "upper", "lower"]
+    seven = ["normal"] * 5 + ["upper", "lower"]
+    return [
+        *group("hist_v3", "history_years", V3_HIST_LAYOUTS_UPPER, ["upper"]),
+        *group("hist_v3", "history_years", V3_HIST_LAYOUTS_OTHER, seven),
+        *group(
+            "sig_weekday", "signature_dates", [(x, 25) for x in V3_SIG_LAYOUTS], five
+        ),
+        *group("rare_id", "rare_identifiers", [(x, 25) for x in V3_RARE_LAYOUTS], five),
+    ]
 
 
 VERSIONS = {
@@ -2971,14 +3748,47 @@ VERSIONS = {
         "pools": (FIRSTS_V2, LASTS_V2),
         "with_new": True,
     },
+    "v3": {
+        "seed": SEED3,
+        "suite": SUITE3,
+        "suffix": "_v3",
+        "version": "tk14-v3",
+        "year_cap": YEAR_CAP3,
+        "pools": (FIRSTS_V2, LASTS_V2),
+        "with_new": True,
+        "with_v3": True,
+        "exclusion": True,
+        "attempts": 200,
+    },
 }
+REJECTED: Counter = (
+    Counter()
+)  # exclusion-filter rejections of the last generate() call, by case
+
+
+def exclusion_rejects(text, spans):
+    """True when the row text, or an inserted value, hashes onto the blind-bank exclusion list."""
+    if excluded_sequences(text) > 0:
+        return True
+    return any(excluded_value(span["text"]) for span in spans)
+
+
+def v3_case_ok(newcase, positive, tags):
+    names = {tag for tag, _ in tags}
+    has = {
+        "hist_v3": "year" in names,
+        "sig_weekday": "sigdate" in names,
+        "rare_id": bool(names & set(RARE_TAGS)),
+    }[newcase]
+    return has == positive
 
 
 def make_row(index, item, reg, seen_texts, cfg=None):
     cfg = cfg or VERSIONS["v1"]
     suffix = cfg["suffix"]
     newcase = item.get("newcase")
-    for attempt in range(60):
+    for attempt in range(cfg.get("attempts", 60)):
+        snapshot = reg.snapshot() if cfg.get("exclusion") else None
         rng = random.Random(f"{cfg['seed']}:{index}:{attempt}")
         c = Ctx(
             rng,
@@ -2992,9 +3802,17 @@ def make_row(index, item, reg, seen_texts, cfg=None):
             newcase=newcase,
         )
         LAYOUT_FUNCS[item["layout"]](c)
-        if newcase and not (c.hit if item["positive"] else c.neghit):
-            continue
+        if newcase and newcase not in V3_CASES:
+            if not (c.hit if item["positive"] else c.neghit):
+                continue
         text, spans, tags = c.rb.build(item["case"])
+        if newcase in V3_CASES and not v3_case_ok(newcase, item["positive"], tags):
+            reg.restore(snapshot)
+            continue
+        if cfg.get("exclusion") and exclusion_rejects(text, spans):
+            REJECTED[newcase or item["family"]] += 1
+            reg.restore(snapshot)
+            continue
         if text in seen_texts:
             continue
         spans.sort(key=lambda s: s["start"])
@@ -3028,7 +3846,7 @@ def make_row(index, item, reg, seen_texts, cfg=None):
         }
         if suffix:
             row["new_case"] = newcase
-            row["version"] = "tk14-v2"
+            row["version"] = cfg.get("version", "tk14-v2")
         years = [
             int(y)
             for tag, value in tags
@@ -3048,7 +3866,9 @@ def generate(version="v1"):
     cfg = VERSIONS[version]
     reg, seen = Registry(), set()
     rows, metas = [], []
-    for index, item in enumerate(build_plan(cfg["seed"], cfg["with_new"])):
+    REJECTED.clear()
+    plan = build_plan(cfg["seed"], cfg["with_new"], cfg.get("with_v3", False))
+    for index, item in enumerate(plan):
         row, meta = make_row(index, item, reg, seen, cfg)
         rows.append(row)
         metas.append(meta)
@@ -3383,6 +4203,180 @@ def write_reports_v2(rows, metas, stats, report_dir: Path):
     )
 
 
+def exclusion_summary(rows):
+    """Counts only: the strings that matched are never recorded."""
+    return {
+        "list": "data/places_exclusions.sha256.json",
+        "list_sha256": hashlib.sha256(EXCLUSIONS_PATH.read_bytes()).hexdigest(),
+        "rule": "reject a row when its inserted values or any 1-8 word sequence of its text hash onto the list",
+        "rows_checked": len(rows),
+        "rejected_draws": dict(sorted(REJECTED.items())),
+        "rejected_draws_total": sum(REJECTED.values()),
+        "accepted_rows_with_a_match": sum(
+            exclusion_rejects(row["text"], row["spans"]) for row in rows
+        ),
+    }
+
+
+UNSETTLED_V3 = """\
+Still out of scope by the owner's decision (not generated): a pharmacy followed by town, state and ZIP in one phrase, and funeral-home names with no type word.
+
+Choices made inside the v3 additions that the policy and fixtures do not spell out. Each is flagged for the owner:
+
+1. **Reading of "at least half in all-caps annual-wellness and SOAP layouts".** 160 of the 300 added history-year rows (53%) are all-caps and in the AWV and SOAP layouts (80 each, one-third negatives). The other 140 rows use eight other history layouts with a normal/all-caps/lowercase split of 100/20/20. This pushes the bank's case mix to roughly 57% normal, 24% all-caps and 19% lowercase, against the brief's 60/20/20.
+2. **Weekday forms.** The weekday is inside the DATE span in every positive signature line (`Fri, 7 Feb 2025`, `Tuesday, March 4, 2025`, `Mon. 3/4/2025`), and always matches the calendar. A weekday written with no date (`signed on Tuesday`) is not generated: the policy settles a weekday before a date only.
+3. **Signature-line negatives** carry a clock time with no date, an elapsed `[00:08:22]`-style stamp, or no stamp (`Pending signature: <name>`); the clinician name stays NAME. Header dates elsewhere in those rows are still annotated.
+4. **Signature dates** use the note year and need not follow the header visit date, so a signature may precede it. Times include seconds and `hrs` forms; all are outside the span.
+5. **Serial numbers** may begin with an `SN` prefix inside the value (`SN48201733`), by analogy with the `RX-` prefix in prescription numbers. The captions `serial number`, `S/N`, `SN` (when separate) and `serial #` stay outside.
+6. **Access-code captions beyond the fixture.** `portal activation code` and `one-time access code` follow the policy text. `enrollment code`, `pairing code`, `sign-up code`, `access code` and `invite code` are extended to ID by analogy as patient-tied codes; the owner may want to confirm them.
+7. **Meeting identifiers.** `Meeting ID 482-117-905` is ID by the policy's session, meeting and call row; the meeting link next to it is a separate URL span. A link with no identifier is URL only (negative rows).
+8. **Not generated:** device model numbers, lot and catalogue numbers (left to the pharmacy and history negatives, where they are unannotated), and bare numeric codes with no caption. Software and firmware version strings appear in both positive and negative rows and are never annotated.
+9. **Name pools** are the v2 rare pools. They could not be checked against the protected identity lists (not permitted); the owner's overlap audit decides.
+10. **Exclusion filter.** Applied to every row of v3 (inserted values and every 1-8 word sequence of the text, case-folded). Rows that matched were redrawn; only counts are recorded, and which strings matched was never printed or inspected. The generator also hashes each span value on its own.
+11. **Real-place collision** (unchanged): invented town, stem and street spellings could not be checked against a gazetteer other than the hash list.
+"""
+
+
+def write_reports_v3(rows, metas, stats, report_dir: Path):
+    report_dir.mkdir(parents=True, exist_ok=True)
+    cases, future = new_case_stats(rows, metas)
+    summary = exclusion_summary(rows)
+    v3_cases = {k: v for k, v in cases.items() if k in V3_CASES}
+    added = sum(v["positive"] + v["negative"] for v in v3_cases.values())
+    lines = [
+        "## tk14 v3 (blind-bank exclusion filter and additions)",
+        "",
+        f"Generated by `scripts/takeover/author14_targeted_gaps.py --version v3` (seed {SEED3}, version `tk14-v3`) into `data/tk14_train_targeted_gaps__v3.jsonl`. v1 and v2 are unchanged and the generator still reproduces both byte for byte (tested). v3 repeats the v2 composition (2,000 base rows plus the 350 settled follow-up rows) with a new seed, rarer name pools and the blind-bank exclusion filter on every row, and adds {added} rows: history-year variety, weekday-before-date signature lines and rare identifier formats. Synthetic, invented values only; training bank, not an evaluation bank.",
+        "",
+        f"Total {stats['rows']} rows; negatives are {100 * stats['polarity']['negative'] / stats['rows']:.1f}%.",
+        "",
+        "### Exclusion filter",
+        "",
+        f"Every row was checked against `data/places_exclusions.sha256.json` (SHA-256 {summary['list_sha256'][:16]}...): a row whose inserted values or any 1-8 word sequence of its text hash onto the list was rejected and redrawn (`exclusion_hash`, `excluded_sequences`, `excluded_value`). Counts only; the matching strings were never printed, logged or inspected.",
+        "",
+        f"- Rejected draws: {summary['rejected_draws_total']} in total, by case or family: {summary['rejected_draws']}.",
+        f"- Rows in the file that still match: {summary['accepted_rows_with_a_match']} (of {summary['rows_checked']}).",
+        "",
+        "### Rows per family",
+        "",
+        "| Family | Rows | Positive | Negative |",
+        "|---|---:|---:|---:|",
+    ]
+    for family, count in stats["per_family"].items():
+        pol = stats["polarity_by_family"][family]
+        lines.append(
+            f"| {family} | {count} | {pol.get('positive', 0)} | {pol.get('negative', 0)} |"
+        )
+    lines += [
+        "",
+        "### Rows per addition and per v2 case",
+        "",
+        "| Case | Positive | Negative | Normal | All-caps | Lowercase |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for name, v in cases.items():
+        lines.append(
+            f"| {name} | {v['positive']} | {v['negative']} | {v['normal']} | {v['upper']} | {v['lower']} |"
+        )
+    hist_upper = [
+        r
+        for r in rows
+        if r["new_case"] == "hist_v3"
+        and r["case_mode"] == "upper"
+        and r["layout"] in ("awv_note", "soap_note")
+    ]
+    kinds = Counter(
+        tag for meta in metas for tag, _ in meta["tags"] if tag in RARE_TAGS
+    )
+    lines += [
+        "",
+        f"History-year additions in all-caps annual-wellness and SOAP layouts: {len(hist_upper)} of 300. Rare-identifier spans by kind: {dict(sorted(kinds.items()))}.",
+        "",
+        "### Layouts, case and cohort",
+        "",
+        f"{len(stats['per_layout'])} layouts; the largest holds {100 * stats['layout_max_share']:.1f}% of rows. "
+        f"Case modes: {stats['case_modes']}. Cohorts: {stats['cohorts']}.",
+        "",
+        "| Layout | Rows | Share |",
+        "|---|---:|---:|",
+    ]
+    for layout, count in stats["per_layout"].items():
+        lines.append(f"| {layout} | {count} | {100 * count / stats['rows']:.1f}% |")
+    lines += ["", "### Label support (spans)", "", "| Label | Spans |", "|---|---:|"]
+    lines += [f"| {k} | {v} |" for k, v in stats["label_support"].items()]
+    lines += [
+        "",
+        "### Year spread",
+        "",
+        f"{stats['history_year_spans']} history-year DATE endpoints, {stats['distinct_years']} distinct years from {stats['history_year_min']} to {stats['history_year_max']}. "
+        f"The most frequent year holds {100 * stats['history_year_max_share']:.2f}% (cap 3%); top three: {stats['history_year_top']}.",
+        "",
+        f"Future patient-specific years: {sum(future.values())} spans over {len(future)} distinct years ({min(future)} to {max(future)}); outside the 1950 to 2026 window by design and not in the figure above.",
+        "",
+        "### Maximum value repetition (rows containing the same value, case-folded)",
+        "",
+        "| Value type | Value | Rows | Share of rows |",
+        "|---|---|---:|---:|",
+    ]
+    for tag, info in stats["max_value_repetition_rows"].items():
+        if tag in ("year", "future"):
+            continue
+        lines.append(
+            f"| {tag} | {info['value']} | {info['rows']} | {100 * info['share']:.2f}% |"
+        )
+    lines += [
+        "",
+        f"The cap is 0.5% of rows ({int(0.005 * stats['rows'])} rows).",
+        "",
+        "### Unsettled and flagged",
+        "",
+        UNSETTLED_V3,
+    ]
+    report = report_dir / "AUTHOR_REPORT.md"
+    existing = report.read_text(encoding="utf-8") if report.exists() else ""
+    marker = "## tk14 v3 (blind-bank exclusion filter and additions)"
+    if marker in existing:
+        existing = existing[: existing.index(marker)]
+    report.write_text(
+        existing.rstrip("\n") + "\n\n" + "\n".join(lines), encoding="utf-8"
+    )
+
+    sample_rng = random.Random(f"{SEED3}:spot")
+    by_case = {name: [] for name in V3_CASES}
+    base = []
+    for index, row in enumerate(rows):
+        if row.get("new_case") in V3_CASES:
+            by_case[row["new_case"]].append(index)
+        else:
+            base.append(index)
+    sample = []
+    for indexes in by_case.values():
+        sample += sample_rng.sample(indexes, 15)
+    sample += sample_rng.sample(base, 100 - len(sample))
+    sample.sort()
+    out = [
+        "# Spot-check sample, tk14 v3 (100 rows, fixed seed)",
+        "",
+        "45 rows on the v3 additions (15 each for history-year variety, weekday signature lines and rare identifiers) and 55 other rows. Spans are marked `[LABEL|text]`.",
+        "",
+    ]
+    for index in sample:
+        row = rows[index]
+        text, marked, pos = row["text"], [], 0
+        for span in row["spans"]:
+            marked.append(text[pos : span["start"]])
+            marked.append(f"[{span['label']}|{text[span['start'] : span['end']]}]")
+            pos = span["end"]
+        marked.append(text[pos:])
+        out.append(
+            f"### {row['id']} ({row['new_case'] or row['target_family']} / {row['layout']} / {row['polarity']} / {row['case_mode']} / {row['cohort']})"
+        )
+        out += ["", "```", "".join(marked), "```", ""]
+    (report_dir / "spot_check_sample_v3.md").write_text(
+        "\n".join(out), encoding="utf-8"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", choices=sorted(VERSIONS), default="v1")
@@ -3400,7 +4394,7 @@ def main():
     default_name = (
         "tk14_train_targeted_gaps.jsonl"
         if version == "v1"
-        else "tk14_train_targeted_gaps__v2.jsonl"
+        else f"tk14_train_targeted_gaps__{version}.jsonl"
     )
     out = Path(args.out) if args.out else ROOT / "data" / default_name
     if version == "v1" and out.exists() and not args.force:
@@ -3413,13 +4407,14 @@ def main():
     support = stats["label_support"]
     manifest = {
         "name": out.name,
-        "version": "tk14-v1" if version == "v1" else "tk14-v2",
+        "version": cfg.get("version", "tk14-v1" if version == "v1" else "tk14-v2"),
         "annotation_policy": POLICY_VERSION,
         "policy_addenda": [
             "clinical-phi-v2-places",
             "care-sites-2026-10-05",
             "targeted-gaps-2026-10-05",
-            *(["targeted-followup-2026-10-05"] if version == "v2" else []),
+            *(["targeted-followup-2026-10-05"] if version in ("v2", "v3") else []),
+            *(["transcript-decisions-2026-10-06"] if version == "v3" else []),
         ],
         "split": "train",
         "role": "train",
@@ -3455,20 +4450,24 @@ def main():
             "inputs_read": "policy documents, fixtures and brief only; no corpus, evaluation or model file",
         },
     }
-    if version == "v2":
+    if version in ("v2", "v3"):
         cases, future = new_case_stats(rows, metas)
         manifest["new_case_counts"] = cases
         manifest["future_year_spans"] = sum(future.values())
         manifest["supersedes_note"] = (
-            "New file; tk14 v1 is unchanged. Names drawn from rarer pools."
+            "New file; tk14 v1 and v2 are unchanged. Names drawn from rarer pools."
         )
+    if version == "v3":
+        manifest["exclusion_filter"] = exclusion_summary(rows)
     out.with_suffix(out.suffix + ".manifest.json").write_text(
         json.dumps(manifest, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     if version == "v1":
         write_reports(rows, metas, stats, Path(args.report_dir))
-    else:
+    elif version == "v2":
         write_reports_v2(rows, metas, stats, Path(args.report_dir))
+    else:
+        write_reports_v3(rows, metas, stats, Path(args.report_dir))
     print(
         json.dumps(
             {
