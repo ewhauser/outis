@@ -43,6 +43,10 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
 - [Targeted gaps bank brief](targeted-gaps-bank-brief.md): brief for the
   tk14 training bank (history years, pharmacy ZIPs, phone extensions, funeral
   homes).
+- [Name mentions bank brief](name-mentions-bank-brief.md): tk15, first-name
+  and short name mentions.
+- [Transcript bank brief](transcript-bank-brief.md): tk16, phone and
+  telehealth transcripts (two decisions pending).
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 
