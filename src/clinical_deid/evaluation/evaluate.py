@@ -45,6 +45,16 @@ PRIVACY_TARGETS = {
 MISS_KINDS = ("wrong_type", "boundary_differs", "partly_covered", "not_detected")
 
 
+YOUNG_AGE = "AGE_89_AND_UNDER"
+
+
+def _age_89_and_under(value: str) -> bool:
+    from clinical_deid.policy import age_value
+
+    age = age_value(value)
+    return age is not None and age <= 89
+
+
 def _ratio(numerator: int, denominator: int) -> float:
     return numerator / denominator if denominator else 1.0
 
@@ -153,7 +163,7 @@ def evaluate(
     label_characters = {label: Counter(covered=0, exposed=0) for label in ENTITY_TYPES}
     masked = {
         label: Counter(support=0, masked=0, **dict.fromkeys(MISS_KINDS, 0))
-        for label in ENTITY_TYPES
+        for label in (*ENTITY_TYPES, YOUNG_AGE)
     }
     masked_documents: dict[str, list[tuple[int, int]]] = {
         "NAME": [],
@@ -238,21 +248,27 @@ def evaluate(
         for start, end, label in gold:
             extent = set(range(start, end))
             covered = extent <= predicted_characters
-            group = "direct" if label in DIRECT_IDENTIFIERS else "indirect"
-            masked[label].update(support=1, masked=covered)
-            document.update({group: 1, f"{group}_masked": covered})
+            key = label
+            if label == "AGE" and _age_89_and_under(text[start:end]):
+                # GOALS.md gates ages over 89; younger ages are reported separately.
+                key = YOUNG_AGE
+                masked[key].update(support=1, masked=covered)
+            else:
+                group = "direct" if label in DIRECT_IDENTIFIERS else "indirect"
+                masked[key].update(support=1, masked=covered)
+                document.update({group: 1, f"{group}_masked": covered})
             if label == "NAME":
                 document.update(NAME=1, NAME_masked=covered)
             if (start, end, label) in predicted:
                 continue
             if covered:
-                masked[label][
+                masked[key][
                     "wrong_type"
                     if (start, end) in predicted_bounds
                     else "boundary_differs"
                 ] += 1
             else:
-                masked[label][
+                masked[key][
                     "partly_covered"
                     if extent & predicted_characters
                     else "not_detected"

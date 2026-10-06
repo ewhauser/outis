@@ -638,9 +638,9 @@ def _age(value: str, mode: str) -> str:
         age = float(match[1])
     if age > 89:
         return "[AGE_90_PLUS]" if mode == "redact" else "90+"
-    # Ages 0--89 are clinical information and are not age identifiers under the
-    # Safe Harbor age rule.  Only explicitly supplied spans affect redact mode.
-    return "[AGE]" if mode == "redact" else value
+    # The request policy (``ages``) already leaves ages of 89 and under in place by
+    # default, so an age that reaches replacement is one the caller asked to remove.
+    return "[AGE]"
 
 
 def _facility_setting(value: str) -> str:

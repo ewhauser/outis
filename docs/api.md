@@ -71,6 +71,7 @@ not calibrated safety estimates.
 | `blocklist` | Forces case-sensitive literal matches anywhere in the text as `ID`. These matches override the allowlist and label selection. |
 | `custom_entities` | Up to 32 `{label, pattern}` rules. The entire regex match becomes the span. Custom labels do not change or retrain the NER classifier. |
 | `medical_terms` | Explicit `CONDITION` and/or `MEDICATION` term lists, matched case-insensitively at word boundaries. These categories are opt-in dictionaries, not additional trained medical models. |
+| `ages` | `over_89` (default) or `all`. The detector finds every age; `over_89` leaves ages of 89 and under in place, as the HIPAA Safe Harbor age rule permits, and generalises older ages; `all` removes every age. |
 
 Profiles first choose enabled labels, then custom labels and supplied medical
 dictionary labels are added, then `include` and `exclude` apply. Recognizers for

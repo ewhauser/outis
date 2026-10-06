@@ -271,3 +271,16 @@ def test_cluster_lower_resamples_documents_and_is_deterministic():
     assert lower == cluster_lower(documents)
     assert 0.6 <= lower < 0.9
     assert cluster_lower([(0, 0)]) is None
+
+
+def test_ages_89_and_under_are_reported_outside_the_gate_groups():
+    from clinical_deid.evaluation.evaluate import evaluate
+
+    rows = [{"id": "a", "text": "A 72-year-old and a 93-year-old.", "spans": [
+        {"start": 2, "end": 4, "label": "AGE"}, {"start": 20, "end": 22, "label": "AGE"}]}]
+    result = evaluate(rows, lambda text: [Span(20, 22, "AGE")], max_failures=0)
+    privacy = result["privacy"]
+    assert privacy["per_label"]["AGE"]["support"] == 1 and privacy["per_label"]["AGE"]["masked"] == 1
+    young = privacy["per_label"]["AGE_89_AND_UNDER"]
+    assert young["support"] == 1 and young["masked"] == 0 and young["exact_misses"]["not_detected"] == 1
+    assert privacy["indirect"]["support"] == 1 and privacy["indirect"]["recall"] == 1.0

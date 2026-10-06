@@ -50,14 +50,26 @@ dictionary of common names.
 | Plausible personal names | `Zoë O’Rían-Soto`, `Ana María de la Cruz`, the personal `Wilson` in a named person | Honorifics such as `Dr.`, credentials such as `MD`, a disease eponym such as `Wilson disease` |
 | Aliases | A preferred or otherwise explicitly established personal alias, including an occurrence before its full identity when the document establishes the relationship | Ambiguous ordinary words without personal naming evidence |
 | DATE | Complete patient-specific dates, partial dates and patient-specific years; `October 2, 2024`, `March 2021`, `1930` in `born in 1930`. A written date range is one span including its connector: `03/02/2024 to 03/09/2024`, `March 2-9, 2024`, `March 28 - April 4, 2024` | Public study years, publication dates, durations, doses and clinical stages; a leading `from` or `between` before a range; dates written as a separate list (`on 03/02/2024 and 03/09/2024`) are separate spans |
-| AGE | Only the numeric or spelled-out age value when greater than 89 | Prefixes, units, suffixes, sex markers and ages at or below 89 |
+| AGE | The numeric or spelled-out age value of the patient or of a relative or household member, at any age (changed 2026-10-06: previously only ages over 89), including ages in months, weeks or days for infants | Prefixes, units, suffixes, sex markers; public or guideline ages (`screen from age 45`), durations (`5-year survival`, `10-year history`) |
 | LOCATION | The maximal authored locality expression, e.g. `Cedar Haven, UT` or `North Cedar Haven` | Prepositions and adjacent facility/address fields |
 | FACILITY | The authored facility name, e.g. `Silver Finch Medical Center`, including an `at <name>` continuation such as `Lakeshore Family Medicine at Ellery Falls` | An adjacent locality introduced by `in` or a comma; an `at` locality with a state or postal qualifier (`Brackenwheel Health Center` at `Brackenford, NM`); an adjacent address; the parent facility of a named unit (`Larkspur Ward` at `Mossmere Health Hub` is two FACILITY spans) |
 | ADDRESS | The complete authored address as one span | Nested LOCATION annotations, field labels, trailing sentence punctuation |
 
 AGE boundaries are deliberately consistent across surface forms: annotate
 `92` in `92F`, `92yo`, `92 y/o`, `92-year-old`, and `92 years old`; annotate
-`ninety-two` in `ninety-two years old`. The suffix is context for recognizing
+`ninety-two` in `ninety-two years old`. The same applies at any age: `72` in
+`72M`, `seventy-two` in `seventy-two years old`, `6` in `6-month-old`.
+
+**All ages, release by policy (2026-10-06).** Detection finds every age so that
+scores are comparable with benchmarks that annotate all ages. What is removed
+is a release decision: the request policy's `ages` setting defaults to
+`over_89`, which leaves ages of 89 and under in place as the Safe Harbor age
+rule allows; `all` removes every age. GOALS.md continues to gate ages over 89;
+evaluation reports ages of 89 and under separately (`AGE_89_AND_UNDER`).
+Fixtures: `src/clinical_deid/data/annotation_policy_ages.py`. The age examples
+in `POLICY_FIXTURES` that leave ages of 89 and under unannotated predate this
+change and are superseded; corpora relabelled under it carry the `__allages1`
+suffix. The suffix is context for recognizing
 age, not part of its gold span. A hyphen internal to a spelled-out number stays
 inside the span. This convention may differ from historical annotations;
 comparisons must disclose that policy difference.
