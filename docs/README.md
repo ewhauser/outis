@@ -46,7 +46,9 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
 - [Name mentions bank brief](name-mentions-bank-brief.md): tk15, first-name
   and short name mentions.
 - [Transcript bank brief](transcript-bank-brief.md): tk16, phone and
-  telehealth transcripts (two decisions pending).
+  telehealth transcripts.
+- [Held-out development bank brief](heldout-dev-bank-brief.md): a fresh,
+  uninspected development bank for the next promotion decision (draft).
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 

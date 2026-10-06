@@ -87,6 +87,7 @@ Not every row has an executable fixture yet.
 | ID | Encounter, visit and CSN numbers | ID |
 | ID | Accession and specimen numbers | ID |
 | ID | Device serial numbers | ID |
+| ID | Visit, session, meeting or call identifiers, and patient-tied portal activation or one-time access codes (`session VX-4471`) | ID; a meeting link stays URL; software version strings are not annotated |
 | ID | Driver's licence, passport and similar licence numbers | ID |
 | ID | Clinician NPI and licence numbers | ID |
 | ID | Prescription numbers (`Rx #8830167`) | ID on the number; the `Rx #` caption stays outside |
@@ -97,9 +98,11 @@ Not every row has an executable fixture yet.
 | NAME | Possessive `'s` | Outside the span |
 | NAME | Initials | Inside the span |
 | NAME | Clinician names | NAME, without the honorific or credentials |
+| NAME | A person's name in a transcript speaker label (`dr Marwick:`, `CLINICIAN (Brannock):`) | NAME on the name; honorific, role words and punctuation outside; role-only labels (`Patient:`) not annotated |
 | NAME | Nickname written in quote marks | NAME, without the quote marks |
 | DATE | A weekday written before a date | Inside the span |
 | DATE | A clock time next to a date | Outside the span |
+| DATE | A time-only stamp (elapsed `[00:08:22]`, clock `10:43 AM`) | Not annotated |
 | DATE | Relative expressions, such as `three days ago` | Not annotated |
 | DATE | A patient-specific year alone, including years in history and screening lists (`bone density scan 2011`, `shingles vaccine 2019`, `cholecystectomy (1988)`) | DATE. Stricter than Safe Harbor, which permits a year alone; kept so years can be shifted consistently with full dates. Owner decision, 2026-10-05 |
 | DATE | A written date range | One DATE span, as in the table above |
