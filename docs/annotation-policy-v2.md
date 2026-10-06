@@ -87,6 +87,10 @@ Not every row has an executable fixture yet.
 | ID | Encounter, visit and CSN numbers | ID |
 | ID | Accession and specimen numbers | ID |
 | ID | Laboratory identifiers: CLIA and laboratory licence numbers | ID |
+| ID, URL | FHIR resource ids and references tied to the patient (`"id": "pt-77"`, `"reference": "Patient/pt-77"`, a bundle `fullUrl`) | ID on the logical id (also inside a reference); a `fullUrl` to the patient's record is URL; `meta.versionId` and meta timestamps are not annotated |
+| Any | FHIR coding and identifier system URIs and OIDs (`http://loinc.org`, `urn:oid:...`, an identifier `system`) | Not annotated; the identifier `value` takes its own type |
+| DATE | A FHIR date-time (`2026-03-14T07:42:00-05:00`) | DATE on the date part; time and timezone outside |
+| Any | Structured records (FHIR JSON, NDJSON, narratives) | Each string value is its own span (`family` and `given` NAME, `line` ADDRESS, `city` and `postalCode` LOCATION; `state` and `country` alone not annotated); keys, quotes, JSON punctuation and XHTML tags always outside |
 | Any | Series and image numbers, LOINC and CPT codes, reference ranges, reagent lot numbers, instrument identifiers | Not annotated |
 | ID | Device serial numbers | ID |
 | ID | Visit, session, meeting or call identifiers, and patient-tied portal activation or one-time access codes (`session VX-4471`) | ID; a meeting link stays URL; software version strings are not annotated |
