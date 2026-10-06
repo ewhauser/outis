@@ -51,6 +51,8 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
   uninspected development bank for the next promotion decision.
 - [Lab and pathology bank brief](lab-pathology-bank-brief.md): tk17.
 - [Radiology bank brief](radiology-bank-brief.md): tk18.
+- [Spoken PHI bank brief](spoken-phi-bank-brief.md): tk19, spoken and spelled
+  PHI in transcripts.
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 

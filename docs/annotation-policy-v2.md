@@ -107,6 +107,7 @@ Not every row has an executable fixture yet.
 | DATE | A clock time next to a date | Outside the span |
 | DATE | A time-only stamp (elapsed `[00:08:22]`, clock `10:43 AM`) | Not annotated |
 | DATE | Relative expressions, such as `three days ago` | Not annotated |
+| DATE | A spoken patient-specific date in any form (`oh three, oh three, forty-one`, `the third of March`, `march third`, `back in oh nine`, `born in forty-one`, `on the twelfth` for a specific date) | DATE, one span; a leading `the` of an ordinal date is inside |
 | DATE | A patient-specific year alone, including years in history and screening lists (`bone density scan 2011`, `shingles vaccine 2019`, `cholecystectomy (1988)`) | DATE. Stricter than Safe Harbor, which permits a year alone; kept so years can be shifted consistently with full dates. Owner decision, 2026-10-05 |
 | DATE | A written date range | One DATE span, as in the table above |
 | DATE | A diagnosis-onset, year-range or future patient-specific year (`diagnosed in 1997`, `smoked 1984-2003`, `next due 2028`) | DATE; a year range is one span |
@@ -115,6 +116,10 @@ Not every row has an executable fixture yet.
 | PHONE | Leading `+1` country code | Inside the span |
 | PHONE | Fax numbers | PHONE |
 | PHONE | Pager numbers | PHONE |
+| PHONE, SSN, MRN, ACCOUNT, ID, LOCATION | An identifier or ZIP code said as words or mixed words and digits (`five five five, uh, oh one four two`) | One span of its type from the first to the last spoken part, including internal commas and fillers; captions outside; a part said separately later (`area code six one two`) is its own span |
+| Any | Letter-by-letter spelling (`b r a n n o c k`) | The type of what is spelled, over the spelled run |
+| EMAIL, URL | A spoken address (`dally dot brannock at example dot com`) | One EMAIL or URL span |
+| Any | A spoken correction (`five five six, sorry, five five seven …`) | Every attempt is annotated |
 | PHONE | An extension written with no phone number (`ward phone ext. 4412`) | Not annotated |
 | ADDRESS | Street, unit, city, state and postal code written together | One ADDRESS span |
 | URL | Scheme, such as `https://` | Inside the span |
