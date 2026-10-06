@@ -340,6 +340,37 @@ gold error: ASQ-PHI tags the word "email". The neutral rules are the project's
 own judgement, so quote this view next to the as-published one, never instead
 of it.
 
+## Results: public synthetic benchmarks, 2026-10-06
+
+Both benchmarks are kept uninspected: scoring writes no failure examples, and
+neither is used to choose experiments. Models: mix5 epoch 1 (the default) and
+`roberta_mix6_001` epoch 2.
+
+**MedDeID English synthetic benchmark** (`meddeid_en`, 300 notes, CC BY 4.0,
+evaluation only). It is a held-out partition of MedDeID's own synthetic corpus,
+so it favours MedDeID the way our generator banks favour us.
+
+| System | Char recall (published) | Non-PII redaction | Leak-free docs (published) | Value-char recall (aligned) | Direct (aligned) | NAME (aligned) | Indirect (aligned) | Leak-free docs (aligned) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| RoBERTa mix6 | 94.43% | 0.02% | 49.67% | 98.79% | 97.45% | 95.50% | 97.07% | 88.67% |
+| mix5 | 95.04% | 0.03% | 51.00% | 98.66% | 97.02% | 95.65% | 97.07% | 86.67% |
+| MedDeID | 99.16% | 0.14% | 92.33% | 99.19% | 99.74% | 99.84% | 95.20% | 93.00% |
+| GLiNER (facility arm) | 89.54% | 0.61% | 29.33% | 94.69% | 91.66% | 93.63% | 98.40% | 69.33% |
+
+MedDeID leads on names even under the project policy; the project models lead
+on dates and indirect identifiers.
+
+**Technetium-I** (`technetium_test5k`: a fixed random 5,000-note sample of the
+74,700-note test split, EUPL-1.2). Gold resolution: overlapping NAME spans
+(name parts annotated with the full name) merged; AGE spans overlapping another
+type dropped as spurious. The notes are heavily templated: under the project
+policy all three systems mask every direct identifier, and the two project
+models produce identical spans. As published, MedDeID leads (99.70% character
+recall and 84.6% leak-free documents against 96.89% and 6.8%) because the gold
+annotates every age and the project policy masks only ages over 89; MedDeID
+redacts twice as much non-PHI text (1.61% against 0.74%). The benchmark is
+saturated and does not separate strong systems.
+
 ## Restricted benchmark: n2c2 2014
 
 The n2c2 (i2b2/UTHealth) 2014 de-identification dataset is real clinical text

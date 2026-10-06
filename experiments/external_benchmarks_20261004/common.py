@@ -39,6 +39,15 @@ def is_restricted(benchmark: str) -> bool:
     return benchmark in RESTRICTED_BENCHMARKS
 
 
+# Benchmarks kept uninspected (evaluation-only terms or used as held-out
+# evidence): scoring writes no failure examples for them.
+UNINSPECTED_BENCHMARKS = RESTRICTED_BENCHMARKS | {"meddeid_en", "technetium_test5k", "technetium_test"}
+
+
+def writes_failures(benchmark: str) -> bool:
+    return benchmark not in UNINSPECTED_BENCHMARKS
+
+
 def corpora_dir(benchmark: str) -> Path:
     return restricted_root() / "corpora" if is_restricted(benchmark) else CORPORA
 

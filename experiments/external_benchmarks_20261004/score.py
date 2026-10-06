@@ -23,7 +23,7 @@ from pathlib import Path
 import re
 import sys
 
-from common import RESULTS, ROOT, corpus_path, digest, is_restricted, predictions_dir, read_jsonl, write_json
+from common import RESULTS, ROOT, corpus_path, digest, predictions_dir, read_jsonl, write_json, writes_failures
 from labels import COARSE, project_label
 
 sys.path.insert(0, str(ROOT / "src"))
@@ -152,8 +152,8 @@ def score(benchmark: str, system: str) -> dict:
     if non_gold != manifest["characters"]["non_gold"]:
         raise RuntimeError("non-gold character count differs from the corpus manifest")
     replay = _Replay([row["text"] for row in coarse_rows], coarse_predictions)
-    # Restricted benchmarks: no failure examples, which would copy note text into results.
-    typed = evaluate(coarse_rows, replay, max_failures=0 if is_restricted(benchmark) else 50, minimum_label_support=30)
+    # Restricted and uninspected benchmarks: no failure examples in results.
+    typed = evaluate(coarse_rows, replay, max_failures=50 if writes_failures(benchmark) else 0, minimum_label_support=30)
     typed["scope"] = f"External benchmark {benchmark}; coarse label groups; not a clinical accuracy claim."
     typed.pop("goal", None)
     return {
