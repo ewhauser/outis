@@ -53,6 +53,8 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
 - [Radiology bank brief](radiology-bank-brief.md): tk18.
 - [Spoken PHI bank brief](spoken-phi-bank-brief.md): tk19, spoken and spelled
   PHI in transcripts.
+- [FHIR bank brief](fhir-bank-brief.md): tk20, FHIR resources, bundles and
+  narratives.
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 
