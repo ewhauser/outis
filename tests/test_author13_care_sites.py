@@ -238,6 +238,7 @@ def tagged(rows, tag):
         ("v1", author13.SEED, "tk13_train_care_sites_localities.jsonl"),
         ("v2", author13.SEED_V2, "tk13_train_care_sites_localities__v2.jsonl"),
         ("v3", author13.SEED_V3, "tk13_train_care_sites_localities__v3.jsonl"),
+        ("v4", author13.SEED_V4, "tk13_train_care_sites_localities__v4.jsonl"),
     ],
 )
 def test_every_version_reproduces_byte_for_byte(version, seed, name):
@@ -443,3 +444,84 @@ def test_v3_county_modifier_and_bare_county(bank3):
     for row in neg:
         assert not any(s["label"] in ("LOCATION", "FACILITY") for s in row["spans"])
     assert all(r["polarity"] == "negative" for r in neg)
+
+
+@pytest.fixture(scope="module")
+def bank4():
+    rows, world = author13.generate(author13.SEED_V4, "v4")
+    return rows, world
+
+
+def test_v4_size_ids_pools_and_caps(bank4):
+    bank, _world = bank4
+    assert 2700 <= len(bank) <= 2900
+    assert all(r["id"].startswith("tk13_care_sites_localities_v4-") for r in bank)
+    assert all(r["suite"] == author13.SUITE_V4 for r in bank)
+    for row in bank:
+        assert not annotation_errors(row["text"], row["spans"])
+        assert all(
+            x["pool"] == "train" and place_value_pool(x["value"]) == "train"
+            for x in row["pool"]
+        )
+    assert max(author13.value_shares(bank).values()) <= 0.005 * len(bank)
+    layouts = [r["layout"] for r in bank]
+    assert len(set(layouts)) >= 25
+    assert max(layouts.count(x) for x in set(layouts)) <= 0.08 * len(bank)
+    case = [r["case_mode"] for r in bank]
+    assert 0.58 <= case.count("normal") / len(case) <= 0.62
+    negatives = [r for r in bank if r["polarity"] == "negative"]
+    assert 0.3 <= len(negatives) / len(bank) <= 0.37
+
+
+def test_v4_has_zero_exclusion_matches(bank4):
+    from clinical_deid.data.generators.places import excluded_sequences, excluded_value
+
+    bank, world = bank4
+    # In memory and in the written file; only counts are asserted, never the strings.
+    assert author13.exclusion_matches(bank) == 0
+    path = ROOT / "data" / "tk13_train_care_sites_localities__v4.jsonl"
+    import json
+
+    on_disk = [json.loads(line) for line in path.read_text().splitlines()]
+    assert len(on_disk) == len(bank)
+    assert sum(excluded_sequences(r["text"]) > 0 for r in on_disk) == 0
+    assert (
+        sum(excluded_value(s["text"]) or False for r in on_disk for s in r["spans"])
+        == 0
+    )
+    assert sum(excluded_value(x["value"]) for r in on_disk for x in r["pool"]) == 0
+    manifest = json.loads(
+        (
+            ROOT / "data" / "tk13_train_care_sites_localities__v4.jsonl.manifest.json"
+        ).read_text()
+    )
+    assert manifest["exclusion_filter"]["rows_with_a_match"] == 0
+    assert manifest["exclusion_filter"]["rejected_draws"] == dict(
+        sorted(world.rejected.items())
+    )
+    assert world.rejected  # the filter drew and rejected candidates
+
+
+def test_v4_aged_and_snf_names_in_all_cases(bank4):
+    bank, _ = bank4
+    for tag, ending in (
+        ("home_for_aged_name", "home for the aged"),
+        ("snf_name", "skilled nursing facility"),
+    ):
+        rows = tagged(bank, tag)
+        assert rows
+        for case in ("normal", "upper", "lower"):
+            assert any(r["case_mode"] == case for r in rows), (tag, case)
+        for row in rows:
+            facility = [s for s in row["spans"] if s["label"] == "FACILITY"]
+            assert any(s["text"].lower().endswith(ending) for s in facility)
+            for s in facility:
+                # the type words are inside the span, and an article stays outside
+                if s["text"].lower().endswith(ending):
+                    assert not s["text"].lower().startswith("the ")
+                    assert row["text"][s["end"] :].lower()[:1] in (".", " ", ";", ",")
+    unnamed = tagged(bank4[0], "aged_snf_unnamed")
+    assert unnamed
+    for row in unnamed:
+        assert row["polarity"] == "negative"
+        assert not any(s["label"] in ("LOCATION", "FACILITY") for s in row["spans"])

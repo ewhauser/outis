@@ -44,6 +44,10 @@ from clinical_deid.data.annotation_policy_places import (  # noqa: E402
     ADDENDUM,
     place_value_pool,
 )
+from clinical_deid.data.generators.places import (  # noqa: E402
+    excluded_sequences,
+    excluded_value,
+)
 from clinical_deid.types import ENTITY_TYPES  # noqa: E402
 
 SEED = 13013
@@ -53,10 +57,14 @@ BANK_VERSION_V2 = "tk13-v2"
 SEED_V3 = 15013
 SUITE_V3 = "tk13_care_sites_localities_v3"
 BANK_VERSION_V3 = "tk13-v3"
+SEED_V4 = 16013
+SUITE_V4 = "tk13_care_sites_localities_v4"
+BANK_VERSION_V4 = "tk13-v4"
 SUITE = "tk13_care_sites_localities"
 OUT = ROOT / "data" / "tk13_train_care_sites_localities.jsonl"
 OUT_V2 = ROOT / "data" / "tk13_train_care_sites_localities__v2.jsonl"
 OUT_V3 = ROOT / "data" / "tk13_train_care_sites_localities__v3.jsonl"
+OUT_V4 = ROOT / "data" / "tk13_train_care_sites_localities__v4.jsonl"
 REPORT_DIR = ROOT / "reports" / "takeover" / "author13_care_sites"
 
 SOURCE_PINS = {
@@ -82,6 +90,14 @@ SOURCE_DIR_CANDIDATES = (
     ),
 )
 
+FAMILY_ROWS_V4 = {
+    "city_modifier": 500,
+    "locality_short": 500,
+    "service_org": 650,
+    "practice_pharmacy": 450,
+    "senior_living_at": 350,
+    "town_narrative": 350,
+}
 FAMILY_ROWS_V3 = {
     "city_modifier": 500,
     "locality_short": 500,
@@ -682,22 +698,46 @@ NUM_WORDS = {
 class Picker:
     """Cycle through a shuffled list so no value repeats until all are used."""
 
-    def __init__(self, items, rng):
+    def __init__(self, items, rng, reject=None, label="", rejected=None):
         self.items, self.rng, self.queue = list(items), rng, []
+        # v4 only: ``reject(item)`` is the blind-bank exclusion test; rejected draws are counted.
+        self.reject, self.label, self.rejected = reject, label, rejected
 
     def next(self):
-        if not self.queue:
-            self.queue = list(self.items)
-            self.rng.shuffle(self.queue)
-        return self.queue.pop()
+        while True:
+            if not self.queue:
+                self.queue = list(self.items)
+                self.rng.shuffle(self.queue)
+            item = self.queue.pop()
+            if self.reject is not None and self.reject(item):
+                self.rejected[f"picker:{self.label}"] += 1
+                continue
+            return item
 
 
 class World:
     """Value pools shared by every row."""
 
     def __init__(self, rng: random.Random, version: str = "v1"):
-        self.v3 = version == "v3"
-        self.v2 = version in ("v2", "v3")
+        self.v4 = version == "v4"
+        self.v3 = version in ("v3", "v4")
+        self.v2 = version in ("v2", "v3", "v4")
+        # v4: counts of rejected draws against the hash-only blind-bank exclusion list.
+        self.rejected: Counter = Counter()
+        self.value_rows: Counter = Counter()
+        self.total_rows = 0
+
+        def picker(items, label, every=False):
+            if not self.v4:
+                return Picker(items, rng)
+
+            def reject(item):
+                parts = item if isinstance(item, tuple) else (item,)
+                parts = parts if every else parts[:1]
+                return any(excluded_value(x) for x in parts)
+
+            return Picker(items, rng, reject, label, self.rejected)
+
         directory = find_sources()
         verify_pins(directory)
         self.rng = rng
@@ -720,11 +760,11 @@ class World:
         self.city_entries = [e for e in entries if e[2] in ("city", "town")]
         self.village_entries = [e for e in entries if e[2] in ("village", "borough")]
         self.cdp_entries = [e for e in entries if e[2] == "cdp"]
-        self.city = Picker(self.city_entries, rng)
-        self.town = Picker(self.city_entries + self.village_entries, rng)
-        self.hood = Picker(self.cdp_entries + self.village_entries, rng)
-        self.any_place = Picker(
-            self.city_entries + self.village_entries + self.cdp_entries, rng
+        self.city = picker(self.city_entries, "city")
+        self.town = picker(self.city_entries + self.village_entries, "town")
+        self.hood = picker(self.cdp_entries + self.village_entries, "hood")
+        self.any_place = picker(
+            self.city_entries + self.village_entries + self.cdp_entries, "any_place"
         )
         cms = []
         for raw in sorted(set(cms_raw)):
@@ -735,7 +775,7 @@ class World:
                 and not any(b in title.lower() for b in BANNED_FRAGMENTS)
             ):
                 cms.append((title, raw))
-        self.cms = Picker(cms, rng)
+        self.cms = picker(cms, "cms", every=True)
         self.cms_count = len(cms)
         known = set(all_names)
         self.place_word_ok = lambda w: w in known and place_value_pool(w) == "train"
@@ -745,10 +785,10 @@ class World:
             w: p for w, p in ORDINARY_WORDS.items() if self.place_word_ok(w)
         }
         self.name_words = [w for w in PLACE_NAME_WORDS if self.place_word_ok(w)]
-        self.ordinary_word = Picker(sorted(self.ordinary), rng)
-        self.name_word = Picker(self.name_words, rng)
-        self.instrument = Picker(self.instruments, rng)
-        self.disease = Picker(self.diseases, rng)
+        self.ordinary_word = picker(sorted(self.ordinary), "ordinary_word")
+        self.name_word = picker(self.name_words, "name_word")
+        self.instrument = picker(self.instruments, "instrument", every=True)
+        self.disease = picker(self.diseases, "disease", every=True)
         stems = []
         for a in STEM_A:
             for b in STEM_B:
@@ -757,10 +797,10 @@ class World:
                 if stem in self.real_names or any(f in low for f in BANNED_FRAGMENTS):
                     continue
                 stems.append(stem)
-        self.stem = Picker(sorted(stems), rng)
+        self.stem = picker(sorted(stems), "stem")
         self.stem_count = len(stems)
-        self.saint = Picker(SAINTS, rng)
-        self.street = Picker(STREETS, rng)
+        self.saint = picker(SAINTS, "saint")
+        self.street = picker(STREETS, "street")
         self.pins = {
             n: {"sha256": p["sha256"], "url": p["url"], "used": p.get("used", True)}
             for n, p in SOURCE_PINS.items()
@@ -778,7 +818,7 @@ class World:
                     and place_value_pool(value) == "train"
                 ):
                     counties.append((value, state))
-            self.county_picker = Picker(counties, rng)
+            self.county_picker = picker(counties, "county")
             bare = []
             for value, state in counties:
                 name = value[: -len(" County")]
@@ -786,7 +826,7 @@ class World:
                     name not in all_names or place_value_pool(name) == "train"
                 ):
                     bare.append((value, state))
-            self.bare_county_picker = Picker(bare, rng)
+            self.bare_county_picker = picker(bare, "bare_county", every=False)
             self.bare_county_count = len(bare)
             self.county_count = len(counties)
             self.pins["2024_Gaz_counties_national.zip"]["used"] = True
@@ -844,6 +884,11 @@ class Ctx:
             last = self.rng.choice(SURNAME_A) + self.rng.choice(SURNAME_B)
             full = f"{first} {last}"
             if any(b in full.lower() for b in BANNED_FRAGMENTS):
+                continue
+            if self.w.v4 and (
+                excluded_value(first) or excluded_value(last) or excluded_value(full)
+            ):
+                self.w.rejected["person_name_draw"] += 1
                 continue
             if identity_split(canonical_identity_group(full)) == "train":
                 return first, last
@@ -2244,10 +2289,108 @@ V3_NEW = {
 }
 
 
+# --------------------------------------------------------------------------- v4 cores
+# Added 2026-10-06 (brief, "Version 4"): senior-living and service organisation names ending in
+# `Home for the Aged` or `Skilled Nursing Facility`. FACILITY on the whole name under D2; an
+# article before the name stays outside (D3); all three cases follow the authored role.
+
+AGED_FORMS = (
+    ("home_for_aged", "{S} Home for the Aged"),
+    ("home_for_aged", "{S} Home for the Aged"),
+    ("home_for_aged", "Saint {X} Home for the Aged"),
+    ("home_for_aged", "{S} Lutheran Home for the Aged"),
+    ("snf", "{S} Skilled Nursing Facility"),
+    ("snf", "{S} Skilled Nursing Facility"),
+    ("snf", "Saint {X} Skilled Nursing Facility"),
+    ("snf", "{S} Health and Skilled Nursing Facility"),
+)
+AGED_TEMPLATES = {
+    "home_for_aged": (
+        "Lives at {O}.",
+        "Moved to {O} in {D}.",
+        "Resident of {O} since {D}.",
+        "{O} staff manage her medications.",
+        "Family toured {O} last month.",
+        "Admitted from {O}.",
+        "Placement at {O} was arranged by the social worker.",
+        "Her mother has been at {O} for two years.",
+    ),
+    "snf": (
+        "Discharged to {O} for short-term rehab.",
+        "Bed offered at {O}; transfer set for {D}.",
+        "Stay at {O} expected to last two weeks.",
+        "Transferred from {O} on {D}.",
+        "{O} will send the therapy notes.",
+        "Family chose {O} after the care conference.",
+        "Admitted to {O} on {D}.",
+        "Records requested from {O}.",
+    ),
+}
+AGED_ARTICLE_TEMPLATES = (
+    "The {O} nurse called back.",
+    "The {O} social worker visited on Tuesday.",
+    "Spoke with the {O} admissions coordinator.",
+    "The {O} van arrived early.",
+)
+AGED_NEGATIVES = (
+    "Lives in a home for the aged near her daughter.",
+    "Home for the aged placement was discussed with the family.",
+    "Admission to a home for the aged needs a physician form.",
+    "The home for the aged has a waiting list of six months.",
+    "She does not want to go to a skilled nursing facility.",
+    "A skilled nursing facility was recommended after the fall.",
+    "Skilled nursing facility bed offered; family to decide.",
+    "Skilled nursing facility stay was covered for twenty days.",
+    "Family is touring a home for the aged next week.",
+    "Transfer to a skilled nursing facility is pending a bed.",
+    "Her mother lives in a home for the aged.",
+    "The skilled nursing facility called to confirm the transfer time.",
+    "Needs a skilled nursing facility with a wound care nurse.",
+    "Home for the aged versus assisted living was reviewed with her son.",
+)
+
+
+def new_v4_aged_snf(c: Ctx, positive: bool, case: str):
+    r = c.rng
+    if not positive:
+        if r.random() < 0.20:
+            return [r.choice(AGED_NEGATIVES)], ["aged_snf_unnamed"], "unnamed_service"
+        return None
+    if r.random() >= 0.22:
+        return None
+    kind, form = r.choice(AGED_FORMS)
+    phen = ["service_organisation", "facility_boundary", f"{kind}_name"]
+    if "{S}" in form and r.random() < 0.15:
+        stem, _ = c.city("service_org_name_place")
+        phen.append("real_place_in_facility_name")
+    else:
+        stem = c.stem()
+    org = form.replace("{S}", stem).replace("{X}", c.saint())
+    if r.random() < 0.15:
+        line = r.choice(AGED_ARTICLE_TEMPLATES).replace("{O}", lab("FACILITY", org))
+        phen.append("the_article")
+    else:
+        line = r.choice(AGED_TEMPLATES[kind]).replace("{O}", lab("FACILITY", org))
+    if "{D}" in line:
+        line = line.replace("{D}", c.date(allow_range=False))
+    return [line], phen, None
+
+
+V4_NEW = {
+    "service_org": new_v4_aged_snf,
+    "senior_living_at": new_v4_aged_snf,
+}
+
+
 def _wrap_v2(family):
     base, new = CORES[family], V2_NEW.get(family)
 
     def core(c, positive, case):
+        new4 = V4_NEW.get(family)
+        if c.w.v4 and new4 is not None:
+            result = new4(c, positive, case)
+            if result is not None:
+                return result
         new3 = V3_NEW.get(family)
         if c.w.v3 and new3 is not None:
             result = new3(c, positive, case)
@@ -2546,12 +2689,27 @@ def generate(seed: int = SEED, version: str = "v1"):
     world = World(rng, version)
     units = plan_units(
         rng,
-        FAMILY_ROWS_V3 if world.v3 else FAMILY_ROWS_V2 if world.v2 else None,
+        FAMILY_ROWS_V4
+        if world.v4
+        else FAMILY_ROWS_V3
+        if world.v3
+        else FAMILY_ROWS_V2
+        if world.v2
+        else None,
     )
-    suite = SUITE_V3 if world.v3 else SUITE_V2 if world.v2 else SUITE
+    suite = (
+        SUITE_V4
+        if world.v4
+        else SUITE_V3
+        if world.v3
+        else SUITE_V2
+        if world.v2
+        else SUITE
+    )
     for unit in units:
         unit["suite"] = suite
     texts_seen = set()
+    world.total_rows = sum(u["n"] for u in units)
     if world.v2:
         # v2: the authored role decides in every case, so no row is forced to normal case and
         # the final case is fixed before authoring (named-site wording depends on it).
@@ -2646,18 +2804,75 @@ def author_unit(world: World, rng: random.Random, unit: dict, seen: set) -> list
                         reals,
                     )
                 )
+        if world.v4:
+            # Blind-bank exclusion filter: reject the whole unit (and re-draw) if any row's
+            # inserted values or any 1-8 word sequence of its text is on the hash-only list.
+            reason = exclusion_rejection(items, unit["case"])
+            if not reason:
+                # Keep the 0.5% repetition cap by construction.
+                keys = [value_keys(i, unit["case"]) for i in items]
+                if any(
+                    world.value_rows[k] + 1 > MAX_VALUE_SHARE * world.total_rows
+                    for ks in keys
+                    for k in ks
+                ):
+                    reason = "repetition_cap"
+            if reason:
+                world.rejected[f"unit:{reason}"] += 1
+                world.rejected[f"unit_family:{family}"] += 1
+                continue
         # Reject duplicate texts across the bank.
+        if world.v4:
+            for ks in [value_keys(i, unit["case"]) for i in items]:
+                world.value_rows.update(ks)
         keys = [re.sub(r"\[\[[A-Z]+\|(.*?)\]\]", r"\1", i["marked"]) for i in items]
         if any(k in seen for k in keys) or len(set(keys)) != len(keys):
             continue
         seen.update(keys)
         # A pair shares identity, pair id and layout; the negative inherits the same keys.
-        pair_id = f"{'tk13v3' if world.v3 else 'tk13v2' if world.v2 else 'tk13'}-{unit['serial']:05d}"
+        pair_id = f"{'tk13v4' if world.v4 else 'tk13v3' if world.v3 else 'tk13v2' if world.v2 else 'tk13'}-{unit['serial']:05d}"
         for number, item in enumerate(items):
             item["pair_id"] = pair_id
             item["row_number"] = number
         return items
     raise RuntimeError("could not author a unique unit")
+
+
+def exclusion_rejection(items: list[dict], case: str) -> str | None:
+    """Why a drawn unit hits the exclusion list: a kind of match, or None.
+
+    Only the kind of match is returned, never the matching string.
+    """
+    for item in items:
+        text, spans = build_row(item["marked"], case)
+        if excluded_sequences(text) > 0:
+            return "text_sequence"
+        if any(excluded_value(s["text"]) for s in spans):
+            return "inserted_value"
+        if any(excluded_value(real["value"]) for real in item["reals"]):
+            return "inserted_value"
+    return None
+
+
+def value_keys(item: dict, case: str) -> set[str]:
+    """Keys counted by ``value_shares`` for one authored row."""
+    _, spans = build_row(item["marked"], case)
+    keys = {
+        s["text"].casefold() for s in spans if s["label"] in ("FACILITY", "LOCATION")
+    }
+    keys |= {"real:" + real["value"].casefold() for real in item["reals"]}
+    return keys
+
+
+def exclusion_matches(rows: list[dict]) -> int:
+    """Number of rows in a finished bank with any exclusion match (must be zero for v4)."""
+    return sum(
+        1
+        for row in rows
+        if excluded_sequences(row["text"]) > 0
+        or any(excluded_value(s["text"]) for s in row["spans"])
+        or any(excluded_value(x["value"]) for x in row["pool"])
+    )
 
 
 def make_item(
@@ -2706,7 +2921,7 @@ def finish_row(
     family = f"tk13_{item['family_key']}"
     suite = unit.get("suite", SUITE)
     phen = set(item["phenomena"])
-    if suite in (SUITE_V2, SUITE_V3) and unit["case"] != "normal":
+    if suite in (SUITE_V2, SUITE_V3, SUITE_V4) and unit["case"] != "normal":
         if "the_in_name" in phen:
             phen.add("the_in_name_case_hidden")
         if "p7_city_modifier" in phen:
@@ -2745,7 +2960,7 @@ def finish_row(
 
 
 def write_bank(rows, world, seed: int = SEED, version: str = "v1"):
-    out = {"v1": OUT, "v2": OUT_V2, "v3": OUT_V3}[version]
+    out = {"v1": OUT, "v2": OUT_V2, "v3": OUT_V3, "v4": OUT_V4}[version]
     payload = (
         "\n".join(json.dumps(r, ensure_ascii=False, sort_keys=False) for r in rows)
         + "\n"
@@ -2757,10 +2972,13 @@ def write_bank(rows, world, seed: int = SEED, version: str = "v1"):
     manifest = {
         "annotation_policy": POLICY_VERSION,
         "places_addendum": ADDENDUM,
-        "suite": {"v1": SUITE, "v2": SUITE_V2, "v3": SUITE_V3}[version],
-        "version": {"v1": "tk13-v1", "v2": BANK_VERSION_V2, "v3": BANK_VERSION_V3}[
-            version
-        ],
+        "suite": {"v1": SUITE, "v2": SUITE_V2, "v3": SUITE_V3, "v4": SUITE_V4}[version],
+        "version": {
+            "v1": "tk13-v1",
+            "v2": BANK_VERSION_V2,
+            "v3": BANK_VERSION_V3,
+            "v4": BANK_VERSION_V4,
+        }[version],
         "split": "train",
         "rows": len(rows),
         "documents": len(rows),
@@ -2788,6 +3006,17 @@ def write_bank(rows, world, seed: int = SEED, version: str = "v1"):
             "used": "train only",
         },
     }
+    if version == "v4":
+        manifest["exclusion_filter"] = {
+            "list": "data/places_exclusions.sha256.json",
+            "list_file_sha256": sha256_file(
+                ROOT / "data" / "places_exclusions.sha256.json"
+            ),
+            "rule": "reject any row whose inserted values or any 1-8 word sequence of its text hash onto the list",
+            "rows_with_a_match": exclusion_matches(rows),
+            "rejected_draws": dict(sorted(world.rejected.items())),
+            "matching_strings": "never recorded",
+        }
     Path(str(out) + ".manifest.json").write_text(
         json.dumps(manifest, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
     )
@@ -3286,6 +3515,142 @@ def write_reports_v3(rows, manifest, world):
     path.write_text(existing.rstrip() + "\n\n" + "\n".join(lines), encoding="utf-8")
 
 
+V4_MARKER = "<!-- tk13-v4-section -->"
+V4_TAGS = ("home_for_aged_name", "snf_name", "aged_snf_unnamed")
+
+
+def write_reports_v4(rows, manifest, world):
+    n = len(rows)
+    fam = Counter(r["family"] for r in rows)
+    lay = Counter(r["layout"] for r in rows)
+    case = Counter(r["case_mode"] for r in rows)
+    pol = Counter(r["polarity"] for r in rows)
+    tags = Counter(t for r in rows for t in r["phenomena"] if t in V4_TAGS)
+    tag_case = Counter(
+        (t, r["case_mode"]) for r in rows for t in r["phenomena"] if t in V4_TAGS
+    )
+    pools = Counter(x["pool"] for r in rows for x in r["pool"])
+    sources = Counter(x["source"] for r in rows for x in r["pool"])
+    shares = value_shares(rows)
+    worst = max(shares.items(), key=lambda kv: kv[1])
+    rejected = manifest["exclusion_filter"]["rejected_draws"]
+    units = sum(v for k, v in rejected.items() if k.startswith("unit:"))
+    pickers = sum(v for k, v in rejected.items() if k.startswith("picker:"))
+    names = rejected.get("person_name_draw", 0)
+    lines = [
+        V4_MARKER,
+        "",
+        "# v4 bank: blind-bank exclusion filter, `Home for the Aged` and `Skilled Nursing Facility`",
+        "",
+        f"Bank: `data/tk13_train_care_sites_localities__v4.jsonl` ({n} rows, sha256 `{manifest['sha256']}`), "
+        f"seed {SEED_V4}, version `{BANK_VERSION_V4}`, generator sha256 `{manifest['author_provenance']['generator_sha256']}`. "
+        "v4 keeps the v3 families, limits, case mix, pool rule and repetition caps, applies the blind-bank exclusion "
+        "filter to every row, and adds the two name endings below. v1 to v3 are unchanged and reproduce byte for byte "
+        "from this generator. Synthetic training bank; scores on it are not evidence of generalisation. Overlap audits "
+        "were not run by the author.",
+        "",
+        "## v4 rows per family",
+        "",
+        "| Family | Rows |",
+        "|---|---:|",
+        *[f"| {k} | {v} |" for k, v in sorted(fam.items())],
+        "",
+        f"Positive {pol['positive']}, matched negative {pol['negative']} ({pol['negative'] / n:.1%}); "
+        f"{len(lay)} layouts, largest {max(lay.values()) / n:.1%}; case mix normal {case['normal']}, "
+        f"upper {case['upper']}, lower {case['lower']}; cohorts {dict(manifest['cohort_counts'])}.",
+        "",
+        "## v4 additions",
+        "",
+        "| Tag | Rows | normal | upper | lower |",
+        "|---|---:|---:|---:|---:|",
+        *[
+            f"| {t} | {tags[t]} | {tag_case[(t, 'normal')]} | {tag_case[(t, 'upper')]} | {tag_case[(t, 'lower')]} |"
+            for t in V4_TAGS
+        ],
+        "",
+        "`home_for_aged_name` and `snf_name`: FACILITY on the whole of `<stem> Home for the Aged`, "
+        "`Saint <X> Home for the Aged`, `<stem> Lutheran Home for the Aged`, `<stem> Skilled Nursing Facility`, "
+        "`Saint <X> Skilled Nursing Facility` and `<stem> Health and Skilled Nursing Facility` (D2: the type words are "
+        "inside the span). About 15% sit after an article (`the [<name>] nurse`, article outside; D3). Authored in the "
+        "`service_org` and `senior_living_at` families, in all three cases. `aged_snf_unnamed`: matched negatives "
+        "(`lives in a home for the aged`, `a skilled nursing facility was recommended`), unannotated.",
+        "",
+        "## v4 exclusion filter",
+        "",
+        "Every row was checked against `data/places_exclusions.sha256.json` (hash-only list, file sha256 "
+        f"`{manifest['exclusion_filter']['list_file_sha256']}`) with `exclusion_hash`, `excluded_sequences` and "
+        "`excluded_value` from `clinical_deid.data.generators.places`: a unit is rejected and re-drawn if any row's "
+        "inserted values, or any 1-8 word sequence of its text (in the row's final case), hash onto the list. Value "
+        "pools (cities, CMS names, counties, stems, saints, streets, instrument and disease words) and person-name "
+        "draws were screened the same way before use. Counts only; no matching string was printed, logged or inspected.",
+        "",
+        f"Rows in the final bank with any match: {manifest['exclusion_filter']['rows_with_a_match']}.",
+        "",
+        "| Rejected draws | Count |",
+        "|---|---:|",
+        f"| Whole units (a pair, single or long note) rejected at row level | {units} |",
+        *[
+            f"| &nbsp;&nbsp;{k[5:]} | {v} |"
+            for k, v in sorted(rejected.items())
+            if k.startswith("unit:")
+        ],
+        *[
+            f"| &nbsp;&nbsp;family {k[12:]} | {v} |"
+            for k, v in sorted(rejected.items())
+            if k.startswith("unit_family:")
+        ],
+        f"| Value-pool draws skipped (all pickers) | {pickers} |",
+        f"| Person-name draws skipped | {names} |",
+        "",
+        "## v4 pool check",
+        "",
+        f"Real value uses {sum(pools.values())}: train {pools['train']}, heldout {pools['heldout']}; "
+        + ", ".join(f"{k} {v}" for k, v in sorted(sources.items()))
+        + f". Largest single value in the bank: {worst[1]} rows ({worst[1] / n:.2%}; limit {MAX_VALUE_SHARE:.1%}).",
+        "",
+        "Unsettled cases: none new. The v2 list still applies. The policy has no fixture for these two name endings; "
+        "they follow D2 (service organisation or senior living, FACILITY on the whole name) and D3 (article outside).",
+        "",
+    ]
+    path = REPORT_DIR / "AUTHOR_REPORT.md"
+    existing = path.read_text(encoding="utf-8")
+    if V4_MARKER in existing:
+        existing = existing[: existing.index(V4_MARKER)]
+    path.write_text(existing.rstrip() + "\n\n" + "\n".join(lines), encoding="utf-8")
+
+    sampler = random.Random(13)
+    new = [r for r in rows if any(t in V4_TAGS for t in r["phenomena"])]
+    chosen_new = sampler.sample(new, 20)
+    taken = {r["id"] for r in chosen_new}
+    rest = [r for r in rows if r["id"] not in taken]
+    chosen = chosen_new + sampler.sample(rest, 80)
+    sampler.shuffle(chosen)
+    parts = [
+        "# Spot-check sample v4: tk13 care sites and localities",
+        "",
+        "100 rows drawn with `random.Random(13)`: 80 uniformly at random, plus 20 drawn at random from the rows "
+        "that carry a v4 addition tag so the new names are checked. Spans are `[LABEL|text]`. Check against the policy "
+        "(D1 to D3, P7) and the follow-up decisions. Synthetic text; real names are Census and CMS train-pool values.",
+        "",
+    ]
+    for row in chosen:
+        new_tags = [t for t in row["phenomena"] if t in V4_TAGS]
+        parts += [
+            f"### {row['id']}  ({row['family']}, {row['layout']}, {row['case_mode']}, {row['polarity']}"
+            + (f", {row['negative_type']}" if row["negative_type"] else "")
+            + ")"
+            + (f"  new: {', '.join(new_tags)}" if new_tags else ""),
+            "",
+            "```",
+            _mark(row),
+            "```",
+            "",
+        ]
+    (REPORT_DIR / "spot_check_sample_v4.md").write_text(
+        "\n".join(parts), encoding="utf-8"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -3293,26 +3658,30 @@ def main():
         action="store_true",
         help="also write the author report and spot-check sample",
     )
-    parser.add_argument("--version", choices=("v1", "v2", "v3"), default="v3")
+    parser.add_argument("--version", choices=("v1", "v2", "v3", "v4"), default="v4")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument(
         "--force-v1", action="store_true", help="allow rewriting the immutable v1 bank"
     )
     args = parser.parse_args()
-    if args.version in ("v1", "v2") and not args.force_v1:
+    if args.version in ("v1", "v2", "v3") and not args.force_v1:
         raise SystemExit(
-            "v1 and v2 are immutable; reproduce them with generate() or pass --force-v1"
+            "v1 to v3 are immutable; reproduce them with generate() or pass --force-v1"
         )
     seed = (
         args.seed
         if args.seed is not None
-        else {"v1": SEED, "v2": SEED_V2, "v3": SEED_V3}[args.version]
+        else {"v1": SEED, "v2": SEED_V2, "v3": SEED_V3, "v4": SEED_V4}[args.version]
     )
     rows, world = generate(seed, args.version)
     check_bank(rows)
+    if args.version == "v4" and exclusion_matches(rows):
+        raise SystemExit("exclusion filter failed: the bank has matching rows")
     manifest = write_bank(rows, world, seed, args.version)
     if args.reports:
-        if args.version == "v3":
+        if args.version == "v4":
+            write_reports_v4(rows, manifest, world)
+        elif args.version == "v3":
             write_reports_v3(rows, manifest, world)
         elif args.version == "v2":
             write_reports_v2(rows, manifest, world)
