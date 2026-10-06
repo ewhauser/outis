@@ -441,9 +441,11 @@ def main():
 
     source = args.resume_weights or args.model_name
     tokenizer = AutoTokenizer.from_pretrained(source)
+    # Pin fp32: transformers keeps a checkpoint's stored dtype, and some base
+    # models (microsoft/deberta-v3-base) are stored in fp16.
     model = AutoModelForTokenClassification.from_pretrained(
         source, num_labels=len(TAGS), id2label=dict(enumerate(TAGS)), label2id=TAG_INDEX,
-        ignore_mismatched_sizes=bool(args.resume_weights is None))
+        ignore_mismatched_sizes=bool(args.resume_weights is None), dtype=torch.float32)
     device = torch.device(args.device)
     model.to(device)
     config = {"encoder": ENCODER_KIND, "base_model": args.model_name, "max_length": args.max_length,

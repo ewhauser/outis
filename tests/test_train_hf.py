@@ -224,17 +224,21 @@ def test_resume_provenance_does_not_invent_clean_ancestry(tmp_path):
     )
 
 
-def invoke_training(tmp_path, monkeypatch, *, window_count=1, extra=()):
+def invoke_training(tmp_path, monkeypatch, *, window_count=1, extra=(), loads=None):
     path = tmp_path / "train.jsonl"
     write_bank(path, count=2)
     model = FakeModel()
+    loads = [] if loads is None else loads
+
+    def load_model(*args, **kwargs):
+        loads.append(kwargs)
+        return model
+
     monkeypatch.setitem(
         sys.modules,
         "transformers",
         SimpleNamespace(
-            AutoModelForTokenClassification=SimpleNamespace(
-                from_pretrained=lambda *a, **k: model
-            ),
+            AutoModelForTokenClassification=SimpleNamespace(from_pretrained=load_model),
             AutoTokenizer=SimpleNamespace(
                 from_pretrained=lambda *a, **k: FakeTokenizer()
             ),
@@ -283,6 +287,12 @@ def test_main_flushes_partial_accumulation_and_persists_final_summary(
     assert [entry["step"] for entry in result["history"]] == [1, 2]
     assert result["corpus_audit"]["test_used_for_training"] is False
     assert result["corpus_audit"]["train"][0]["rows_used"] == 2
+
+
+def test_main_loads_base_model_in_fp32(tmp_path, monkeypatch):
+    loads = []
+    invoke_training(tmp_path, monkeypatch, loads=loads)
+    assert [kwargs["dtype"] for kwargs in loads] == [train.torch.float32]
 
 
 def test_main_records_effective_subset(tmp_path, monkeypatch):
