@@ -36,6 +36,8 @@ dependencies = [
     "numpy>=2.0",
     "regex>=2024.11",
     "defusedxml>=0.7",
+    "sentencepiece>=0.2",
+    "protobuf>=5",
 ]
 
 [project.optional-dependencies]
