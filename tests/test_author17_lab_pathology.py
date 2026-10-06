@@ -47,15 +47,22 @@ def test_deterministic(built, rows):
     assert again == rows
     assert rejects == built[1]
     if CORPUS.exists():
-        stored = [json.loads(line) for line in CORPUS.read_text(encoding="utf-8").splitlines()]
+        stored = [
+            json.loads(line) for line in CORPUS.read_text(encoding="utf-8").splitlines()
+        ]
         assert stored == json.loads(json.dumps(rows, ensure_ascii=False))
 
 
 def test_shape_and_shares(rows):
     assert len(rows) == 1800
     fam = collections.Counter(r["family"] for r in rows)
-    assert fam == {"lab_chem_heme_coag": 540, "lab_microbiology": 270, "lab_surgical_cytology": 360,
-                   "lab_poc_sendout": 270, "lab_portal_fax_copies": 360}
+    assert fam == {
+        "lab_chem_heme_coag": 540,
+        "lab_microbiology": 270,
+        "lab_surgical_cytology": 360,
+        "lab_poc_sendout": 270,
+        "lab_portal_fax_copies": 360,
+    }
     negatives = [r for r in rows if r["role"] == "matched_negative"]
     assert len(negatives) == 600
     assert all(r["spans"] == [] for r in negatives)
@@ -75,7 +82,7 @@ def test_offsets_and_metadata(rows):
     for r in rows:
         assert annotation_errors(r["text"], r["spans"]) == []
         for s in r["spans"]:
-            assert r["text"][s["start"]:s["end"]] == s["text"]
+            assert r["text"][s["start"] : s["end"]] == s["text"]
             assert s["label"] in ENTITY_TYPES
         assert r["split"] == "train" and r["annotation_policy"] == "clinical-phi-v2"
         assert r["family"] == r["template_family"]
@@ -118,7 +125,11 @@ def test_initials_only_people_are_names(rows):
     seen = 0
     for r in rows:
         names = set(_spans_of(r, "NAME"))
-        for m in re.finditer(r"(?:Tech|Verified by|Verified|Operator|Performed by|Screened by|Drawn by|TECH):\s*(\w+)", r["text"], re.I):
+        for m in re.finditer(
+            r"(?:Tech|Verified by|Verified|Operator|Performed by|Screened by|Drawn by|TECH):\s*(\w+)",
+            r["text"],
+            re.I,
+        ):
             assert m[1] in names, r["id"]
             seen += 1
     assert seen > 300
@@ -141,25 +152,41 @@ def test_mrn_caption_outside_and_age_rules(rows):
             if s["label"] == "AGE":
                 assert s["text"].isdigit() and int(s["text"]) > 89
         # ages at or below 89 are never annotated
-        for m in re.finditer(r"(\d+)(?=Y [FM]\b| y/o| years / |y\b|-year-old)", r["text"], re.I):
+        for m in re.finditer(
+            r"(\d+)(?=Y [FM]\b| y/o| years / |y\b|-year-old)", r["text"], re.I
+        ):
             if int(m[1]) <= 89:
-                assert not any(s["label"] == "AGE" and s["start"] <= m.start(1) < s["end"] for s in r["spans"])
+                assert not any(
+                    s["label"] == "AGE" and s["start"] <= m.start(1) < s["end"]
+                    for s in r["spans"]
+                )
 
 
 def test_datetime_time_outside_and_date_only_in_date(rows):
     for r in rows:
         for s in r["spans"]:
             if s["label"] == "DATE":
-                assert not re.search(r"\d:\d\d|\b\d{4}\b.*\b\d{4}\b", s["text"]) or re.fullmatch(r"\d{4}-\d\d-\d\d", s["text"])
+                assert not re.search(
+                    r"\d:\d\d|\b\d{4}\b.*\b\d{4}\b", s["text"]
+                ) or re.fullmatch(r"\d{4}-\d\d-\d\d", s["text"])
                 assert not re.search(r"\b(am|pm)\b", s["text"], re.I)
 
 
 def test_codes_and_units_not_annotated(rows):
-    pats = [r"LOINC \d+-\d", r"CPT \d{5}", r"\blot [\w-]+", r"Analyzer: [\w .-]+", r"\(ref [^)]*\)", r"\[[<>]?[\d.]+-?[\d.]*\]"]
+    pats = [
+        r"LOINC \d+-\d",
+        r"CPT \d{5}",
+        r"\blot [\w-]+",
+        r"Analyzer: [\w .-]+",
+        r"\(ref [^)]*\)",
+        r"\[[<>]?[\d.]+-?[\d.]*\]",
+    ]
     for r in rows:
         for p in pats:
             for m in re.finditer(p, r["text"], re.I):
-                assert not any(s["start"] < m.end() and m.start() < s["end"] for s in r["spans"]), (r["id"], m[0])
+                assert not any(
+                    s["start"] < m.end() and m.start() < s["end"] for s in r["spans"]
+                ), (r["id"], m[0])
 
 
 def test_reserved_identifier_families(rows):
@@ -192,7 +219,20 @@ def test_zero_exclusion_matches(rows):
 
 def test_label_support_floor(rows):
     support = collections.Counter(s["label"] for r in rows for s in r["spans"])
-    for label in ("NAME", "DATE", "ADDRESS", "PHONE", "EMAIL", "MRN", "ACCOUNT", "ID", "URL", "AGE", "LOCATION", "FACILITY"):
+    for label in (
+        "NAME",
+        "DATE",
+        "ADDRESS",
+        "PHONE",
+        "EMAIL",
+        "MRN",
+        "ACCOUNT",
+        "ID",
+        "URL",
+        "AGE",
+        "LOCATION",
+        "FACILITY",
+    ):
         assert support[label] >= 80, label
 
 
@@ -200,17 +240,21 @@ def test_report_fixtures_rebuild_from_generator_builder():
     for fx in REPORT_FIXTURES:
         marked, prev = [], 0
         for s in sorted(fx["spans"], key=lambda s: s["start"]):
-            marked.append(fx["text"][prev:s["start"]])
-            marked.append(f"[[{s['label']}|{fx['text'][s['start']:s['end']]}]]")
+            marked.append(fx["text"][prev : s["start"]])
+            marked.append(f"[[{s['label']}|{fx['text'][s['start'] : s['end']]}]]")
             prev = s["end"]
         marked.append(fx["text"][prev:])
         doc = gen.Doc.from_marked("".join(marked))
         text, spans = doc.render("normal")
         assert text == fx["text"], fx["id"]
-        assert [(s["start"], s["end"], s["label"]) for s in spans] == [(s["start"], s["end"], s["label"]) for s in fx["spans"]]
+        assert [(s["start"], s["end"], s["label"]) for s in spans] == [
+            (s["start"], s["end"], s["label"]) for s in fx["spans"]
+        ]
         for style in ("caps", "lower"):
             t2, s2 = doc.render(style)
-            assert len(t2) == len(text) and [(s["start"], s["end"]) for s in s2] == [(s["start"], s["end"]) for s in spans]
+            assert len(t2) == len(text) and [(s["start"], s["end"]) for s in s2] == [
+                (s["start"], s["end"]) for s in spans
+            ]
 
 
 def test_generator_conventions_match_fixtures():
@@ -229,4 +273,6 @@ def test_generator_conventions_match_fixtures():
     ctx.emit("collected")
     text, spans = ctx.d.render("normal")
     assert [s["label"] for s in spans] == ["FACILITY", "ID", "ID", "NAME", "DATE"]
-    assert not re.search(r"\d:\d\d", spans[-1]["text"]) and re.search(r"\d\d:\d\d|\d:\d\d [AP]M|\d{4}$", text)
+    assert not re.search(r"\d:\d\d", spans[-1]["text"]) and re.search(
+        r"\d\d:\d\d|\d:\d\d [AP]M|\d{4}$", text
+    )

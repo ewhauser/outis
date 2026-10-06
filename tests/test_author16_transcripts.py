@@ -36,7 +36,9 @@ ROLE_LABEL = re.compile(
     re.I,
 )
 PHONE_RE = re.compile(r"555[-. ]01\d\d")
-EXT_RE = re.compile(r"555[-. ]01\d\d(?:,\s*| )(?:extension|ext\.?|x)\s?\d+|555[-. ]01\d\d x\d+", re.I)
+EXT_RE = re.compile(
+    r"555[-. ]01\d\d(?:,\s*| )(?:extension|ext\.?|x)\s?\d+|555[-. ]01\d\d x\d+", re.I
+)
 VERSION_RE = re.compile(r"\bversion \d+\.\d+\.\d+")
 SPELLED_AGE = re.compile(r"^(?:ninety|one hundred)(?:-[a-z]+| and [a-z-]+)?$")
 
@@ -51,7 +53,11 @@ def small_bank():
 def committed_bank():
     if not BANK_PATH.exists():
         pytest.skip("committed bank not present")
-    return [json.loads(line) for line in BANK_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line)
+        for line in BANK_PATH.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def test_generator_is_deterministic():
@@ -76,7 +82,7 @@ def test_rows_offsets_and_metadata(small_bank):
     for r in rows:
         assert annotation_errors(r["text"], r["spans"]) == []
         for sp in r["spans"]:
-            assert r["text"][sp["start"]:sp["end"]] == sp["text"]
+            assert r["text"][sp["start"] : sp["end"]] == sp["text"]
         assert r["split"] == "train" and r["annotation_policy"] == "clinical-phi-v2"
         assert r["family"] == r["template_family"]
         assert r["cohort"] in ("realistic", "long_document")
@@ -117,40 +123,87 @@ def _check_conventions(rows):
             if sp["label"] == "PHONE":
                 assert PHONE_RE.search(val), val
             if sp["label"] == "EMAIL":
-                assert re.search(r"@(?:mail\.example|inbox\.example\.com|post\.example\.org|webmail\.example\.net|home\.example|mail\.test)$", val, re.I), val
+                assert re.search(
+                    r"@(?:mail\.example|inbox\.example\.com|post\.example\.org|webmail\.example\.net|home\.example|mail\.test)$",
+                    val,
+                    re.I,
+                ), val
             if sp["label"] == "URL":
-                assert re.match(r"https?://[a-z.]+\.(?:test|example\.org|example\.com|example\.net)/", val, re.I), val
+                assert re.match(
+                    r"https?://[a-z.]+\.(?:test|example\.org|example\.com|example\.net)/",
+                    val,
+                    re.I,
+                ), val
             if sp["label"] == "IP":
                 assert val.startswith(("192.0.2.", "198.51.100.", "203.0.113.")), val
             if sp["label"] == "AGE":
-                assert val.lower() == "nineties" or (val.isdigit() and int(val) >= 90) or SPELLED_AGE.match(val.lower()), val
+                assert (
+                    val.lower() == "nineties"
+                    or (val.isdigit() and int(val) >= 90)
+                    or SPELLED_AGE.match(val.lower())
+                ), val
         # role-only labels, timestamps and versions stay unannotated
         pos = 0
         for line in text.split("\n"):
             m = ROLE_LABEL.match(line)
             if m:
                 label_end = pos + m.end()
-                bad = [sp for sp in spans if sp["start"] < label_end and sp["end"] > pos and sp["label"] != "DATE"]
+                bad = [
+                    sp
+                    for sp in spans
+                    if sp["start"] < label_end
+                    and sp["end"] > pos
+                    and sp["label"] != "DATE"
+                ]
                 assert not bad, (r["id"], line[:80])
             pos += len(line) + 1
-        for m in re.finditer(r"\[\d{1,2}:\d{2}(?::\d{2})?\]|\(\d{2}:\d{2}:\d{2}\)", text):
-            assert not any(sp["start"] < m.end() and sp["end"] > m.start() for sp in spans), m.group(0)
+        for m in re.finditer(
+            r"\[\d{1,2}:\d{2}(?::\d{2})?\]|\(\d{2}:\d{2}:\d{2}\)", text
+        ):
+            assert not any(
+                sp["start"] < m.end() and sp["end"] > m.start() for sp in spans
+            ), m.group(0)
         for m in VERSION_RE.finditer(text):
-            assert not any(sp["start"] < m.end() and sp["end"] > m.start() for sp in spans), m.group(0)
+            assert not any(
+                sp["start"] < m.end() and sp["end"] > m.start() for sp in spans
+            ), m.group(0)
         for m in EXT_RE.finditer(text):
-            assert any(sp["label"] == "PHONE" and sp["start"] <= m.start() and sp["end"] >= m.end() for sp in spans), m.group(0)
+            assert any(
+                sp["label"] == "PHONE"
+                and sp["start"] <= m.start()
+                and sp["end"] >= m.end()
+                for sp in spans
+            ), m.group(0)
         for m in re.finditer(r"https?://[A-Za-z0-9./_-]+", text):
             end = m.start() + len(m.group(0).rstrip("."))
-            assert any(sp["label"] == "URL" and sp["start"] <= m.start() and sp["end"] >= end for sp in spans), m.group(0)
+            assert any(
+                sp["label"] == "URL" and sp["start"] <= m.start() and sp["end"] >= end
+                for sp in spans
+            ), m.group(0)
         # dated timestamps: the date is DATE, the clock time stays outside
         for m in re.finditer(r"\[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})\]", text):
             date_start = m.start(1)
-            assert any(sp["label"] == "DATE" and sp["start"] == date_start and sp["end"] == m.end(1) for sp in spans), m.group(0)
+            assert any(
+                sp["label"] == "DATE"
+                and sp["start"] == date_start
+                and sp["end"] == m.end(1)
+                for sp in spans
+            ), m.group(0)
         # a person's name never appears unannotated: all-caps and lowercase text follow the authored role
-        names = {tok.casefold() for sp in spans if sp["label"] == "NAME" for tok in sp["text"].split() if len(tok) >= 4}
+        names = {
+            tok.casefold()
+            for sp in spans
+            if sp["label"] == "NAME"
+            for tok in sp["text"].split()
+            if len(tok) >= 4
+        }
         for tok in names:
-            for m in re.finditer(r"(?<![\w'-])" + re.escape(tok) + r"(?![\w-])", text.casefold()):
-                assert any(sp["start"] <= m.start() and m.end() <= sp["end"] for sp in spans), (r["id"], tok)
+            for m in re.finditer(
+                r"(?<![\w'-])" + re.escape(tok) + r"(?![\w-])", text.casefold()
+            ):
+                assert any(
+                    sp["start"] <= m.start() and m.end() <= sp["end"] for sp in spans
+                ), (r["id"], tok)
 
 
 def test_conventions_on_fresh_build(small_bank):
@@ -168,7 +221,10 @@ def test_rebuilds_every_transcript_fixture():
     for fx in TRANSCRIPT_FIXTURES:
         text, spans = rebuilt[fx["id"]]
         assert text == fx["text"], fx["id"]
-        assert spans == [{"start": s["start"], "end": s["end"], "label": s["label"]} for s in fx["spans"]], fx["id"]
+        assert spans == [
+            {"start": s["start"], "end": s["end"], "label": s["label"]}
+            for s in fx["spans"]
+        ], fx["id"]
 
 
 def test_render_marked_follows_case_and_offsets():
@@ -177,9 +233,12 @@ def test_render_marked_follows_case_and_offsets():
         text, spans = gen.render_marked(marked, case)
         assert len(spans) == 3
         for sp in spans:
-            value = text[sp["start"]:sp["end"]]
+            value = text[sp["start"] : sp["end"]]
             assert value == value.strip() and value
-        assert text[spans[0]["start"]:spans[0]["end"]] == {"normal": "Marwick", "lower": "marwick", "upper": "MARWICK"}[case]
+        assert (
+            text[spans[0]["start"] : spans[0]["end"]]
+            == {"normal": "Marwick", "lower": "marwick", "upper": "MARWICK"}[case]
+        )
 
 
 def test_speech_to_text_rows_have_no_punctuation_but_keep_values(committed_bank):
@@ -210,7 +269,12 @@ def test_no_value_above_half_a_percent_of_rows(committed_bank):
     for r in committed_bank:
         for key in {(sp["label"], sp["text"].casefold()) for sp in r["spans"]}:
             values[key] += 1
-        for tok in {t.casefold() for sp in r["spans"] if sp["label"] == "NAME" for t in sp["text"].split()}:
+        for tok in {
+            t.casefold()
+            for sp in r["spans"]
+            if sp["label"] == "NAME"
+            for t in sp["text"].split()
+        }:
             tokens[tok] += 1
     assert max(values.values()) <= cap
     assert max(tokens.values()) <= cap
@@ -219,10 +283,18 @@ def test_no_value_above_half_a_percent_of_rows(committed_bank):
 def test_composition_of_committed_bank(committed_bank):
     n = len(committed_bank)
     fam = Counter(r["family"].replace("tk16_transcript_", "") for r in committed_bank)
-    assert fam == {"telehealth": 525, "phone": 375, "interpreter": 150, "coordination": 225, "stt": 225}
+    assert fam == {
+        "telehealth": 525,
+        "phone": 375,
+        "interpreter": 150,
+        "coordination": 225,
+        "stt": 225,
+    }
     free = sum(1 for r in committed_bank if r["phi_free"])
     assert 0.19 <= free / n <= 0.21
-    combos = Counter((r["label_format"], r["case"]) for r in committed_bank if not r["phi_free"])
+    combos = Counter(
+        (r["label_format"], r["case"]) for r in committed_bank if not r["phi_free"]
+    )
     for fmt in gen.FMTS:
         for case in gen.CASES:
             assert combos[(fmt, case)] >= 30, (fmt, case)
@@ -230,7 +302,21 @@ def test_composition_of_committed_bank(committed_bank):
     long_rows = sum(1 for r in committed_bank if r["tokens"] > 512)
     assert long_rows / n > 0.9
     labels = Counter(sp["label"] for r in committed_bank for sp in r["spans"])
-    for lab in ("NAME", "DATE", "ADDRESS", "PHONE", "EMAIL", "MRN", "ACCOUNT", "ID", "URL", "IP", "AGE", "LOCATION", "FACILITY"):
+    for lab in (
+        "NAME",
+        "DATE",
+        "ADDRESS",
+        "PHONE",
+        "EMAIL",
+        "MRN",
+        "ACCOUNT",
+        "ID",
+        "URL",
+        "IP",
+        "AGE",
+        "LOCATION",
+        "FACILITY",
+    ):
         assert labels[lab] > 0, lab
 
 
