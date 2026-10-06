@@ -23,7 +23,7 @@ from pathlib import Path
 import re
 import sys
 
-from common import PREDICTIONS, RESULTS, ROOT, corpus_path, digest, read_jsonl, write_json
+from common import RESULTS, ROOT, corpus_path, digest, is_restricted, predictions_dir, read_jsonl, write_json
 from labels import COARSE, project_label
 
 sys.path.insert(0, str(ROOT / "src"))
@@ -95,7 +95,7 @@ def _prf(tp: int, fp: int, fn: int) -> dict:
 
 
 def load_predictions(benchmark: str, system: str, corpus_sha256: str) -> tuple[dict, dict]:
-    path = PREDICTIONS / f"{benchmark}.{system}.jsonl"
+    path = predictions_dir(benchmark) / f"{benchmark}.{system}.jsonl"
     receipt = json.loads(path.with_suffix(".receipt.json").read_text())
     if receipt["corpus_sha256"] != corpus_sha256:
         raise ValueError(f"{system} predictions were made on a different corpus")
@@ -152,7 +152,8 @@ def score(benchmark: str, system: str) -> dict:
     if non_gold != manifest["characters"]["non_gold"]:
         raise RuntimeError("non-gold character count differs from the corpus manifest")
     replay = _Replay([row["text"] for row in coarse_rows], coarse_predictions)
-    typed = evaluate(coarse_rows, replay, max_failures=50, minimum_label_support=30)
+    # Restricted benchmarks: no failure examples, which would copy note text into results.
+    typed = evaluate(coarse_rows, replay, max_failures=0 if is_restricted(benchmark) else 50, minimum_label_support=30)
     typed["scope"] = f"External benchmark {benchmark}; coarse label groups; not a clinical accuracy claim."
     typed.pop("goal", None)
     return {

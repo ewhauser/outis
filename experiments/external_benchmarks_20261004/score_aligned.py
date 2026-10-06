@@ -91,6 +91,10 @@ def neutral_in_span(text: str, start: int, end: int, label: str) -> set[int]:
             neutral.update(range(start, start + lead.end()))
         if _RELATIVE_UNIT.match(rest.strip()):
             neutral.update(range(start, end))
+    elif label == "AGE":
+        number = re.search(r"\d+", value)
+        if number and int(number.group()) <= 89:
+            neutral.update(range(start, end))
     elif label == "LOCATION":
         for word in re.finditer(r"[\w'’-]+", value):
             if word.group()[0].islower() or word.group() in _GENERIC_UNITS:
@@ -106,6 +110,8 @@ def gold_values(text: str, spans: list[dict]) -> list[tuple[str, set[int]]]:
     """(label, policy value characters) per gold span; spans left empty are dropped."""
     out = []
     for span in spans:
+        if span.get("in_policy") is False:
+            continue
         chars = _value(text, span["start"], span["end"]) - neutral_in_span(
             text, span["start"], span["end"], span["label"])
         if chars:

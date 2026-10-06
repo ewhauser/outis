@@ -340,6 +340,30 @@ gold error: ASQ-PHI tags the word "email". The neutral rules are the project's
 own judgement, so quote this view next to the as-published one, never instead
 of it.
 
+## Restricted benchmark: n2c2 2014
+
+The n2c2 (i2b2/UTHealth) 2014 de-identification dataset is real clinical text
+with surrogate PHI, distributed under a data use agreement through the
+[DBMI Data Portal](https://portal.dbmi.hms.harvard.edu/projects/n2c2-nlp/).
+The owner approved its use for evaluation only on 2026-10-06 (AGENTS.md).
+
+- Each person obtains it under their own agreement. Keep the raw files outside
+  every git repository.
+- `n2c2_2014.py --split test --raw <folder of XML files>` converts it into
+  `$DEID_RESTRICTED_DIR/corpora/n2c2_2014_test.jsonl` (default
+  `~/working/deid/restricted`). Predictions for restricted benchmarks are
+  written under `$DEID_RESTRICTED_DIR/predictions/`. The harness refuses a
+  restricted folder inside a git repository.
+- `score.py` writes no failure examples for restricted benchmarks; results
+  files hold aggregate scores only and may be committed.
+- Native subtypes map to project types (`n2c2_2014.TYPE_MAP`); PROFESSION has
+  no project type and is excluded from gold. The policy-aligned view
+  (`score_aligned.py`) treats STATE, COUNTRY, DEPARTMENT, ORGANIZATION and ROOM
+  spans, and gold ages of 89 or under, as neutral.
+- Published n2c2 2014 results use specific matching rules (strict or relaxed
+  spans, token or entity level, the full PHI set or a HIPAA subset). Match the
+  metric exactly before comparing with any paper.
+
 ## Reading results
 
 - **Lead with character recall and non-PII redaction together.** Either can be
