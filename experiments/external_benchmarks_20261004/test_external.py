@@ -99,6 +99,29 @@ class PolicyAlignedNeutralTest(unittest.TestCase):
     def test_honorific_and_credentials_are_neutral(self):
         self.assertEqual(self.kept("Seen by Dr. Anna Smith, MD today.", "Dr. Anna Smith, MD", "NAME"), "AnnaSmith")
 
+    def test_spelled_out_professional_titles_are_neutral(self):
+        self.assertEqual(self.kept("Validated by Doctor Geraert.", "Doctor Geraert", "NAME"), "Geraert")
+        self.assertEqual(self.kept("by Prof. Dr. Iepermans today", "Prof. Dr. Iepermans", "NAME"), "Iepermans")
+        self.assertEqual(self.kept("Radiologist Jan Aerschot, Doctor", "Jan Aerschot, Doctor", "NAME"), "JanAerschot")
+        self.assertEqual(self.kept("Mr De Meyer received it", "De Meyer", "NAME"), "DeMeyer")
+
+    def test_age_units_are_neutral_and_young_ages_count(self):
+        self.assertEqual(self.kept("The patient is 23 years old.", "23 years", "AGE"), "23")
+        self.assertEqual(self.kept("A 65-year-old man", "65-year-old", "AGE"), "65")
+        self.assertEqual(self.kept("aged sixty-five years", "sixty-five years", "AGE"), "sixtyfive")
+
+    def test_facility_generic_words_are_neutral(self):
+        self.assertEqual(self.kept("seen at the burn centre at Middelheim.", "burn centre at Middelheim", "FACILITY"),
+                         "Middelheim")
+        self.assertEqual(self.kept("admitted to Leuven University Hospital.", "Leuven University Hospital", "FACILITY"),
+                         "LeuvenUniversityHospital")
+
+    def test_country_or_province_alone_is_neutral_but_city_is_not(self):
+        self.assertIsNone(self.kept("moved from the province of Limburg", "province of Limburg", "LOCATION"))
+        self.assertIsNone(self.kept("born in Belgium", "Belgium", "LOCATION"))
+        self.assertEqual(self.kept("holiday home in Nice", "Nice", "LOCATION"), "Nice")
+        self.assertEqual(self.kept("lives in Antwerp", "Antwerp", "LOCATION"), "Antwerp")
+
     def test_identifier_field_label_and_hash_are_neutral(self):
         self.assertEqual(self.kept("(Patient ID: ABCD1234)", "Patient ID: ABCD1234", "ID"), "ABCD1234")
         self.assertEqual(self.kept("plan #DB-2345678.", "#DB-2345678", "ID"), "DB2345678")
@@ -171,14 +194,14 @@ class N2c2ConversionTest(unittest.TestCase):
         self.assertEqual(report["alignment_methods"], {"exact": 7, "nearest": 1})
         self.assertEqual(len(row["source_tags"]), 8)
 
-    def test_policy_aligned_view_neutralises_out_of_policy_spans_and_young_ages(self):
+    def test_policy_aligned_view_neutralises_out_of_policy_spans_and_keeps_all_ages(self):
         text = "Lorna Vexley, 64, from Ohio; aged 93."
         spans = [{"start": 0, "end": 12, "label": "NAME"},
                  {"start": 14, "end": 16, "label": "AGE"},
                  {"start": 23, "end": 27, "label": "LOCATION", "in_policy": False},
                  {"start": 34, "end": 36, "label": "AGE"}]
         kept = [label for label, _ in gold_values(text, spans)]
-        self.assertEqual(kept, ["NAME", "AGE"])
+        self.assertEqual(kept, ["NAME", "AGE", "AGE"])
 
     def test_unknown_subtype_is_an_error(self):
         import tempfile

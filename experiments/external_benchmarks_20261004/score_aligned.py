@@ -13,21 +13,31 @@ from predictions:
 
 * every character that is not a letter or digit (a leaked space, comma or
   "#" reveals nothing);
-* NAME: leading honorifics and trailing credentials (policy: NAME excludes
-  honorifics and credentials);
+* NAME: leading honorifics and professional titles, including spelled-out
+  "Doctor" and "Professor", and trailing credentials or titles ("Jan
+  Aerschot, Doctor") (policy: NAME excludes honorifics and credentials);
 * identifiers (MRN, SSN, ACCOUNT, ID): the field label before the first token
   that contains a digit ("Patient ID:", "record");
 * DATE: relative expressions ("last week", "last Friday"), and the relative
   word in "last December" (policy: relative expressions are not annotated);
 * LOCATION: lowercase words and generic unit words inside the span ("our
   Chicago clinic", "Mayo Clinic in Rochester"), since the policy keeps
-  prepositions and generic care-site words outside place spans;
+  prepositions and generic care-site words outside place spans; and a whole
+  span that is only a country or a first-level subdivision such as a Belgian
+  or Dutch province (places addendum N4: a state, country or larger region
+  alone is not PHI);
+* FACILITY: lowercase words inside the span ("burn centre at Middelheim"),
+  since the policy keeps department and generic care-site words outside;
+* AGE: units, suffixes and sex markers ("23 years", "65-year-old"), since the
+  policy annotates the age value only. Ages of every value count (policy
+  change 2026-10-06; view version 2 onward);
 * outside gold: explicit ages up to 89 (``score.age_characters``) and bare
   four-digit years. Safe Harbor permits both; the project policy masks a
   patient-specific year and the benchmark never annotates one.
 
-Writes ``results/<benchmark>.aligned.json`` and ``.aligned.md`` and leaves the
-as-published results untouched.
+Writes ``results/<benchmark>.aligned2.json`` and ``.aligned2.md`` and leaves the
+as-published results and earlier views (``.aligned.*``, view 1, which treated
+ages of 89 and under as neutral) untouched.
 """
 from __future__ import annotations
 
@@ -51,8 +61,8 @@ from clinical_deid.evaluation.evaluate import (  # noqa: E402
 )
 
 IDENTIFIERS = {"MRN", "SSN", "ACCOUNT", "ID"}
-_HONORIFIC = re.compile(r"^(?:(?:Dr|Mr|Mrs|Ms|Miss|Mx|Prof|Rev)\.?\s+)+", re.I)
-_CREDENTIAL = re.compile(r"(?:,?\s+(?:MD|DO|RN|NP|PA-C|PhD|DDS|FACP))+\.?$")
+_HONORIFIC = re.compile(r"^(?:(?:Dr|Mr|Mrs|Ms|Miss|Mx|Prof|Rev|Doctor|Professor)\.?\s+)+", re.I)
+_CREDENTIAL = re.compile(r"(?:,?\s+(?:MD|DO|RN|NP|PA-C|PhD|DDS|FACP|[Dd]octor|[Pp]rofessor))+\.?$")
 _RELATIVE_LEAD = re.compile(r"^(?:last|next|this|past|previous|early|late)\s+", re.I)
 _RELATIVE_UNIT = re.compile(
     r"^(?:week|weekend|month|year|night|morning|evening|spring|summer|fall|autumn|winter"
@@ -62,6 +72,24 @@ _RELATIVE_UNIT = re.compile(
     re.I,
 )
 _GENERIC_UNITS = {"ER", "ED", "ICU", "OR", "PACU", "NICU"}
+_NUMBER_WORDS = (
+    "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|"
+    "fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|"
+    "eighty|ninety|hundred"
+)
+_NUMBER_WORDS = "|".join(sorted(_NUMBER_WORDS.split("|"), key=len, reverse=True))
+_AGE_VALUE = re.compile(rf"\d+|\b(?:{_NUMBER_WORDS})(?:[- ](?:{_NUMBER_WORDS}))*\b", re.I)
+# Countries and first-level subdivisions (state equivalents) that are not PHI
+# alone under places addendum N4. Names that are also a city (Antwerp, Liège,
+# Namur, Groningen, Utrecht) are left out: they stay required.
+_NOT_PHI_ALONE = {
+    "belgium", "the netherlands", "netherlands", "holland", "france", "germany",
+    "luxembourg", "flanders", "wallonia", "limburg", "east flanders", "west flanders",
+    "flemish brabant", "walloon brabant", "hainaut", "north brabant", "south holland",
+    "north holland", "gelderland", "overijssel", "drenthe", "friesland", "zeeland",
+    "flevoland",
+}
+VIEW = "aligned2"
 _BARE_YEAR = re.compile(r"(?<![\w/.-])(?:19|20)\d{2}(?![\w/.-]|-\d)")
 
 
@@ -92,13 +120,18 @@ def neutral_in_span(text: str, start: int, end: int, label: str) -> set[int]:
         if _RELATIVE_UNIT.match(rest.strip()):
             neutral.update(range(start, end))
     elif label == "AGE":
-        number = re.search(r"\d+", value)
-        if number and int(number.group()) <= 89:
-            neutral.update(range(start, end))
-    elif label == "LOCATION":
+        values = {start + i for m in _AGE_VALUE.finditer(value) for i in range(m.start(), m.end())}
+        if values:
+            neutral.update(set(range(start, end)) - values)
+    elif label in ("LOCATION", "FACILITY"):
+        kept = []
         for word in re.finditer(r"[\w'’-]+", value):
-            if word.group()[0].islower() or word.group() in _GENERIC_UNITS:
+            if word.group()[0].islower() or (label == "LOCATION" and word.group() in _GENERIC_UNITS):
                 neutral.update(range(start + word.start(), start + word.end()))
+            else:
+                kept.append(word.group())
+        if label == "LOCATION" and " ".join(kept).lower() in _NOT_PHI_ALONE:
+            neutral.update(range(start, end))
     return neutral
 
 
@@ -174,7 +207,7 @@ def score(benchmark: str, system: str) -> dict:
     return {
         "benchmark": benchmark,
         "system": system,
-        "view": "policy-aligned; see score_aligned.py docstring",
+        "view": f"policy-aligned ({VIEW}); see score_aligned.py docstring",
         "value_character_recall": covered / gold_total,
         "value_character_recall_wilson_lower_95": wilson_lower(covered, gold_total),
         "value_characters": gold_total,
@@ -197,10 +230,10 @@ def score(benchmark: str, system: str) -> dict:
 def summary_table(benchmark: str, results: list[dict]) -> str:
     def pct(value):
         return "–" if value is None else f"{100 * value:.2f}%"
-    labels = [g for g in ("NAME", "ID", "MRN", "SSN", "PHONE", "EMAIL", "LOCATION", "DATE")
+    labels = [g for g in ("NAME", "ID", "MRN", "SSN", "PHONE", "EMAIL", "URL", "ADDRESS", "LOCATION", "FACILITY", "DATE", "AGE")
               if g in results[0]["per_label"]]
     lines = [
-        f"## {benchmark}: policy-aligned masking",
+        f"## {benchmark}: policy-aligned masking ({VIEW})",
         "",
         "Neutral characters (convention and requirement differences) are excluded "
         "for every system; see `score_aligned.py`.",
@@ -230,9 +263,9 @@ def main() -> None:
     parser.add_argument("--systems", nargs="+", required=True)
     args = parser.parse_args()
     results = [score(args.benchmark, system) for system in args.systems]
-    write_json(RESULTS / f"{args.benchmark}.aligned.json", results)
+    write_json(RESULTS / f"{args.benchmark}.{VIEW}.json", results)
     table = summary_table(args.benchmark, results)
-    (RESULTS / f"{args.benchmark}.aligned.md").write_text(table, encoding="utf-8")
+    (RESULTS / f"{args.benchmark}.{VIEW}.md").write_text(table, encoding="utf-8")
     print(table)
 
 

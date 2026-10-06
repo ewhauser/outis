@@ -371,6 +371,33 @@ annotates every age and the project policy masks only ages over 89; MedDeID
 redacts twice as much non-PHI text (1.61% against 0.74%). The benchmark is
 saturated and does not separate strong systems.
 
+### Aligned view 2 (2026-10-06)
+
+`score_aligned.py` now writes `results/<benchmark>.aligned2.*`; the earlier
+`.aligned.*` files are kept as view 1. View 2 applies the all-ages policy and
+the conventions in MedDeID's published annotation guidelines (read without
+inspecting any benchmark note or failure). Every rule comes from our policy:
+
+| Change | Policy basis |
+|---|---|
+| Ages of every value are required; units and suffixes in an AGE span are neutral (`23 years`, `65-year-old`) | AGE row: every age, value only |
+| Spelled-out titles in NAME are neutral (`Doctor Geraert`, `Jan Aerschot, Doctor`) | NAME excludes honorifics |
+| Lowercase words in FACILITY are neutral (`burn centre at Middelheim`) | Department and generic care-site words stay outside |
+| A LOCATION span that is only a country or a province is neutral | Places addendum N4 |
+
+On ASQ-PHI nothing changes. On `meddeid_en` the name and place gaps are
+unchanged (NAME 95.50% for RoBERTa mix6 against 99.84%; LOCATION 26 of 30
+against 29 of 30): none of the gold names carried a spelled-out title, and no
+place span was a country or province alone. These are model misses under our
+own policy, not convention differences. FACILITY gains one span (135 of 141).
+AGE is now scored: 0 of 100 for both project models, which were trained before
+the all-ages change, against 100 for MedDeID. On Technetium-I, AGE is 7.14%
+against 91.02%, and indirect recall 75.11% against 97.59%.
+
+MedDeID's healthcare organisation label also covers ward, room and route
+codes, hospital software, file names and health-insurance funds. The policy
+does not decide these, so view 2 still counts them as required.
+
 ## Restricted benchmark: n2c2 2014
 
 The n2c2 (i2b2/UTHealth) 2014 de-identification dataset is real clinical text
@@ -390,7 +417,7 @@ The owner approved its use for evaluation only on 2026-10-06 (AGENTS.md).
 - Native subtypes map to project types (`n2c2_2014.TYPE_MAP`); PROFESSION has
   no project type and is excluded from gold. The policy-aligned view
   (`score_aligned.py`) treats STATE, COUNTRY, DEPARTMENT, ORGANIZATION and ROOM
-  spans, and gold ages of 89 or under, as neutral.
+  spans as neutral; view 1 also treated gold ages of 89 or under as neutral.
 - Published n2c2 2014 results use specific matching rules (strict or relaxed
   spans, token or entity level, the full PHI set or a HIPAA subset). Match the
   metric exactly before comparing with any paper.
