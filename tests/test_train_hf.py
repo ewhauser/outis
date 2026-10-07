@@ -431,3 +431,39 @@ def test_whitespace_fallback_does_not_capture_nonphi_text_or_straddle_gold_bound
         text, [{"start": 0, "end": 5, "label": "NAME"}], [(0, 3), (3, 9)]
     )
     assert [train.TAGS[tag] for tag in tags] == ["S-NAME", "O"]
+
+
+def selection_report(direct, indirect, precision, typed_p=0.9, typed_r=0.9):
+    return {
+        "bank": {
+            "model": {
+                "typed_span": {"precision": typed_p, "recall": typed_r},
+                "privacy": {
+                    "direct_recall": direct,
+                    "indirect_recall": indirect,
+                    "name_recall": direct,
+                    "any_label_precision": precision,
+                },
+            }
+        }
+    }
+
+
+def test_privacy_selection_prefers_direct_recall_over_typed_spans():
+    better_typed = selection_report(0.9980, 0.9999, 0.99, typed_p=0.99, typed_r=0.99)
+    better_direct = selection_report(0.9990, 0.9990, 0.98, typed_p=0.90, typed_r=0.90)
+    assert train.selection_key(better_direct) > train.selection_key(better_typed)
+    assert train.selection_key(better_typed, "typed_min_pr") > train.selection_key(
+        better_direct, "typed_min_pr"
+    )
+
+
+def test_privacy_selection_ignores_sub_hundredth_point_recall_noise():
+    noisy = selection_report(0.99851, 0.9990, 0.97)
+    precise = selection_report(0.99849, 0.9990, 0.98)
+    assert train.selection_key(precise) > train.selection_key(noisy)
+
+
+def test_privacy_selection_skips_banks_without_a_measure():
+    report = selection_report(0.999, None, 0.99)
+    assert train.selection_key(report)[1] == 0.0

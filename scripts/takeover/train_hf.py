@@ -335,18 +335,52 @@ def evaluate_banks(model, tokenizer, config, banks, device, eval_batch):
                 "passed": result["goal"]["passed"],
                 "label_recall": {lab: result["per_label"][lab]["recall"] for lab in ENTITY_TYPES},
                 "label_fp": {lab: result["per_label"][lab]["false_positives"] for lab in ENTITY_TYPES},
+                "privacy": {
+                    "direct_recall": result["privacy"]["direct"]["recall"],
+                    "indirect_recall": result["privacy"]["indirect"]["recall"],
+                    "name_recall": result["privacy"]["per_label"]["NAME"]["recall"]
+                    if "NAME" in result["privacy"]["per_label"] else None,
+                    "any_label_precision": result["privacy"]["any_label_precision"]["precision"],
+                },
             }
         report[name] = entry
     model.train()
     return report
 
 
-def selection_score(report):
-    values = []
-    for entry in report.values():
-        ts = entry["model"]["typed_span"]
-        values.append(min(ts["precision"], ts["recall"]))
+SELECTION_METRICS = {
+    "privacy": "privacy_lexicographic: mean any-label direct recall, then indirect recall, then "
+               "any-label precision (each rounded to 4 decimals), then mean min(typed precision, recall)",
+    "typed_min_pr": "mean_bank_min_model_precision_recall",
+}
+
+
+def _mean(values):
+    values = [v for v in values if v is not None]
     return sum(values) / len(values) if values else 0.0
+
+
+def selection_score(report):
+    """Mean over banks of min(typed precision, typed recall): the pre-2026-10-07 rule."""
+    return _mean(min(e["model"]["typed_span"]["precision"], e["model"]["typed_span"]["recall"])
+                 for e in report.values())
+
+
+def selection_key(report, metric="privacy"):
+    """Comparable key for checkpoint selection; larger is better.
+
+    The privacy rule follows GOALS.md's order: direct identifiers masked first,
+    then indirect, then any-label precision, with exact typed spans last. It
+    reads the any-label measures, which convention or relabel noise in exact
+    typed spans does not move. Rounding to 4 decimals (0.01 points) keeps a
+    one-span difference in recall from deciding over a larger change below it.
+    """
+    typed = round(selection_score(report), 6)
+    if metric == "typed_min_pr":
+        return (typed,)
+    privacy = [e["model"]["privacy"] for e in report.values()]
+    return tuple(round(_mean(p[k] for p in privacy), 4)
+                 for k in ("direct_recall", "indirect_recall", "any_label_precision")) + (typed,)
 
 
 def main():
@@ -372,6 +406,8 @@ def main():
     parser.add_argument("--log-every", type=int, default=50)
     parser.add_argument("--resume-weights", help="weights-only restart from a local hf/ directory; resets optimizer, schedule, RNG and step count")
     parser.add_argument("--amp", choices=("none", "bf16"), default="none")
+    parser.add_argument("--selection-metric", choices=tuple(SELECTION_METRICS), default="privacy",
+                        help="checkpoint selection rule; typed_min_pr reproduces runs before 2026-10-07")
     args = parser.parse_args()
     training_script_sha256 = sha256_file(Path(__file__))
 
@@ -499,7 +535,7 @@ def main():
                 "corpus_audit": corpus_audit, "initialization": initialization,
                 "status": status, "last_evaluated_step": history[-1]["step"] if history else None,
                 "completed_steps": step, "planned_steps": total_steps,
-                "selection_metric": "mean_bank_min_model_precision_recall" if select_banks else "latest_checkpoint_no_selection",
+                "selection_metric": SELECTION_METRICS[args.selection_metric] if select_banks else "latest_checkpoint_no_selection",
                 "device": args.device, "torch": torch.__version__,
                 "deberta_gather_free_attention": gather_free_attention}
 
@@ -537,14 +573,16 @@ def main():
                 running, running_batches = 0.0, 0
             if step % eval_interval == 0 or step >= total_steps:
                 report = evaluate_banks(model, tokenizer, config, select_banks, args.device, args.eval_batch) if select_banks else {}
-                score = selection_score(report)
-                history.append({"step": step, "epoch_fraction": step / steps_per_epoch, "score": score, "report": report})
+                key = list(selection_key(report, args.selection_metric))
+                score = key[0]
+                history.append({"step": step, "epoch_fraction": step / steps_per_epoch, "score": score,
+                                "selection_key": key, "report": report})
                 log({"event": "eval", "step": step, "score": score,
                      "summary": {k: {b: {m: round(v["typed_span"][m], 5) for m in ("precision", "recall", "f1")}
                                      for b, v in e.items()} for k, e in report.items()}})
-                improved = best is None or not select_banks or score > best["score"]
+                improved = best is None or not select_banks or key > best["selection_key"]
                 if improved:
-                    best = {"step": step, "score": score, "checkpoint": f"step-{step:06d}"}
+                    best = {"step": step, "score": score, "selection_key": key, "checkpoint": f"step-{step:06d}"}
                 save_evaluation(output, model, tokenizer, config, make_summary("training"), improved)
             if step >= total_steps:
                 done = True
