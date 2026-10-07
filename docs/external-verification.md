@@ -398,6 +398,28 @@ MedDeID's healthcare organisation label also covers ward, room and route
 codes, hospital software, file names and health-insurance funds. The policy
 does not decide these, so view 2 still counts them as required.
 
+## Aligned view 3 and DeBERTa, 2026-10-07
+
+View 2's credential list lacked British and Commonwealth degrees, so a name
+written "Dr Elys Tate, MBBS" counted "MBBS" as a missed name. On `meddeid_en`
+27 of `deberta_mix7_001`'s 28 NAME misses were that word. View 3 adds those
+credentials (MBBS, MBChB, MRCP, FRCP, FRCS and others) and further US
+credentials; ASQ-PHI and Technetium are unchanged. The scorer now also reports
+miss shapes and convention-gap flags; under view 2's rules they flag NAME
+`trailing:caps_abbreviation` on `meddeid_en` without printing any text.
+
+**`meddeid_en` is development evidence from 2026-10-07.** Finding the MBBS gap
+involved printing missed NAME contexts from it, which the uninspected rule
+forbids. It still writes no failure examples, but results on it are no longer
+independent of the project's choices. Technetium remains uninspected.
+
+Under view 3, `deberta_mix7_001` epoch 2 is level with MedDeID on its own
+benchmark: value-character recall 99.13% against 99.19%, NAME 99.84% each,
+indirect 96.84% against 96.21%, leak-free notes 94.33% against 93.00%, and
+non-PHI redaction 0.01% against 0.15%. MedDeID misses fewer locations and
+facilities; DeBERTa misses fewer dates and emails. Full tables:
+`results/COMPARISON.md`.
+
 ## Restricted benchmark: n2c2 2014
 
 The n2c2 (i2b2/UTHealth) 2014 de-identification dataset is real clinical text
@@ -424,6 +446,15 @@ The owner approved its use for evaluation only on 2026-10-06 (AGENTS.md).
 
 ## Reading results
 
+- **Compare systems on `results/COMPARISON.md`.** Lead with the policy-aligned
+  columns: they score every system under this project's policy. Quote the
+  as-published columns beside them, never instead.
+- **Rule out a convention gap before blaming a model.** Each
+  `<benchmark>.<view>.md` describes every partly covered span by the position
+  and shape of what was left uncovered (for example
+  `trailing:caps_abbreviation`), without any text, and flags shapes that recur
+  for most systems. A flagged shape usually means the neutral rules miss a
+  convention: fix the rules in a new view, do not compare under the old one.
 - **Lead with character recall and non-PII redaction together.** Either can be
   maximised alone; the pair shows the actual trade-off.
 - **Check the scope.** ASQ-PHI and SPY are short synthetic texts. Only n2c2 2014

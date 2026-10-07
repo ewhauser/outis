@@ -49,7 +49,9 @@ from pathlib import Path
 import re
 import sys
 
-from common import RESULTS, ROOT, corpus_path, digest, write_json
+from collections import Counter
+
+from common import RESULTS, ROOT, corpus_path, digest, write_json, writes_failures
 from labels import COARSE, project_label
 from score import age_characters, load_predictions, merge_names
 
@@ -147,8 +149,8 @@ def bare_year_characters(text: str) -> set[int]:
     return {i for m in _BARE_YEAR.finditer(text) for i in range(m.start(), m.end())}
 
 
-def gold_values(text: str, spans: list[dict]) -> list[tuple[str, set[int]]]:
-    """(label, policy value characters) per gold span; spans left empty are dropped."""
+def gold_value_spans(text: str, spans: list[dict]) -> list[tuple[str, set[int], dict]]:
+    """(label, policy value characters, gold span) per gold span; empty ones are dropped."""
     out = []
     for span in spans:
         if span.get("in_policy") is False:
@@ -156,8 +158,55 @@ def gold_values(text: str, spans: list[dict]) -> list[tuple[str, set[int]]]:
         chars = _value(text, span["start"], span["end"]) - neutral_in_span(
             text, span["start"], span["end"], span["label"])
         if chars:
-            out.append((span["label"], chars))
+            out.append((span["label"], chars, span))
     return out
+
+
+def gold_values(text: str, spans: list[dict]) -> list[tuple[str, set[int]]]:
+    """(label, policy value characters) per gold span; spans left empty are dropped."""
+    return [(label, chars) for label, chars, _ in gold_value_spans(text, spans)]
+
+
+def _runs(positions: list[int]) -> list[tuple[int, int]]:
+    """Group sorted character positions into [start, end) runs, joining across non-alphanumerics."""
+    runs: list[list[int]] = []
+    for i in positions:
+        if runs and i == runs[-1][1]:
+            runs[-1][1] = i + 1
+        else:
+            runs.append([i, i + 1])
+    return [(a, b) for a, b in runs]
+
+
+def miss_shapes(text: str, chars: set[int], missing: set[int]) -> list[str]:
+    """Describe the uncovered value characters of a partly masked span by position and shape.
+
+    Shapes never contain text, so they are safe to report for uninspected and
+    restricted benchmarks. A shape that recurs across many spans for every
+    system usually means a convention the neutral rules do not yet cover (view
+    2's missing MBBS showed up as ``trailing:caps_abbreviation``).
+    """
+    first, last = min(chars), max(chars)
+    ordered = sorted(chars)
+    # Treat value characters as contiguous even across spaces and punctuation.
+    index = {pos: n for n, pos in enumerate(ordered)}
+    shapes = []
+    for a, b in _runs(sorted(index[i] for i in missing)):
+        start, end = ordered[a], ordered[b - 1] + 1
+        where = "leading" if start == first else "trailing" if end == last + 1 else "interior"
+        words = re.findall(r"[^\W_]+", text[start:end])
+        if all(w.isdigit() for w in words):
+            shape = "digits"
+        elif all(w.isupper() and 2 <= len(w) <= 7 for w in words) and not text[first:last + 1].isupper():
+            shape = "caps_abbreviation"
+        elif all(w.islower() for w in words):
+            shape = "lowercase_words"
+        elif len(words) == 1 and words[0][:1].isupper() and len(words[0]) <= 9 and where == "leading":
+            shape = "title_like_word"
+        else:
+            shape = "other"
+        shapes.append(f"{where}:{shape}")
+    return shapes
 
 
 def score(benchmark: str, system: str) -> dict:
@@ -167,6 +216,10 @@ def score(benchmark: str, system: str) -> dict:
     phi_docs = leak_free = negatives = negatives_clean = 0
     per_label: dict[str, dict] = {}
     by_doc: dict[str, list[tuple[int, int]]] = {"direct": [], "indirect": [], "NAME": []}
+    misses: dict[str, dict] = {}
+    fragments: dict[str, Counter] = {}
+    # Uncovered text is reported only for inspectable benchmarks; shapes always.
+    inspectable = writes_failures(benchmark)
     for row in rows:
         text = row["text"]
         mapped = []
@@ -175,9 +228,23 @@ def score(benchmark: str, system: str) -> dict:
             mapped.append({"start": span["start"], "end": span["end"], "label": COARSE[label] if label else None})
         predicted = {i for s in merge_names(mapped, text) for i in range(s["start"], s["end"])}
         all_gold = {i for s in row["spans"] for i in range(s["start"], s["end"])}
-        values = gold_values(text, row["spans"])
+        valued = gold_value_spans(text, row["spans"])
+        values = [(label, chars) for label, chars, _ in valued]
         dropped += len(row["spans"]) - len(values)
         value_chars = set().union(*(chars for _, chars in values)) if values else set()
+        for label, chars, span in valued:
+            missing = chars - predicted
+            if not missing:
+                continue
+            entry = misses.setdefault(label, {"not_detected": 0, "partly_covered": 0, "shapes": Counter()})
+            if missing == chars:
+                entry["not_detected"] += 1
+                continue
+            entry["partly_covered"] += 1
+            entry["shapes"].update(miss_shapes(text, chars, missing))
+            if inspectable:
+                fragment = " ".join("".join(text[i] if i in missing else " " for i in range(min(chars), max(chars) + 1)).split())
+                fragments.setdefault(label, Counter())[fragment.casefold()] += 1
         neutral_outside = age_characters(text) | bare_year_characters(text)
         outside = {i for i, c in enumerate(text) if c.isalnum()} - all_gold - neutral_outside
         gold_total += len(value_chars)
@@ -226,6 +293,11 @@ def score(benchmark: str, system: str) -> dict:
         "name": group("NAME"),
         "per_label": dict(sorted(per_label.items())),
         "gold_spans_entirely_neutral": dropped,
+        "misses": {label: {"not_detected": v["not_detected"], "partly_covered": v["partly_covered"],
+                           "partial_shapes": dict(v["shapes"].most_common())}
+                   for label, v in sorted(misses.items())},
+        "uncovered_fragments": ({label: dict(c.most_common(10)) for label, c in sorted(fragments.items())}
+                                if inspectable else "not reported: benchmark is uninspected or restricted"),
         "phi_documents_leak_free": {"count": leak_free, "documents": phi_docs, "rate": leak_free / phi_docs},
         "hard_negatives_clean": {"count": negatives_clean, "documents": negatives,
                                  "rate": negatives_clean / negatives if negatives else None},
@@ -262,7 +334,34 @@ def summary_table(benchmark: str, results: list[dict]) -> str:
     support = {g: results[0]["per_label"][g]["support"] for g in labels}
     lines += ["", "Span support after neutralisation: " + ", ".join(f"{g} {n}" for g, n in support.items())
               + f". Gold spans with no policy value left: {results[0]['gold_spans_entirely_neutral']}."]
+    lines += ["", "### Misses: check for convention gaps before blaming a model", "",
+              "Partly covered spans are described by where and what is left uncovered. A shape that "
+              "recurs for every system (for example `trailing:caps_abbreviation`) is usually a "
+              "convention the neutral rules miss, not a model error.", "",
+              "| System | Label | Not detected | Partly covered | Most common uncovered shapes |", "|---|---|---:|---:|---|"]
+    for r in results:
+        for label, m in r.get("misses", {}).items():
+            shapes = ", ".join(f"`{k}` {v}" for k, v in list(m["partial_shapes"].items())[:3]) or "–"
+            lines.append(f"| {r['system']} | {label} | {m['not_detected']} | {m['partly_covered']} | {shapes} |")
+    flagged = convention_flags(results)
+    if flagged:
+        lines += ["", "**Possible convention gaps** (same shape for most systems, at least "
+                  f"{FLAG_MIN} spans each): " + "; ".join(f"{label} `{shape}`" for label, shape in flagged) + "."]
     return "\n".join(lines) + "\n"
+
+
+FLAG_MIN = 5
+
+
+def convention_flags(results: list[dict]) -> list[tuple[str, str]]:
+    """(label, shape) pairs that at least FLAG_MIN partial misses share in most systems."""
+    counts: Counter = Counter()
+    for r in results:
+        for label, m in r.get("misses", {}).items():
+            for shape, n in m["partial_shapes"].items():
+                if n >= FLAG_MIN:
+                    counts[(label, shape)] += 1
+    return sorted(key for key, n in counts.items() if n > len(results) / 2)
 
 
 def main() -> None:

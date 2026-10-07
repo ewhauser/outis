@@ -12,7 +12,7 @@ from asq_phi import align, parse  # noqa: E402
 from common import windows  # noqa: E402
 from labels import project_label  # noqa: E402
 from score import age_characters, merge_names  # noqa: E402
-from score_aligned import bare_year_characters, gold_values  # noqa: E402
+from score_aligned import bare_year_characters, convention_flags, gold_values, miss_shapes  # noqa: E402
 import common  # noqa: E402
 import n2c2_2014  # noqa: E402
 
@@ -213,6 +213,35 @@ class N2c2ConversionTest(unittest.TestCase):
             path.write_bytes(bad)
             with self.assertRaises(ValueError):
                 n2c2_2014.convert_files([path])
+
+
+class MissShapeTest(unittest.TestCase):
+    def shapes(self, text, value, covered):
+        start = text.index(value)
+        chars = {i for i in range(start, start + len(value)) if text[i].isalnum()}
+        cov = text.index(covered)
+        missing = chars - set(range(cov, cov + len(covered)))
+        return miss_shapes(text, chars, missing)
+
+    def test_trailing_credential_is_a_caps_abbreviation(self):
+        self.assertEqual(self.shapes("by Elys Tate, MBBS today", "Elys Tate, MBBS", "Elys Tate"),
+                         ["trailing:caps_abbreviation"])
+
+    def test_names_in_an_all_caps_note_are_not_abbreviations(self):
+        self.assertEqual(self.shapes("SEEN BY ELYS TATE TODAY", "ELYS TATE", "ELYS"), ["trailing:other"])
+
+    def test_leading_title_and_lowercase_words(self):
+        self.assertEqual(self.shapes("seen by Sister Mae Ong", "Sister Mae Ong", "Mae Ong"),
+                         ["leading:title_like_word"])
+        self.assertEqual(self.shapes("our Chicago clinic", "Chicago clinic", "Chicago"),
+                         ["trailing:lowercase_words"])
+
+    def test_flags_need_most_systems_to_share_a_recurring_shape(self):
+        def result(n):
+            return {"misses": {"NAME": {"partial_shapes": {"trailing:caps_abbreviation": n}}}}
+        self.assertEqual(convention_flags([result(27), result(27), result(0)]),
+                         [("NAME", "trailing:caps_abbreviation")])
+        self.assertEqual(convention_flags([result(27), result(2), result(0)]), [])
 
 
 if __name__ == "__main__":
