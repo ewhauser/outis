@@ -15,7 +15,8 @@ from predictions:
   "#" reveals nothing);
 * NAME: leading honorifics and professional titles, including spelled-out
   "Doctor" and "Professor", and trailing credentials or titles ("Jan
-  Aerschot, Doctor") (policy: NAME excludes honorifics and credentials);
+  Aerschot, Doctor", "Elys Tate, MBBS") (policy: NAME excludes honorifics
+  and credentials);
 * identifiers (MRN, SSN, ACCOUNT, ID): the field label before the first token
   that contains a digit ("Patient ID:", "record");
 * DATE: relative expressions ("last week", "last Friday"), and the relative
@@ -35,9 +36,10 @@ from predictions:
   four-digit years. Safe Harbor permits both; the project policy masks a
   patient-specific year and the benchmark never annotates one.
 
-Writes ``results/<benchmark>.aligned2.json`` and ``.aligned2.md`` and leaves the
-as-published results and earlier views (``.aligned.*``, view 1, which treated
-ages of 89 and under as neutral) untouched.
+Writes ``results/<benchmark>.aligned3.json`` and ``.aligned3.md`` and leaves the
+as-published results and earlier views untouched: ``.aligned.*`` (view 1,
+which treated ages of 89 and under as neutral) and ``.aligned2.*`` (view 2,
+whose credential list lacked British degrees such as MBBS).
 """
 from __future__ import annotations
 
@@ -62,7 +64,13 @@ from clinical_deid.evaluation.evaluate import (  # noqa: E402
 
 IDENTIFIERS = {"MRN", "SSN", "ACCOUNT", "ID"}
 _HONORIFIC = re.compile(r"^(?:(?:Dr|Mr|Mrs|Ms|Miss|Mx|Prof|Rev|Doctor|Professor)\.?\s+)+", re.I)
-_CREDENTIAL = re.compile(r"(?:,?\s+(?:MD|DO|RN|NP|PA-C|PhD|DDS|FACP|[Dd]octor|[Pp]rofessor))+\.?$")
+# View 3 adds British and Commonwealth medical degrees and fellowships (MBBS,
+# MBChB, MRCP ...) and further US nursing and pharmacy credentials.
+_CREDENTIAL = re.compile(
+    r"(?:,?\s+(?:MD|DO|RN|NP|PA-C|PhD|DDS|FACP|MBBS|MBChB|MB ChB|BMBS|BM BCh|MRCP|FRCP|MRCGP|FRCGP"
+    r"|MRCS|FRCS|FRCA|FRCR|FRCPath|MRCPCH|FRCPCH|MRCOG|FRCOG|FRACP|FRCPC|APRN|DNP|FNP|PharmD|MPH"
+    r"|[Dd]octor|[Pp]rofessor))+\.?$"
+)
 _RELATIVE_LEAD = re.compile(r"^(?:last|next|this|past|previous|early|late)\s+", re.I)
 _RELATIVE_UNIT = re.compile(
     r"^(?:week|weekend|month|year|night|morning|evening|spring|summer|fall|autumn|winter"
@@ -89,7 +97,7 @@ _NOT_PHI_ALONE = {
     "north holland", "gelderland", "overijssel", "drenthe", "friesland", "zeeland",
     "flevoland",
 }
-VIEW = "aligned2"
+VIEW = "aligned3"
 _BARE_YEAR = re.compile(r"(?<![\w/.-])(?:19|20)\d{2}(?![\w/.-]|-\d)")
 
 

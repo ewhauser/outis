@@ -98,6 +98,8 @@ class PolicyAlignedNeutralTest(unittest.TestCase):
 
     def test_honorific_and_credentials_are_neutral(self):
         self.assertEqual(self.kept("Seen by Dr. Anna Smith, MD today.", "Dr. Anna Smith, MD", "NAME"), "AnnaSmith")
+        self.assertEqual(self.kept("Validated by: Dr Elys Tate, MBBS", "Dr Elys Tate, MBBS", "NAME"), "ElysTate")
+        self.assertEqual(self.kept("Signed, Mae Ong, MBChB, MRCP", "Mae Ong, MBChB, MRCP", "NAME"), "MaeOng")
 
     def test_spelled_out_professional_titles_are_neutral(self):
         self.assertEqual(self.kept("Validated by Doctor Geraert.", "Doctor Geraert", "NAME"), "Geraert")
