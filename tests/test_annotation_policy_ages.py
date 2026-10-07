@@ -17,3 +17,8 @@ def test_all_ages_decisions():
     assert [v for _, v in gold("ages_any_value")] == ["72", "89", "93", "six"]
     assert gold("ages_of_relatives") == [("AGE", "seventy-two"), ("AGE", "58")]
     assert gold("public_ages_and_durations") == []
+
+
+def test_hypothetical_ages_and_decades_2026_10_07():
+    assert gold("hypothetical_ages") == []
+    assert [v for _, v in gold("decades")] == ["seventies", "40s", "sixties"]

@@ -56,11 +56,11 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
 - [FHIR bank brief](fhir-bank-brief.md): tk20, FHIR resources, bundles and
   narratives.
 - [Care-site boundaries bank brief](care-site-boundaries-bank-brief.md): tk21,
-  long US care-site names, names used as addresses, city with state. Draft.
+  long US care-site names, names used as addresses, city with state. Ready.
 - [Word-surnames bank brief](word-surnames-bank-brief.md): tk22, names that
-  are ordinary words, and transcript speaker labels. Draft.
+  are ordinary words, and transcript speaker labels. Ready.
 - [Age contexts bank brief](age-contexts-bank-brief.md): tk23, ages in context
-  with hypothetical and guideline decoys; two policy decisions. Draft.
+  with hypothetical and guideline decoys. Ready.
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 

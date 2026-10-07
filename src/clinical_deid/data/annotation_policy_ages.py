@@ -3,7 +3,9 @@
 Detection annotates every age of the patient or a relative or household
 member; the request policy decides what is removed. Supersedes the age
 examples in ``POLICY_FIXTURES`` that leave ages of 89 and under unannotated.
-Every value is invented.
+Decisions of 2026-10-07: a hypothetical, example or template person's age is
+not annotated, and a decade of any age is AGE on the decade word. Every value
+is invented.
 """
 
 from __future__ import annotations
@@ -26,5 +28,17 @@ AGE_FIXTURES = (
         "public_ages_and_durations",
         "Screen from age 45 per guideline; 5-year survival; 10-year history of asthma.",
         ["public_age", "durations"],
+    ),
+    _example(
+        "hypothetical_ages",
+        "A comparison exercise described a person aged 46; for example, a 50-year-old "
+        "would qualify; if a patient were 70, the dose would change.",
+        ["hypothetical_age"],
+    ),
+    _example(
+        "decades",
+        "A woman in her [[AGE|seventies]]; her brother is in his [[AGE|40s]]; "
+        "father in his early [[AGE|sixties]]; the 1970s were hard.",
+        ["decade_age", "all_ages"],
     ),
 )

@@ -50,7 +50,7 @@ dictionary of common names.
 | Plausible personal names | `Zoë O’Rían-Soto`, `Ana María de la Cruz`, the personal `Wilson` in a named person | Honorifics such as `Dr.`, credentials such as `MD`, a disease eponym such as `Wilson disease` |
 | Aliases | A preferred or otherwise explicitly established personal alias, including an occurrence before its full identity when the document establishes the relationship | Ambiguous ordinary words without personal naming evidence |
 | DATE | Complete patient-specific dates, partial dates and patient-specific years; `October 2, 2024`, `March 2021`, `1930` in `born in 1930`. A written date range is one span including its connector: `03/02/2024 to 03/09/2024`, `March 2-9, 2024`, `March 28 - April 4, 2024` | Public study years, publication dates, durations, doses and clinical stages; a leading `from` or `between` before a range; dates written as a separate list (`on 03/02/2024 and 03/09/2024`) are separate spans |
-| AGE | The numeric or spelled-out age value of the patient or of a relative or household member, at any age (changed 2026-10-06: previously only ages over 89), including ages in months, weeks or days for infants | Prefixes, units, suffixes, sex markers; public or guideline ages (`screen from age 45`), durations (`5-year survival`, `10-year history`) |
+| AGE | The numeric or spelled-out age value of the patient or of a relative or household member, at any age (changed 2026-10-06: previously only ages over 89), including ages in months, weeks or days for infants | Prefixes, units, suffixes, sex markers; public or guideline ages (`screen from age 45`), durations (`5-year survival`, `10-year history`); a hypothetical, example or template person's age (`a person aged 46 in this exercise`, `if a patient were 70`; 2026-10-07) |
 | LOCATION | The maximal authored locality expression, e.g. `Cedar Haven, UT` or `North Cedar Haven` | Prepositions and adjacent facility/address fields |
 | FACILITY | The authored facility name, e.g. `Silver Finch Medical Center`, including an `at <name>` continuation such as `Lakeshore Family Medicine at Ellery Falls` | An adjacent locality introduced by `in` or a comma; an `at` locality with a state or postal qualifier (`Brackenwheel Health Center` at `Brackenford, NM`); an adjacent address; the parent facility of a named unit (`Larkspur Ward` at `Mossmere Health Hub` is two FACILITY spans) |
 | ADDRESS | The complete authored address as one span | Nested LOCATION annotations, field labels, trailing sentence punctuation |
@@ -127,7 +127,7 @@ Not every row has an executable fixture yet.
 | DATE | A patient-specific year alone, including years in history and screening lists (`bone density scan 2011`, `shingles vaccine 2019`, `cholecystectomy (1988)`) | DATE. Stricter than Safe Harbor, which permits a year alone; kept so years can be shifted consistently with full dates. Owner decision, 2026-10-05 |
 | DATE | A written date range | One DATE span, as in the table above |
 | DATE | A diagnosis-onset, year-range or future patient-specific year (`diagnosed in 1997`, `smoked 1984-2003`, `next due 2028`) | DATE; a year range is one span |
-| AGE | A decade over 89, such as `nineties` | AGE |
+| AGE | A decade, such as `seventies`, `40s` or `nineties` | AGE on the decade word (changed 2026-10-07: previously only over 89); `in her`, `early` and `late` outside |
 | PHONE | Extension | Inside the span |
 | PHONE | Leading `+1` country code | Inside the span |
 | PHONE | Fax numbers | PHONE |
