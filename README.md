@@ -8,7 +8,7 @@ Local PHI detection, typed redaction and patient-consistent synthetic
 replacement for English clinical text.
 
 The detector is a fully fine-tuned
-[ModernBERT-base](https://huggingface.co/answerdotai/ModernBERT-base) token
+[DeBERTa-v3-base](https://huggingface.co/microsoft/deberta-v3-base) token
 classifier with a constrained BIOES decoder. There is no rule layer: every
 detected span comes from the model. Everything runs on your machine; no text
 is sent to a hosted service. It ships as a Python library, a CLI and a FastAPI
@@ -46,8 +46,8 @@ uv venv --python 3.13
 uv pip install --python .venv/bin/python -e .
 ```
 
-The default model is `models/takeover-mbbase-mix5-001/step-003803`. Its
-configuration and tokenizer are in the repository; the 599 MB weight file
+The default model is `models/takeover-deberta-mix9c-001/step-000845`. Its
+configuration and tokenizer are in the repository; the 736 MB weight file
 (`hf/model.safetensors`) is not, and must be placed there from the project's
 model store. Add the `pdf` extra (`-e '.[pdf]'`) for PDF file input.
 
@@ -99,12 +99,12 @@ secret in `.cache/local-api-secret`. For other deployments, see
 ## How it works
 
 ```
-text ─▶ ModernBERT-base token classifier (overlapping 512-token windows)
+text ─▶ DeBERTa-v3-base token classifier (overlapping 512-token windows)
           └─▶ constrained BIOES decoder ─▶ spans at original offsets ─▶ redact / replace
 ```
 
-The default model was fine-tuned on 93,805 synthetic notes from 34 banks
-written by the generators and independent authors in this repository. No real
+The default model was fine-tuned on about 116,000 synthetic notes from 46
+banks written by the generators and independent authors in this repository. No real
 clinical data was used for training. See the [model card](MODEL_CARD.md).
 
 ## Results
@@ -112,19 +112,23 @@ clinical data was used for training. See the [model card](MODEL_CARD.md).
 These figures come from synthetic or public benchmarks and are **not**
 estimates of accuracy on real clinical notes.
 
-**Default model (mix5 epoch 1), held-out synthetic authors.** Two
-development banks written by authors the training data never saw. "Masked"
-means every character of a gold span is covered under any label.
+**Default model (`deberta_mix9c_001`), held-out synthetic author.**
+`heldout_dev_v2`, 2,400 notes by an author the training data never saw.
+"Masked" means every character of a gold span is covered under any label.
 
-| Bank | Direct identifiers masked | NAME masked (document 95% lower bound) | Indirect masked | Any-label precision | Exact typed F1 |
-|---|---:|---:|---:|---:|---:|
-| Geriatric | 99.78% | 99.75% (99.65%) | 99.49% | 99.80% | 99.24% |
-| Primary care | 99.71% | 99.62% (99.35%) | 98.10% | 99.77% | 99.16% |
+| Model | Direct identifiers masked | NAME masked (document 95% lower bound) | Indirect masked | Any-label precision | Exact typed F1 | PHI notes fully masked |
+|---|---:|---:|---:|---:|---:|---:|
+| Default (DeBERTa-v3, mix9c) | 99.27% | 99.55% (99.41%) | 99.22% | 99.66% | 97.29% | 81.71% |
+| Previous default (ModernBERT, mix5) | 93.69% | 95.34% (94.81%) | 94.91% | 98.77% | 91.43% | 23.15% |
 
-**Sealed places bank.** Held-out real city, abbreviation and short care-site
-names: 97.36% of characters masked; all public-reference negative families
-(instruments, diseases, cited institutions, states, place-words) left
-untouched. See [mix5 results](reports/takeover/mix5_001/RESULTS.md).
+**Sealed places bank (`blind_places_v3`, scored once).** Held-out real city,
+abbreviation and short care-site names: 98.69% of place characters masked
+(mix5: 96.87%); public-reference negatives left untouched in at least 99.29%
+of documents per family. See the
+[promotion record](reports/takeover/deberta_mix9c_001/promotion_v3/RESULT.md).
+
+**Public synthetic benchmarks** (policy-aligned):
+[external comparison](experiments/external_benchmarks_20261004/results/COMPARISON.md).
 
 Historical results for the removed adapter detector, including the V14
 qualification and the ASQ-PHI comparison, are in the
@@ -180,5 +184,5 @@ If you use this project, please cite it using [CITATION.cff](CITATION.cff).
 
 Source code and the fine-tuned model are licensed under
 [Apache-2.0](LICENSE). Generated synthetic corpus text and annotations are
-dedicated to the public domain under CC0-1.0. The ModernBERT-base base model
-is Apache-2.0; see [NOTICE](NOTICE).
+dedicated to the public domain under CC0-1.0. The DeBERTa-v3-base base model
+is MIT-licensed; see [NOTICE](NOTICE).

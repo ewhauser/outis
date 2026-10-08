@@ -1,8 +1,13 @@
 Clinical Deidentifier
 Copyright 2026
 
-The default detector is fine-tuned from ModernBERT-base, Copyright Answer.AI,
-licensed under the Apache License, Version 2.0.
+The default detector is fine-tuned from DeBERTa-v3-base, Copyright Microsoft
+Corporation, licensed under the MIT License.
+Source: https://huggingface.co/microsoft/deberta-v3-base
+
+Earlier detector checkpoints, and candidates that may still be trained, are
+fine-tuned from ModernBERT-base, Copyright Answer.AI, licensed under the Apache
+License, Version 2.0.
 Source: https://huggingface.co/answerdotai/ModernBERT-base
 
 The optional `generators` extra uses OpenAI Privacy Filter (`opf`), Copyright

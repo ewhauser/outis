@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Default model.** The default detector is now DeBERTa-v3-base
+  `deberta_mix9c_001` step 845 (`models/takeover-deberta-mix9c-001/step-000845`),
+  promoted on 2026-10-08 after the GOALS.md regression rules and the sealed
+  `blind_places_v3` diagnostic with independent reviews. On the held-out
+  synthetic author it masks 99.27% of direct identifiers against mix5's
+  93.69%. Its 736 MB weights are not in git. Known limitation: fewer care-site
+  abbreviations masked in clinician shorthand than mix5.
 - **Ages.** The annotation policy now detects every age of the patient or a
   relative or household member (previously only ages over 89). A new request
   policy setting, `ages`, controls release: `over_89` (default) leaves ages of
