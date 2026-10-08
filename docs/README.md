@@ -64,7 +64,7 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
 - [Age contexts bank brief](age-contexts-bank-brief.md): tk23, ages in context
   with hypothetical and guideline decoys. Ready.
 - [Instrument eponyms bank brief](instrument-eponyms-bank-brief.md): tk24,
-  named instruments, scores and eponyms in shorthand and fields. Draft.
+  named instruments, scores and eponyms in shorthand and fields. Ready.
 - [HTML evaluation reports](html-reports.md): building and reading the report
   page.
 
