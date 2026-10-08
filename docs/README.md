@@ -39,7 +39,7 @@ candidates are compared. Agents should also read [AGENTS.md](../AGENTS.md).
 - [Blind places bank brief](blind-places-bank-brief.md): the isolated
   diagnostic bank for place-recognition work.
 - [Blind places v2 bank brief](blind-places-v2-bank-brief.md): the same
-  diagnostic under the all-ages convention, with fresh held-out values. Draft.
+  diagnostic under the all-ages convention, with fresh held-out values. Approved.
 - [Care-site and locality bank brief](care-site-locality-bank-brief.md):
   brief for the tk13 training bank, ready to author.
 - [Targeted gaps bank brief](targeted-gaps-bank-brief.md): brief for the
