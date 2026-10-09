@@ -9,6 +9,15 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - **Default model.** The default detector is now DeBERTa-v3-base
+  `deberta_mix9_001` step 9288 (`models/takeover-deberta-mix9-001/step-009288`),
+  promoted by the owner on 2026-10-09. It passed the GOALS.md regression rules
+  (direct identifiers 99.64% against 99.27%, NAME 99.79%) and the place-recall
+  rules of `blind_places_v3`, but failed that bank's rule 2: 96 of 100
+  region-only PHI-free documents left untouched against 100. The owner
+  overrode the failure (`reports/takeover/deberta_mix9_001/promotion_v3/OWNER_DECISION.md`).
+  Known regressions: slightly more over-redaction of bare states and regions,
+  and indirect recall 98.97% against 99.22% (care sites).
+- **Default model (2026-10-08).** The default detector became DeBERTa-v3-base
   `deberta_mix9c_001` step 845 (`models/takeover-deberta-mix9c-001/step-000845`),
   promoted on 2026-10-08 after the GOALS.md regression rules and the sealed
   `blind_places_v3` diagnostic with independent reviews. On the held-out

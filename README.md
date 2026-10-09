@@ -46,7 +46,7 @@ uv venv --python 3.13
 uv pip install --python .venv/bin/python -e .
 ```
 
-The default model is `models/takeover-deberta-mix9c-001/step-000845`. Its
+The default model is `models/takeover-deberta-mix9-001/step-009288`. Its
 configuration and tokenizer are in the repository; the 736 MB weight file
 (`hf/model.safetensors`) is not, and must be placed there from the project's
 model store. Add the `pdf` extra (`-e '.[pdf]'`) for PDF file input.
@@ -112,20 +112,23 @@ clinical data was used for training. See the [model card](MODEL_CARD.md).
 These figures come from synthetic or public benchmarks and are **not**
 estimates of accuracy on real clinical notes.
 
-**Default model (`deberta_mix9c_001`), held-out synthetic author.**
+**Default model (`deberta_mix9_001`), held-out synthetic author.**
 `heldout_dev_v2`, 2,400 notes by an author the training data never saw.
 "Masked" means every character of a gold span is covered under any label.
 
 | Model | Direct identifiers masked | NAME masked (document 95% lower bound) | Indirect masked | Any-label precision | Exact typed F1 | PHI notes fully masked |
 |---|---:|---:|---:|---:|---:|---:|
-| Default (DeBERTa-v3, mix9c) | 99.27% | 99.55% (99.41%) | 99.22% | 99.66% | 97.29% | 81.71% |
-| Previous default (ModernBERT, mix5) | 93.69% | 95.34% (94.81%) | 94.91% | 98.77% | 91.43% | 23.15% |
+| Default (DeBERTa-v3, mix9) | 99.64% | 99.79% (99.71%) | 98.97% | 99.63% | 97.34% | 81.90% |
+| Previous default (DeBERTa-v3, mix9c) | 99.27% | 99.55% (99.41%) | 99.22% | 99.66% | 97.29% | 81.71% |
+| ModernBERT, mix5 | 93.69% | 95.34% (94.81%) | 94.91% | 98.77% | 91.43% | 23.15% |
 
-**Sealed places bank (`blind_places_v3`, scored once).** Held-out real city,
-abbreviation and short care-site names: 98.69% of place characters masked
-(mix5: 96.87%); public-reference negatives left untouched in at least 99.29%
-of documents per family. See the
-[promotion record](reports/takeover/deberta_mix9c_001/promotion_v3/RESULT.md).
+**Sealed places bank (`blind_places_v3`).** Held-out real city,
+abbreviation and short care-site names: 98.81% of place characters masked
+(previous default: 98.69%). Region-only PHI-free documents were left
+untouched in 96% of cases against 100%, which failed the bank's
+false-positive rule; the owner promoted the model anyway. See the
+[result](reports/takeover/deberta_mix9_001/promotion_v3/RESULT.md) and the
+[owner decision](reports/takeover/deberta_mix9_001/promotion_v3/OWNER_DECISION.md).
 
 **Public synthetic benchmarks** (policy-aligned):
 [external comparison](experiments/external_benchmarks_20261004/results/COMPARISON.md).

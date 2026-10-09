@@ -15,7 +15,7 @@ restarts. A configured `DEID_SECRET` takes precedence. Preserve the key to keep
 patient mappings stable; do not commit it or share it with API clients.
 
 `clinical-deid serve` is the packaged equivalent. It reads `DEID_MODEL_DIR`
-(default `models/takeover-deberta-mix9c-001/step-000845`) and refuses to start
+(default `models/takeover-deberta-mix9-001/step-009288`) and refuses to start
 without a fine-tuned encoder checkpoint there. On Apple silicon, set
 `DEID_DEVICE=mps`; CPU is supported.
 

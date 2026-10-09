@@ -1,0 +1,1600 @@
+{
+ "encoder": "hf_token_classifier",
+ "base_model": "microsoft/deberta-v3-base",
+ "arguments": {
+  "model_name": "microsoft/deberta-v3-base",
+  "train": [
+   "data/v12_train__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/remediation_v1_train__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/v13_focused_train__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_admin__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__facat2__allages1__allages2.jsonl",
+   "data/tk_train_nursing__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__hdclean2__allages2.jsonl",
+   "data/tk_train_radiology__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_unicode__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_behavioral__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_ed__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_inpatient__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_letters__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_peds_ob__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_cardio__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_legal__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_pharmacy__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_pubhealth__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_surgery__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_oncology__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk_train_specialty__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+   "data/tk3_train_rehab__census1_v9clean__mix2heldoutclean__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+   "data/tk3_train_portal__census1_v9clean__mix2heldoutclean__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+   "data/tk3_train_infectious__census1_v9clean__mix2heldoutclean__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+   "data/tk3_train_community__census1_v9clean__mix2heldoutclean__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+   "data/tk4_train_correspondence__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+   "data/tk4_train_handoffs__mix3clean__allages1__allages2.jsonl",
+   "data/tk5_train_spoken_dates__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+   "data/tk6_train_long_observations__qa1__mix3clean__allages1__allages2.jsonl",
+   "data/tk7_train_identifier_contexts__allages1__allages2.jsonl",
+   "data/tk8_train_facility_contexts__allages1__allages2.jsonl",
+   "data/tk9_train_clinical_years_v2__allages1__allages2.jsonl",
+   "data/tk10_train_name_contexts__v4__allages1__allages2.jsonl",
+   "data/tk11_train_record_year_contexts__qa11r1__allages1__allages2.jsonl",
+   "data/tk12_train_provider_organizations__controlprose2__allages1__allages2.jsonl",
+   "data/places_train__mix3clean__allages1__allages2.jsonl",
+   "data/tk13_train_care_sites_localities__v4__allages1__allages2.jsonl",
+   "data/tk14_train_targeted_gaps__v3__allages1__allages2.jsonl",
+   "data/tk15_train_name_mentions__allages1__allages2.jsonl",
+   "data/tk16_train_transcripts__allages1__allages2.jsonl",
+   "data/tk17_train_lab_pathology__allages1__allages2.jsonl",
+   "data/tk18_train_radiology__allages1__allages2.jsonl",
+   "data/tk19_train_spoken_phi__hdclean__allages1__allages2.jsonl",
+   "data/tk20_train_fhir__allages1__allages2.jsonl",
+   "data/tk21_train_care_site_boundaries__mix3clean.jsonl",
+   "data/tk22_train_word_surnames__mix3clean.jsonl",
+   "data/tk23_train_age_contexts.jsonl",
+   "data/tk24_train_instrument_eponyms.jsonl"
+  ],
+  "select": [
+   "data/v12_validation__allages1__allages2.jsonl",
+   "data/remediation_v1_validation__allages1__allages2.jsonl",
+   "data/retired_v8_development_001__allages1__allages2.jsonl",
+   "data/tk_train_geriatric__census1_v9clean__allages1__allages2.jsonl",
+   "data/tk_train_primary__census1_v9clean__allages1__allages2.jsonl"
+  ],
+  "output": "models/takeover-deberta-mix9-001",
+  "epochs": 3.0,
+  "lr": 3e-05,
+  "batch_size": 32,
+  "grad_accum": 1,
+  "max_length": 512,
+  "warmup": 0.06,
+  "weight_decay": 0.01,
+  "seed": 20261010,
+  "device": "mps",
+  "eval_batch": 8,
+  "limit_train": null,
+  "limit_select": null,
+  "max_steps": null,
+  "eval_every": 1.0,
+  "log_every": 25,
+  "resume_weights": null,
+  "amp": "none",
+  "selection_metric": "privacy"
+ },
+ "alignment": {
+  "conflict_tokens": 0,
+  "misaligned_spans": 17,
+  "unrepresented_spans": 0,
+  "spans": 1262294,
+  "documents": 115615,
+  "tokens": 32221861,
+  "windows": 148604
+ },
+ "best": {
+  "step": 9288,
+  "score": 0.9989,
+  "selection_key": [
+   0.9989,
+   0.9992,
+   0.979,
+   0.974944
+  ],
+  "checkpoint": "step-009288"
+ },
+ "history": [
+  {
+   "step": 4644,
+   "epoch_fraction": 1.0,
+   "score": 0.9984,
+   "selection_key": [
+    0.9984,
+    0.9988,
+    0.9839,
+    0.979606
+   ],
+   "report": {
+    "v12_validation__allages1__allages2": {
+     "model": {
+      "typed_span": {
+       "true_positives": 11874,
+       "false_positives": 134,
+       "false_negatives": 164,
+       "precision": 0.9888407728181212,
+       "recall": 0.9863764744974248,
+       "f1": 0.9876070864176995,
+       "support": 12038
+      },
+      "character_recall": 0.9993839343154038,
+      "gates": {
+       "typed_span_precision_at_least_99_percent": false,
+       "typed_span_recall_at_least_99_percent": false,
+       "typed_span_f1_at_least_99_percent": false,
+       "phi_character_recall_at_least_99_percent": true,
+       "recall_wilson_lower_95_at_least_99_percent": false,
+       "all_labels_have_sufficient_support": true,
+       "every_label_recall_at_least_99_percent": false
+      },
+      "passed": false,
+      "label_recall": {
+       "NAME": 0.9811104751001717,
+       "DATE": 1.0,
+       "ADDRESS": 1.0,
+       "PHONE": 1.0,
+       "EMAIL": 1.0,
+       "MRN": 0.8210382513661202,
+       "SSN": 1.0,
+       "ACCOUNT": 1.0,
+       "ID": 1.0,
+       "URL": 1.0,
+       "IP": 1.0,
+       "AGE": 1.0,
+       "LOCATION": 1.0,
+       "FACILITY": 1.0
+      },
+      "label_fp": {
+       "NAME": 3,
+       "DATE": 0,
+       "ADDRESS": 0,
+       "PHONE": 0,
+       "EMAIL": 0,
+       "MRN": 0,
+       "SSN": 0,
+       "ACCOUNT": 6,
+       "ID": 125,
+       "URL": 0,
+       "IP": 0,
+       "AGE": 0,
+       "LOCATION": 0,
+       "FACILITY": 0
+      },
+      "privacy": {
+       "direct_recall": 0.9956080153719462,
+       "indirect_recall": 1.0,
+       "name_recall": 0.9816828849456211,
+       "any_label_precision": 0.9998334443704198
+      }
+     }
+    },
+    "remediation_v1_validation__allages1__allages2": {
+     "model": {
+      "typed_span": {
+       "true_positives": 6164,
+       "false_positives": 15,
+       "false_negatives": 4,
+       "precision": 0.9975724227221233,
+       "recall": 0.9993514915693904,
+       "f1": 0.9984611646553818,
+       "support": 6168
+      },
+      "character_recall": 0.9999440715883668,
+      "gates": {
+       "typed_span_precision_at_least_99_percent": true,
+       "typed_span_recall_at_least_99_percent": true,
+       "typed_span_f1_at_least_99_percent": true,
+       "phi_character_recall_at_least_99_percent": true,
+       "recall_wilson_lower_95_at_least_99_percent": true,
+       "all_labels_have_sufficient_support": true,
+       "every_label_recall_at_least_99_percent": true
+      },
+      "passed": true,
+      "label_recall": {
+       "NAME": 0.9990389235944258,
+       "DATE": 1.0,
+       "ADDRESS": 1.0,
+       "PHONE": 1.0,
+       "EMAIL": 1.0,
+       "MRN": 1.0,
+       "SSN": 1.0,
+       "ACCOUNT": 1.0,
+       "ID": 0.9929078014184397,
+       "URL": 1.0,
+       "IP": 1.0,
+       "AGE": 1.0,
+       "LOCATION": 1.0,
+       "FACILITY": 1.0
+      },
+      "label_fp": {
+       "NAME": 3,
+       "DATE": 0,
+       "ADDRESS": 0,
+       "PHONE": 0,
+       "EMAIL": 0,
+       "MRN": 2,
+       "SSN": 0,
+       "ACCOUNT": 0,
+       "ID": 0,
+       "URL": 0,
+       "IP": 0,
+       "AGE": 10,
+       "LOCATION": 0,
+       "FACILITY": 0
+      },
+      "privacy": {
+       "direct_recall": 0.9995614996711247,
+       "indirect_recall": 1.0,
+       "name_recall": 0.9990389235944258,
+       "any_label_precision": 0.9982197766628904
+      }
+     }
+    },
+    "retired_v8_development_001__allages1__allages2": {
+     "model": {
+      "typed_span": {
+       "true_positives": 16632,
+       "false_positives": 1226,
+       "false_negatives": 0,
+       "precision": 0.9313472953298242,
+       "recall": 1.0,
+       "f1": 0.9644534647723978,
+       "support": 16632
+      },
+      "character_recall": 1.0,
+      "gates": {
+       "typed_span_precision_at_least_99_percent": false,
+       "typed_span_recall_at_least_99_percent": true,
+       "typed_span_f1_at_least_99_percent": false,
+       "phi_character_recall_at_least_99_percent": true,
+       "recall_wilson_lower_95_at_least_99_percent": true,
+       "all_labels_have_sufficient_support": true,
+       "every_label_recall_at_least_99_percent": true
+      },
+      "passed": false,
+      "label_recall": {
+       "NAME": 1.0,
+       "DATE": 1.0,
+       "ADDRESS": 1.0,
+       "PHONE": 1.0,
+       "EMAIL": 1.0,
+       "MRN": 1.0,
+       "SSN": 1.0,
+       "ACCOUNT": 1.0,
+       "ID": 1.0,
+       "URL": 1.0,
+       "IP": 1.0,
+       "AGE": 1.0,
+       "LOCATION": 1.0,
+       "FACILITY": 1.0
+      },
+      "label_fp": {
+       "NAME": 32,
+       "DATE": 0,
+       "ADDRESS": 0,
+       "PHONE": 0,
+       "EMAIL": 0,
+       "MRN": 0,
+       "SSN": 0,
+       "ACCOUNT": 0,
+       "ID": 0,
+       "URL": 0,
+       "IP": 0,
+       "AGE": 1194,
+       "LOCATION": 0,
+       "FACILITY": 0
+      },
+      "privacy": {
+       "direct_recall": 1.0,
+       "indirect_recall": 1.0,
+       "name_recall": 1.0,
+       "any_label_precision": 0.9313472953298242
+      }
+     }
+    },
+    "tk_train_geriatric__census1_v9clean__allages1__allages2": {
+     "model": {
+      "typed_span": {
+       "true_positives": 45722,
+       "false_positives": 472,
+       "false_negatives": 311,
+       "precision": 0.9897822227994978,
+       "recall": 0.9932439771468294,
+       "f1": 0.9915100783935291,
+       "support": 46033
+      },
+      "character_recall": 0.998735602756229,
+      "gates": {
+       "typed_span_precision_at_least_99_percent": false,
+       "typed_span_recall_at_least_99_percent": true,
+       "typed_span_f1_at_least_99_percent": true,
+       "phi_character_recall_at_least_99_percent": true,
+       "recall_wilson_lower_95_at_least_99_percent": true,
+       "all_labels_have_sufficient_support": true,
+       "every_label_recall_at_least_99_percent": false
+      },
+      "passed": false,
+      "label_recall": {
+       "NAME": 0.9983018351136674,
+       "DATE": 0.9922954054307996,
+       "ADDRESS": 0.9965635738831615,
+       "PHONE": 1.0,
+       "EMAIL": 1.0,
+       "MRN": 1.0,
+       "SSN": 0.9943820224719101,
+       "ACCOUNT": 1.0,
+       "ID": 0.9985294117647059,
+       "URL": 1.0,
+       "IP": 1.0,
+       "AGE": 0.9873756694720734,
+       "LOCATION": 0.9502133712660028,
+       "FACILITY": 0.9805760214333556
+      },
+      "label_fp": {
+       "NAME": 37,
+       "DATE": 65,
+       "ADDRESS": 4,
+       "PHONE": 0,
+       "EMAIL": 0,
+       "MRN": 5,
+       "SSN": 0,
+       "ACCOUNT": 4,
+       "ID": 33,
+       "URL": 0,
+       "IP": 0,
+       "AGE": 122,
+       "LOCATION": 89,
+       "FACILITY": 113
+      },
+      "privacy": {
+       "direct_recall": 0.9992562567401733,
+       "indirect_recall": 0.9950008331944676,
+       "name_recall": 0.9991783073130649,
+       "any_label_precision": 0.9948045200675413
+      }
+     }
+    },
+    "tk_train_primary__census1_v9clean__allages1__allages2": {
+     "model": {
+      "typed_span": {
+       "true_positives": 53116,
+       "false_positives": 377,
+       "false_negatives": 195,
+       "precision": 0.9929523489054642,
+       "recall": 0.9963422183039148,
+       "f1": 0.9946443953409984,
+       "support": 53311
+      },
+      "character_recall": 0.9993220657021236,
+      "gates": {
+       "typed_span_precision_at_least_99_percent": true,
+       "typed_span_recall_at_least_99_percent": true,
+       "typed_span_f1_at_least_99_percent": true,
+       "phi_character_recall_at_least_99_percent": true,
+       "recall_wilson_lower_95_at_least_99_percent": true,
+       "all_labels_have_sufficient_support": true,
+       "every_label_recall_at_least_99_percent": false
+      },
+      "passed": false,
+      "label_recall": {
+       "NAME": 0.9951266336852986,
+       "DATE": 0.9996900506250646,
+       "ADDRESS": 0.9899569583931134,
+       "PHONE": 1.0,
+       "EMAIL": 1.0,
+       "MRN": 1.0,
+       "SSN": 1.0,
+       "ACCOUNT": 1.0,
+       "ID": 0.9992967651195499,
+       "URL": 1.0,
+       "IP": 1.0,
+       "AGE": 0.9950460014154282,
+       "LOCATION": 0.995475113122172,
+       "FACILITY": 0.9921210864607091
+      },
+      "label_fp": {
+       "NAME": 75,
+       "DATE": 62,
+       "ADDRESS": 13,
+       "PHONE": 0,
+       "EMAIL": 0,
+       "MRN": 9,
+       "SSN": 0,
+       "ACCOUNT": 0,
+       "ID": 44,
+       "URL": 47,
+       "IP": 0,
+       "AGE": 65,
+       "LOCATION": 32,
+       "FACILITY": 30
+      },
+      "privacy": {
+       "direct_recall": 0.9978242070908533,
+       "indirect_recall": 0.9989599902116726,
+       "name_recall": 0.9973787196337591,
+       "any_label_precision": 0.9951582450040192
+      }
+     }
+    }
+   }
+  },
+  {
+   "step": 9288,
+   "epoch_fraction": 2.0,
+   "score": 0.9989,
+   "selection_key": [
+    0.9989,
+    0.9992,
+    0.979,
+    0.974944
+   ],
+   "report": {
+    "v12_validation__allages1__allages2": {
+     "model": {
+      "typed_span": {
+       "true_positives": 11877,
+       "false_positives": 135,
+       "false_negatives": 161,
+       "precision": 0.9887612387612388,
+       "recall": 0.986625685329789,
+       "f1": 0.9876923076923078,
+       "support": 12038
+      },
+      "character_recall": 0.9994493572199628,
+      "gates": {
+       "typed_span_precision_at_least_99_percent": false,
+       "typed_span_recall_at_least_99_percent": false,
+       "typed_span_f1_at_least_99_percent": false,
+       "phi_character_recall_at_least_99_percent": true,
+       "recall_wilson_lower_95_at_least_99_percent": false,
+       "all_labels_have_sufficient_support": true,
+       "every_label_recall_at_least_99_percent": false
+      },
+      "passed": false,
+      "label_recall": {
+       "NAME": 0.9828277046365197,
+       "DATE": 1.0,
+       "ADDRESS": 1.0,
+       "PHONE": 1.0,
+       "EMAIL": 1.0,
+       "MRN": 0.8210382513661202,
+       "SSN": 1.0,
+       "ACCOUNT": 1.0,
+       "ID": 1.0,
+       "URL": 1.0,
+       "IP": 1.0,
+       "AGE": 1.0,
+       "LOCATION": 1.0,
+       "FACILITY": 1.0
+      },
+      "label_fp": {
+       "NAME": 4,
+       "DATE": 0,
+       "ADDRESS": 0,
+       "PHONE": 0,
+       "EMAIL": 0,
+       "MRN": 0,
+       "SSN": 0,
+       "ACCOUNT": 25,
+       "ID": 106,
+       "URL": 0,
+       "IP": 0,
+       "AGE": 0,
+       "LOCATION": 0,
+       "FACILITY": 0
+      },
+      "privacy": {
+       "direct_recall": 0.9960197639308263,
+       "indirect_recall": 1.0,
+       "name_recall": 0.9834001144819691,
+       "any_label_precision": 0.9997502497502497
+      }
+     }
+    },
+    "remediation_v1_validation__allages1__allages2": {
+     "model": {
+      "typed_span": {
+       "true_positives": 6166,
+       "false_positives": 18,
+       "false_negatives": 2,
+       "precision": 0.9970892626131953,
+       "recall": 0.9996757457846952,
+       "f1": 0.998380829015544,
+       "support": 6168
+      },
+      "character_recall": 0.9999440715883668,
+      "gates": {
+       "typed_span_precision_at_least_99_percent": true,
+       "typed_span_recall_at_least_99_percent": true,
+       "typed_span_f1_at_least_99_percent": true,
+       "phi_character_recall_at_least_99_percent": true,
+       "recall_wilson_lower_95_at_least_99_percent": true,
+       "all_labels_have_sufficient_support": true,
+       "every_label_recall_at_least_99_percent": true
+      },
+      "passed": true,
+      "label_recall": {
+       "NAME": 0.9990389235944258,
+       "DATE": 1.0,
+       "ADDRESS": 1.0,
+       "PHONE": 1.0,
+       "EMAIL": 1.0,
+       "MRN": 1.0,
+       "SSN": 1.0,
+       "ACCOUNT": 1.0,
+       "ID": 1.0,
+       "URL": 1.0,
+       "IP": 1.0,
+       "AGE": 1.0,
+       "LOCATION": 1.0,
+       "FACILITY": 1.0
+      },
+      "label_fp": {
+       "NAME": 8,
+       "DATE": 0,
+       "ADDRESS": 0,
+       "PHONE": 0,
+       "EMAIL": 0,
+       "MRN": 0,
+       "SSN": 0,
+       "ACCOUNT": 0,
+       "ID": 0,
+       "URL": 0,
+       "IP": 0,
+       "AGE": 10,
+       "LOCATION": 0,
+       "FACILITY": 0
+      },
+      "privacy": {
+       "direct_recall": 0.9995614996711247,
+       "indirect_recall": 1.0,
+       "name_recall": 0.9990389235944258,
+       "any_label_precision": 0.9974126778783958
+      }
+     }
+    },
+    "retired_v8_development_001__allages1__allages2": {
+     "model": {
+      "typed_span": {
+       "true_positives": 16632,
+       "false_positives": 1663,
+       "false_negatives": 0,
+       "precision": 0.909100847226018,
+       "recall": 1.0,
+       "f1": 0.9523864059323732,
+       "support": 16632
+      },
+      "character_recall": 1.0,
+      "gates": {
+       "typed_span_precision_at_least_99_percent": false,
+       "typed_span_recall_at_least_99_percent": true,
+       "typed_span_f1_at_least_99_percent": false,
+       "phi_character_recall_at_least_99_percent": true,
+       "recall_wilson_lower_95_at_least_99_percent": true,
+       "all_labels_have_sufficient_support": true,
+       "every_label_recall_at_least_99_percent": true
+      },
+      "passed": false,
+      "label_recall": {
+       "NAME": 1.0,
+       "DATE": 1.0,
+       "ADDRESS": 1.0,
+       "PHONE": 1.0,
+       "EMAIL": 1.0,
+       "MRN": 1.0,
+       "SSN": 1.0,
+       "ACCOUNT": 1.0,
+       "ID": 1.0,
+       "URL": 1.0,
+       "IP": 1.0,
+       "AGE": 1.0,
+       "LOCATION": 1.0,
+       "FACILITY": 1.0
+      },
+      "label_fp": {
+       "NAME": 32,
+       "DATE": 0,
+       "ADDRESS": 0,
+       "PHONE": 0,
+       "EMAIL": 0,
+       "MRN": 0,
+       "SSN": 0,
+       "ACCOUNT": 0,
+       "ID": 0,
+       "URL": 0,
+       "IP": 0,
+       "AGE": 1631,
+       "LOCATION": 0,
+       "FACILITY": 0
+      },
+      "privacy": {
+       "direct_recall": 1.0,
+       "indirect_recall": 1.0,
+       "name_recall": 1.0,
+       "any_label_precision": 0.909100847226018
+      }
+     }
+    },
+    "tk_train_geriatric__census1_v9clean__allages1__allages2": {
+     "model": {
+      "typed_span": {
+       "true_positives": 45779,
+       "false_positives": 490,
+       "false_negatives": 254,
+       "precision": 0.989409755992133,
+       "recall": 0.9944822192774748,
+       "f1": 0.9919395029360144,
+       "support": 46033
+      },
+      "character_recall": 0.9991706810624706,
+      "gates": {
+       "typed_span_precision_at_least_99_percent": false,
+       "typed_span_recall_at_least_99_percent": true,
+       "typed_span_f1_at_least_99_percent": true,
+       "phi_character_recall_at_least_99_percent": true,
+       "recall_wilson_lower_95_at_least_99_percent": true,
+       "all_labels_have_sufficient_support": true,
+       "every_label_recall_at_least_99_percent": false
+      },
+      "passed": false,
+      "label_recall": {
+       "NAME": 0.9993974253629143,
+       "DATE": 0.9924833223715118,
+       "ADDRESS": 1.0,
+       "PHONE": 1.0,
+       "EMAIL": 1.0,
+       "MRN": 1.0,
+       "SSN": 1.0,
+       "ACCOUNT": 1.0,
+       "ID": 0.9990196078431373,
+       "URL": 1.0,
+       "IP": 1.0,
+       "AGE": 0.9965570007651109,
+       "LOCATION": 0.94950213371266,
+       "FACILITY": 0.9819156061620897
+      },
+      "label_fp": {
+       "NAME": 130,
+       "DATE": 63,
+       "ADDRESS": 0,
+       "PHONE": 0,
+       "EMAIL": 0,
+       "MRN": 5,
+       "SSN": 0,
+       "ACCOUNT": 0,
+       "ID": 34,
+       "URL": 0,
+       "IP": 0,
+       "AGE": 84,
+       "LOCATION": 101,
+       "FACILITY": 73
+      },
+      "privacy": {
+       "direct_recall": 0.9998140641850434,
+       "indirect_recall": 0.9971671388101983,
+       "name_recall": 0.9998356614626129,
+       "any_label_precision": 0.9939268192526314
+      }
+     }
+    },
+    "tk_train_primary__census1_v9clean__allages1__allages2": {
+     "model": {
+      "typed_span": {
+       "true_positives": 53144,
+       "false_positives": 402,
+       "false_negatives": 167,
+       "precision": 0.9924924364098159,
+       "recall": 0.9968674382397629,
+       "f1": 0.9946751265710247,
+       "support": 53311
+      },
+      "character_recall": 0.9994945757689939,
+      "gates": {
+       "typed_span_precision_at_least_99_percent": true,
+       "typed_span_recall_at_least_99_percent": true,
+       "typed_span_f1_at_least_99_percent": true,
+       "phi_character_recall_at_least_99_percent": true,
+       "recall_wilson_lower_95_at_least_99_percent": true,
+       "all_labels_have_sufficient_support": true,
+       "every_label_recall_at_least_99_percent": true
+      },
+      "passed": true,
+      "label_recall": {
+       "NAME": 0.996308055822196,
+       "DATE": 0.9995867341667528,
+       "ADDRESS": 0.9971305595408895,
+       "PHONE": 1.0,
+       "EMAIL": 1.0,
+       "MRN": 1.0,
+       "SSN": 1.0,
+       "ACCOUNT": 1.0,
+       "ID": 1.0,
+       "URL": 1.0,
+       "IP": 1.0,
+       "AGE": 0.9957537154989384,
+       "LOCATION": 0.9941822882999354,
+       "FACILITY": 0.9904623678208584
+      },
+      "label_fp": {
+       "NAME": 120,
+       "DATE": 61,
+       "ADDRESS": 3,
+       "PHONE": 0,
+       "EMAIL": 0,
+       "MRN": 9,
+       "SSN": 0,
+       "ACCOUNT": 0,
+       "ID": 44,
+       "URL": 47,
+       "IP": 0,
+       "AGE": 59,
+       "LOCATION": 48,
+       "FACILITY": 11
+      },
+      "privacy": {
+       "direct_recall": 0.9988563139836537,
+       "indirect_recall": 0.999082344304417,
+       "name_recall": 0.9985601417706564,
+       "any_label_precision": 0.9946587980428043
+      }
+     }
+    }
+   }
+  }
+ ],
+ "training_script_sha256": "c52112ddae22c8fd869096e3fac765bb0ce807c93198570a02b26389fdeef549",
+ "corpus_audit": {
+  "test_used_for_training": false,
+  "current_run_test_used_for_training": false,
+  "train": [
+   {
+    "path": "data/v12_train__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "b40fb50250f7fb60252b4da1bd59047b0c3aa6428ae603fefa8cafd4f402e101",
+    "manifest_sha256": "b44f14f1a2e0b1a7b6b4bd6ea88301417475fde327f82b71188b88351211ae44",
+    "rows": 18035,
+    "annotation_policies": {
+     "clinical-phi-v2": 18035
+    },
+    "splits": {
+     "train": 18035
+    },
+    "suites": {
+     "training": 18035
+    },
+    "rows_used": 18035
+   },
+   {
+    "path": "data/remediation_v1_train__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "6096ea69e0cf3bf654c27d374ad14d1e8f4e57c047f1a47f150efedf928910e8",
+    "manifest_sha256": "e7f3c8f0f67a58b9ce9d7f5c56dc27d9f12858d96eaa760ceb9cbdb4713f6f0c",
+    "rows": 5085,
+    "annotation_policies": {
+     "clinical-phi-v2": 5085
+    },
+    "splits": {
+     "train": 5085
+    },
+    "suites": {
+     "training": 5085
+    },
+    "rows_used": 5085
+   },
+   {
+    "path": "data/v13_focused_train__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "dd275931a970516b12b8ac6a0cd13fba74617c41a76892feccb9f8164052f58e",
+    "manifest_sha256": "6d921d636bfa7a5e427456f425348e4396a4605d8710b7db3f8b3a1f75b20362",
+    "rows": 2970,
+    "annotation_policies": {
+     "clinical-phi-v2": 2970
+    },
+    "splits": {
+     "train": 2970
+    },
+    "suites": {
+     "training": 2970
+    },
+    "rows_used": 2970
+   },
+   {
+    "path": "data/tk_train_admin__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__facat2__allages1__allages2.jsonl",
+    "sha256": "066648b63728fbb693238eaf54e4fff2213c487f3a47fa69f8a14e78840cb2a2",
+    "manifest_sha256": "b5241585640d7c506b061bd18a99b5f3b9eb07247e2f669b05f9153d4f302d2a",
+    "rows": 2959,
+    "annotation_policies": {
+     "clinical-phi-v2": 2959
+    },
+    "splits": {
+     "train": 2959
+    },
+    "suites": {
+     "takeover_training_v1": 2959
+    },
+    "rows_used": 2959
+   },
+   {
+    "path": "data/tk_train_nursing__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__hdclean2__allages2.jsonl",
+    "sha256": "390ce63d6eb2be27ff9247200250541d546d020dbc8c3a356536a079a3d9e399",
+    "manifest_sha256": "13f39670c05b5f14d7c9294706575d902dba12a6ef2f976c1486d62f54024eef",
+    "rows": 2917,
+    "annotation_policies": {
+     "clinical-phi-v2": 2917
+    },
+    "splits": {
+     "train": 2917
+    },
+    "suites": {
+     "takeover_training_v1": 2917
+    },
+    "rows_used": 2917
+   },
+   {
+    "path": "data/tk_train_radiology__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "1d34df13ce9ccd6e43b611bf9307ea29bd5f09626d7b6a9fad08026391efd6c2",
+    "manifest_sha256": "b76b57c7a11faa063c88de6e684a353685006f064b7b2746d4ebac681954877c",
+    "rows": 2983,
+    "annotation_policies": {
+     "clinical-phi-v2": 2983
+    },
+    "splits": {
+     "train": 2983
+    },
+    "suites": {
+     "takeover_training_v1": 2983
+    },
+    "rows_used": 2983
+   },
+   {
+    "path": "data/tk_train_unicode__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "f9ed20ba79182a3e838267c0f2b179c54828f62f96560f13cfb0c3699343c8df",
+    "manifest_sha256": "47d8970728ec361490c5da5c39e52798fbe1e1accdb16bba88096c432dcd8c03",
+    "rows": 2964,
+    "annotation_policies": {
+     "clinical-phi-v2": 2964
+    },
+    "splits": {
+     "train": 2964
+    },
+    "suites": {
+     "takeover_training_v1": 2964
+    },
+    "rows_used": 2964
+   },
+   {
+    "path": "data/tk_train_behavioral__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "f09dc4fa05e008e955f188f7b12646814495e288f2b2cd1bb4680961c32881dc",
+    "manifest_sha256": "3f2e39b9c6782b886b2ba0effddc67b15c135d8177e196d5f5c98ead0bc1ea73",
+    "rows": 2913,
+    "annotation_policies": {
+     "clinical-phi-v2": 2913
+    },
+    "splits": {
+     "train": 2913
+    },
+    "suites": {
+     "takeover_training_v1": 2913
+    },
+    "rows_used": 2913
+   },
+   {
+    "path": "data/tk_train_ed__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "98392b051589290e326ef5e147c4124a3ae96fc9ae6f3e2ffd3fd71ccb566455",
+    "manifest_sha256": "6dddd92d014fcdfd3a40290de094ce53f72f138e3e3b9a1672f8907da3cdf916",
+    "rows": 2953,
+    "annotation_policies": {
+     "clinical-phi-v2": 2953
+    },
+    "splits": {
+     "train": 2953
+    },
+    "suites": {
+     "takeover_training_v1": 2953
+    },
+    "rows_used": 2953
+   },
+   {
+    "path": "data/tk_train_inpatient__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "5baddbf5a0ce76c2ee53b2c4eca28520e76061170bbb728461504ee439fa6c75",
+    "manifest_sha256": "71388ba1147e0288152f0ad1e3f07558f765d061d5ea941e774ba3a9618c573b",
+    "rows": 2912,
+    "annotation_policies": {
+     "clinical-phi-v2": 2912
+    },
+    "splits": {
+     "train": 2912
+    },
+    "suites": {
+     "takeover_training_v1": 2912
+    },
+    "rows_used": 2912
+   },
+   {
+    "path": "data/tk_train_letters__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "43afd55e40b4601d065bac30925b12429cb28e3e78852734f7ed54d42eb6cb71",
+    "manifest_sha256": "3dc4c225f121bc6112a72ce80e75e0c0c745dea8aa4fe4d833c717cb9ef0623e",
+    "rows": 2945,
+    "annotation_policies": {
+     "clinical-phi-v2": 2945
+    },
+    "splits": {
+     "train": 2945
+    },
+    "suites": {
+     "takeover_training_v1": 2945
+    },
+    "rows_used": 2945
+   },
+   {
+    "path": "data/tk_train_peds_ob__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "661854dbdb83cd3de897c2baba7a569d56888e9076976e5a5fddaa7170a0a35a",
+    "manifest_sha256": "f678827619db94ce5445eb42532ae5850abd4d6d3dcaa1ad25b7e5084465c601",
+    "rows": 2970,
+    "annotation_policies": {
+     "clinical-phi-v2": 2970
+    },
+    "splits": {
+     "train": 2970
+    },
+    "suites": {
+     "takeover_training_v1": 2970
+    },
+    "rows_used": 2970
+   },
+   {
+    "path": "data/tk_train_cardio__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "78d69e55c1ed218e852478a23cbcd7ac320c5ed1e897f2b169bebb0db23e0916",
+    "manifest_sha256": "7009e527e1f285d12a55bb0b624c75df97f46128260ea9d17ea717223b7b7825",
+    "rows": 2971,
+    "annotation_policies": {
+     "clinical-phi-v2": 2971
+    },
+    "splits": {
+     "train": 2971
+    },
+    "suites": {
+     "takeover_training_v1": 2971
+    },
+    "rows_used": 2971
+   },
+   {
+    "path": "data/tk_train_legal__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "803828a0880fac61c714ccb1782fa1c54cd3d46cfdd223f217bed2bdde3ec3c9",
+    "manifest_sha256": "fbf97fc9f5d4eea4dc5eae14afa94c072a1462b976476dce72aafd2d4155a09b",
+    "rows": 2887,
+    "annotation_policies": {
+     "clinical-phi-v2": 2887
+    },
+    "splits": {
+     "train": 2887
+    },
+    "suites": {
+     "takeover_training_v1": 2887
+    },
+    "rows_used": 2887
+   },
+   {
+    "path": "data/tk_train_pharmacy__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "8580d40929a693f8efed3bcee59be191ed3b31c4095bc3ca9d31131819733144",
+    "manifest_sha256": "ebb63d220075faf90e07386dd3b52e7e4a0bcfd7837fa457c655f88ab7c478b2",
+    "rows": 2956,
+    "annotation_policies": {
+     "clinical-phi-v2": 2956
+    },
+    "splits": {
+     "train": 2956
+    },
+    "suites": {
+     "takeover_training_v1": 2956
+    },
+    "rows_used": 2956
+   },
+   {
+    "path": "data/tk_train_pubhealth__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "17e014e1dbaf1c63a8b4af53d9af62613870ff4e6a1ee6d9b6e5c0929fdd04c0",
+    "manifest_sha256": "11362bfb5c1180a29877b0dc41ae17d2af38a36329dcfced4be5549a642634c9",
+    "rows": 2921,
+    "annotation_policies": {
+     "clinical-phi-v2": 2921
+    },
+    "splits": {
+     "train": 2921
+    },
+    "suites": {
+     "takeover_training_v1": 2921
+    },
+    "rows_used": 2921
+   },
+   {
+    "path": "data/tk_train_surgery__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "396229f95ee47ea3459eda20f91fce9c81e1129c614831455c55b5493a6e2219",
+    "manifest_sha256": "bdbbf026aedd86749b059fb719ad67040c560bb1f42dc544b6d7a54280ce605a",
+    "rows": 2976,
+    "annotation_policies": {
+     "clinical-phi-v2": 2976
+    },
+    "splits": {
+     "train": 2976
+    },
+    "suites": {
+     "takeover_training_v1": 2976
+    },
+    "rows_used": 2976
+   },
+   {
+    "path": "data/tk_train_oncology__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "7c572fdca7a64f8b68b080bb5bb7af86397bd89964c7453f555215a50105e156",
+    "manifest_sha256": "631d15c243ad3880fd74ba95fe24482c53f8648ea4c13021d1dc10fcccd13a90",
+    "rows": 2870,
+    "annotation_policies": {
+     "clinical-phi-v2": 2870
+    },
+    "splits": {
+     "train": 2870
+    },
+    "suites": {
+     "takeover_training_v1": 2870
+    },
+    "rows_used": 2870
+   },
+   {
+    "path": "data/tk_train_specialty__census1_v9clean__mix2heldoutclean__dateinterval1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "d3316c758770ee2f35ad8f5a052076fcce6f4ddc6643ba8bd898467a875f3609",
+    "manifest_sha256": "f9195f078bce1bf8a3a9506a1c93e77012dfd38f9759b50864a3e37b614b5855",
+    "rows": 2937,
+    "annotation_policies": {
+     "clinical-phi-v2": 2937
+    },
+    "splits": {
+     "train": 2937
+    },
+    "suites": {
+     "takeover_training_v1": 2937
+    },
+    "rows_used": 2937
+   },
+   {
+    "path": "data/tk3_train_rehab__census1_v9clean__mix2heldoutclean__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+    "sha256": "ef9578ccd49b00da5adce7814e41ed6a86029c416ec4547c1f07a069b1e2e341",
+    "manifest_sha256": "5642d1177581d44e0914a16f56b17f1361d751410b678aca26d0ebbbf4f4a1f5",
+    "rows": 1500,
+    "annotation_policies": {
+     "clinical-phi-v2": 1500
+    },
+    "splits": {
+     "train": 1500
+    },
+    "suites": {
+     "takeover_training_v1": 1500
+    },
+    "rows_used": 1500
+   },
+   {
+    "path": "data/tk3_train_portal__census1_v9clean__mix2heldoutclean__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+    "sha256": "9d3f96c2a362b92c31613fc06fc52fb4fcf55c0345091355c06284a69e9bf117",
+    "manifest_sha256": "c62386595566a1d61c0fc8930174df0d5cf007cd92c48fa0d96dbe5193ff901f",
+    "rows": 1500,
+    "annotation_policies": {
+     "clinical-phi-v2": 1500
+    },
+    "splits": {
+     "train": 1500
+    },
+    "suites": {
+     "takeover_training_v1": 1500
+    },
+    "rows_used": 1500
+   },
+   {
+    "path": "data/tk3_train_infectious__census1_v9clean__mix2heldoutclean__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+    "sha256": "b1cace36fa07a633e67df598c1bc2ffe233a8aaa5207b87bc94ee977825985f4",
+    "manifest_sha256": "2d78b3fe681ae0ed6cde2330eecd3504445bad5bac6009dd95242538c1779721",
+    "rows": 1500,
+    "annotation_policies": {
+     "clinical-phi-v2": 1500
+    },
+    "splits": {
+     "train": 1500
+    },
+    "suites": {
+     "takeover_training_v1": 1500
+    },
+    "rows_used": 1500
+   },
+   {
+    "path": "data/tk3_train_community__census1_v9clean__mix2heldoutclean__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+    "sha256": "cbd1b27b18b1f057069d76a7666c9c6e740f245ec954b65ab8b51f729d1f14c8",
+    "manifest_sha256": "b413ec53dfb87dbf714e84a64d1d98e7980bb78877a5f72cb70f74f99787324b",
+    "rows": 1500,
+    "annotation_policies": {
+     "clinical-phi-v2": 1500
+    },
+    "splits": {
+     "train": 1500
+    },
+    "suites": {
+     "takeover_training_v1": 1500
+    },
+    "rows_used": 1500
+   },
+   {
+    "path": "data/tk4_train_correspondence__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+    "sha256": "d1324cd59f1ac08a057a6989865b1f7c299310bedbb27ec9f8e8eeb7d6b16596",
+    "manifest_sha256": "e7d31e1411a0884fcbad71ea0b5952c400efee908ce4d4d9ea9db34c3c59a706",
+    "rows": 1000,
+    "annotation_policies": {
+     "clinical-phi-v2": 1000
+    },
+    "splits": {
+     "train": 1000
+    },
+    "suites": {
+     "takeover_training_v1": 1000
+    },
+    "rows_used": 1000
+   },
+   {
+    "path": "data/tk4_train_handoffs__mix3clean__allages1__allages2.jsonl",
+    "sha256": "44fdaf09e320ca9873550b694c7647831e964ea85a075afcc0b533092d143669",
+    "manifest_sha256": "9ce4ecc73ddbb5828aa398aa76fddd43077b49c34feb45120134924a60612290",
+    "rows": 1000,
+    "annotation_policies": {
+     "clinical-phi-v2": 1000
+    },
+    "splits": {
+     "train": 1000
+    },
+    "suites": {
+     "takeover_training_v1": 1000
+    },
+    "rows_used": 1000
+   },
+   {
+    "path": "data/tk5_train_spoken_dates__mix3clean__fieldlabel1__allages1__allages2.jsonl",
+    "sha256": "c69a05acf0f1ae666c137acd139d162212cef245f20a6193fbf5eebd73ce76a4",
+    "manifest_sha256": "c1bc1964a725c7a15d41ba594f2329c070e5317b62bbefdd36e782e58920d12e",
+    "rows": 600,
+    "annotation_policies": {
+     "clinical-phi-v2": 600
+    },
+    "splits": {
+     "train": 600
+    },
+    "suites": {
+     "takeover_training_v1": 600
+    },
+    "rows_used": 600
+   },
+   {
+    "path": "data/tk6_train_long_observations__qa1__mix3clean__allages1__allages2.jsonl",
+    "sha256": "c7616e68d282abbfca3f9537974070a13d272211b553e63d1e59ecbbf1b8e981",
+    "manifest_sha256": "c9b67f41e02b53db843d205b8a650b99cba63e2863af994f24de7e5093fafa88",
+    "rows": 986,
+    "annotation_policies": {
+     "clinical-phi-v2": 986
+    },
+    "splits": {
+     "train": 986
+    },
+    "suites": {
+     "unspecified": 986
+    },
+    "rows_used": 986
+   },
+   {
+    "path": "data/tk7_train_identifier_contexts__allages1__allages2.jsonl",
+    "sha256": "197c311180dae191bfd144124b9adb5bd1231eedb6f1f772b997d13c76cd7277",
+    "manifest_sha256": "c4fc595f1cfd6ec886d35ac11a2b9246b25ea74d381341afd7e5cdbb50e24984",
+    "rows": 1200,
+    "annotation_policies": {
+     "clinical-phi-v2": 1200
+    },
+    "splits": {
+     "train": 1200
+    },
+    "suites": {
+     "unspecified": 1200
+    },
+    "rows_used": 1200
+   },
+   {
+    "path": "data/tk8_train_facility_contexts__allages1__allages2.jsonl",
+    "sha256": "82f26b5ae0f4ae7e9a8a89fd841dd609d39a93567dc605fba2eb5ece699f3585",
+    "manifest_sha256": "02ae913074ff7d6e26be36d5e089862113d9b3139fbef9767012ffb4f618cca8",
+    "rows": 1720,
+    "annotation_policies": {
+     "clinical-phi-v2": 1720
+    },
+    "splits": {
+     "train": 1720
+    },
+    "suites": {
+     "train": 1720
+    },
+    "rows_used": 1720
+   },
+   {
+    "path": "data/tk9_train_clinical_years_v2__allages1__allages2.jsonl",
+    "sha256": "16d2c89c3820d58fae2657ec446cd5dce528945ea2fd370ce8475dde2ba0dbdc",
+    "manifest_sha256": "3a233f195bf05c1c1db743f053f62fbfbe1814ec5660d68b36837489f537e018",
+    "rows": 1400,
+    "annotation_policies": {
+     "clinical-phi-v2": 1400
+    },
+    "splits": {
+     "train": 1400
+    },
+    "suites": {
+     "train": 1400
+    },
+    "rows_used": 1400
+   },
+   {
+    "path": "data/tk10_train_name_contexts__v4__allages1__allages2.jsonl",
+    "sha256": "8ea79effe60bc23f764e43ef9d069ddc6303a678805ababf5f96fba2067a2470",
+    "manifest_sha256": "8c54710cc9ee8dc165f2338681eecb989870fe2e0de580ef8bbd66cd330f4c6b",
+    "rows": 1600,
+    "annotation_policies": {
+     "clinical-phi-v2": 1600
+    },
+    "splits": {
+     "train": 1600
+    },
+    "suites": {
+     "unspecified": 1600
+    },
+    "rows_used": 1600
+   },
+   {
+    "path": "data/tk11_train_record_year_contexts__qa11r1__allages1__allages2.jsonl",
+    "sha256": "8a289931a58ee8b15a008737dcb667920e4f94f50e26080cb17db13043e88c81",
+    "manifest_sha256": "5db414a34aa8a08bf449020ac379697232ee075b305b296dbb471679132b84db",
+    "rows": 1000,
+    "annotation_policies": {
+     "clinical-phi-v2": 1000
+    },
+    "splits": {
+     "train": 1000
+    },
+    "suites": {
+     "unspecified": 1000
+    },
+    "rows_used": 1000
+   },
+   {
+    "path": "data/tk12_train_provider_organizations__controlprose2__allages1__allages2.jsonl",
+    "sha256": "4e4bfc0f30e8eb8aa49f7c4b652b2c91464cfef31fcb9aab69e9fdd91a694196",
+    "manifest_sha256": "b2120375ce10913948ec51294eaf8648a0ce706f9ed085d3141b7fc0c056f0c4",
+    "rows": 1200,
+    "annotation_policies": {
+     "clinical-phi-v2": 1200
+    },
+    "splits": {
+     "train": 1200
+    },
+    "suites": {
+     "unspecified": 1200
+    },
+    "rows_used": 1200
+   },
+   {
+    "path": "data/places_train__mix3clean__allages1__allages2.jsonl",
+    "sha256": "99339f9ae171cebab58aced1e5358feeed8c0702ffff5e29771fa23a73d10a3a",
+    "manifest_sha256": "fb693e2dcb75ca821cac8981796d48947900050e7f63af87f1f50d3f22d5b4be",
+    "rows": 2974,
+    "annotation_policies": {
+     "clinical-phi-v2": 2974
+    },
+    "splits": {
+     "train": 2974
+    },
+    "suites": {
+     "training": 2974
+    },
+    "rows_used": 2974
+   },
+   {
+    "path": "data/tk13_train_care_sites_localities__v4__allages1__allages2.jsonl",
+    "sha256": "e3cbdce3ac3f4fc44ae088924109f1ccefdbec39cec6faca75c2bab77b2ea46a",
+    "manifest_sha256": "ea0641c626ad9ae590e03aa0d94deb63b3aad6dbba80395bbba1d4df4e1ba716",
+    "rows": 2800,
+    "annotation_policies": {
+     "clinical-phi-v2": 2800
+    },
+    "splits": {
+     "train": 2800
+    },
+    "suites": {
+     "tk13_care_sites_localities_v4": 2800
+    },
+    "rows_used": 2800
+   },
+   {
+    "path": "data/tk14_train_targeted_gaps__v3__allages1__allages2.jsonl",
+    "sha256": "e5847abb79470a505e0e9f00f53f96dc1819c96b091edd9f680e757ab3c46489",
+    "manifest_sha256": "db4121fedb9172360d5983c752247a29ac13839d5e5be04f5d2f3a34200c9e35",
+    "rows": 2950,
+    "annotation_policies": {
+     "clinical-phi-v2": 2950
+    },
+    "splits": {
+     "train": 2950
+    },
+    "suites": {
+     "tk14_targeted_gaps_v3": 2950
+    },
+    "rows_used": 2950
+   },
+   {
+    "path": "data/tk15_train_name_mentions__allages1__allages2.jsonl",
+    "sha256": "d3d7c1dd0d4536beb6381c4cf81a840fb868b3017b555cf2bb5b1fbd1843e7e5",
+    "manifest_sha256": "44aae83008b3db6b0228e885df83bda1c02b8c77a0b3631c8c00d762c258b0bf",
+    "rows": 1800,
+    "annotation_policies": {
+     "clinical-phi-v2": 1800
+    },
+    "splits": {
+     "train": 1800
+    },
+    "suites": {
+     "tk15_name_mentions": 1800
+    },
+    "rows_used": 1800
+   },
+   {
+    "path": "data/tk16_train_transcripts__allages1__allages2.jsonl",
+    "sha256": "5c4a3720e0422c1d994b496777bb5e56a8a69d40387f34614d8daf685f25ae76",
+    "manifest_sha256": "d1e8133eb81bd66283336c97616db409be720dc24153373c25f9163809cb460a",
+    "rows": 1500,
+    "annotation_policies": {
+     "clinical-phi-v2": 1500
+    },
+    "splits": {
+     "train": 1500
+    },
+    "suites": {
+     "tk16_transcripts": 1500
+    },
+    "rows_used": 1500
+   },
+   {
+    "path": "data/tk17_train_lab_pathology__allages1__allages2.jsonl",
+    "sha256": "31c04b976d9a40943bc1f732cecdc17750d49b30053849cfd41d011bcdcd7edc",
+    "manifest_sha256": "7544af5d68d6a705325edf8f4e49d6fc172805a6a42b9f3bb0d945990b043632",
+    "rows": 1800,
+    "annotation_policies": {
+     "clinical-phi-v2": 1800
+    },
+    "splits": {
+     "train": 1800
+    },
+    "suites": {
+     "tk17_lab_pathology": 1800
+    },
+    "rows_used": 1800
+   },
+   {
+    "path": "data/tk18_train_radiology__allages1__allages2.jsonl",
+    "sha256": "2f33b1af0ec119dc4759f5d692e1b4d13f5006bec8d0db8cc48aca01cb63f301",
+    "manifest_sha256": "a17dd9e66d6ad193615cdf7d17c3d7f4dfa86b68e6831c01b6027ab1a76ceb1b",
+    "rows": 1500,
+    "annotation_policies": {
+     "clinical-phi-v2": 1500
+    },
+    "splits": {
+     "train": 1500
+    },
+    "suites": {
+     "tk18_radiology": 1500
+    },
+    "rows_used": 1500
+   },
+   {
+    "path": "data/tk19_train_spoken_phi__hdclean__allages1__allages2.jsonl",
+    "sha256": "60a33d2fa2228d150919f80fec475756a6acba6e7d6d91a7a1d13036a34071a0",
+    "manifest_sha256": "a151bb1dd6c16c5b9726eb14544397e330a57d3637d37c24878429cf0d535984",
+    "rows": 1497,
+    "annotation_policies": {
+     "clinical-phi-v2": 1497
+    },
+    "splits": {
+     "train": 1497
+    },
+    "suites": {
+     "tk19_spoken_phi": 1497
+    },
+    "rows_used": 1497
+   },
+   {
+    "path": "data/tk20_train_fhir__allages1__allages2.jsonl",
+    "sha256": "96267cd45e13c677cd9ae4c8525762f0ff611d84b7cf0db3ce901de19c7e5e93",
+    "manifest_sha256": "53dc0720310306a105ad7a3ebc0e6a54cd05d311a9aa48c56b36b2b1ee812333",
+    "rows": 1500,
+    "annotation_policies": {
+     "clinical-phi-v2": 1500
+    },
+    "splits": {
+     "train": 1500
+    },
+    "suites": {
+     "tk20_fhir": 1500
+    },
+    "rows_used": 1500
+   },
+   {
+    "path": "data/tk21_train_care_site_boundaries__mix3clean.jsonl",
+    "sha256": "9a0d3baf5b05a900fe653680dade69cf247e218339af3b183a6e055c5bcff2e5",
+    "manifest_sha256": "ef45d403287aa49badb734a49f544a4fe190275990afd621c1e5bdd2917ced7a",
+    "rows": 1969,
+    "annotation_policies": {
+     "clinical-phi-v2": 1969
+    },
+    "splits": {
+     "train": 1969
+    },
+    "suites": {
+     "training": 1969
+    },
+    "rows_used": 1969
+   },
+   {
+    "path": "data/tk22_train_word_surnames__mix3clean.jsonl",
+    "sha256": "2b498d876be2ad0de11e2dde0539c7690f8171e2c18af9bc958a7c8118aeb5c9",
+    "manifest_sha256": "0db5099da2a72c7686225e49b90df6876cd73a4a1991ef56630d82456e680256",
+    "rows": 1495,
+    "annotation_policies": {
+     "clinical-phi-v2": 1495
+    },
+    "splits": {
+     "train": 1495
+    },
+    "suites": {
+     "tk22_word_surnames": 1495
+    },
+    "rows_used": 1495
+   },
+   {
+    "path": "data/tk23_train_age_contexts.jsonl",
+    "sha256": "421037366a5c97ba735ead6db58967dd29bbe7298e72ef34e48ad9953a7f17b4",
+    "manifest_sha256": "a0e766aaacc8a5c9d118ed5e57d96950f4a62479e2a99d13c73357e361250b86",
+    "rows": 1500,
+    "annotation_policies": {
+     "clinical-phi-v2": 1500
+    },
+    "splits": {
+     "train": 1500
+    },
+    "suites": {
+     "tk23_age_contexts": 1500
+    },
+    "rows_used": 1500
+   },
+   {
+    "path": "data/tk24_train_instrument_eponyms.jsonl",
+    "sha256": "fa59eb29213efde231dc1e249a7ba584cac9e8e840aa211a5604e1a29824edff",
+    "manifest_sha256": "e7499b191688c3bd65260a527d9b83352562f6c85afe193414422a5a74857d2f",
+    "rows": 1500,
+    "annotation_policies": {
+     "clinical-phi-v2": 1500
+    },
+    "splits": {
+     "train": 1500
+    },
+    "suites": {
+     "training": 1500
+    },
+    "rows_used": 1500
+   }
+  ],
+  "selection": [
+   {
+    "path": "data/v12_validation__allages1__allages2.jsonl",
+    "sha256": "2883ffdd3cbea8a50828ed27183c47a5b409133967dd1c467cbd78b1ec43c0d2",
+    "manifest_sha256": "a1c13e7007ecd65387dd238b540a228909706fd953fa4525c5225d381b331ce7",
+    "rows": 1280,
+    "annotation_policies": {
+     "clinical-phi-v2": 1280
+    },
+    "splits": {
+     "validation": 1280
+    },
+    "suites": {
+     "unspecified": 1280
+    },
+    "rows_used": 1280,
+    "effective_rows_sha256": "e657e9d33738b7366fe8c277cd7fd4ae73343b13da015afe5d5800d2fe0334d7"
+   },
+   {
+    "path": "data/remediation_v1_validation__allages1__allages2.jsonl",
+    "sha256": "b656d46ce41a14c7c6e1eb0a630607f16767b060b8d233b283623282eecf846c",
+    "manifest_sha256": "c36d80d20830e5cf6fcb4f094c3699932ff508ff7392305b134e6dbf98725e37",
+    "rows": 640,
+    "annotation_policies": {
+     "clinical-phi-v2": 640
+    },
+    "splits": {
+     "validation": 640
+    },
+    "suites": {
+     "development": 640
+    },
+    "rows_used": 640,
+    "effective_rows_sha256": "74840d4a56ca001c43135ab917170daa08277b5f7c94ae7ccdf5bd849968b3a4"
+   },
+   {
+    "path": "data/retired_v8_development_001__allages1__allages2.jsonl",
+    "sha256": "3adb8429802a81cd12801294b2972df8e9aa21ae1674fd3c84ed4d957a2dfa0c",
+    "manifest_sha256": "6c9659037f6302f4302a361dfaa5953715f54ce19eb1bcb15e671ea4e3232a4a",
+    "rows": 2160,
+    "annotation_policies": {
+     "clinical-phi-v2": 2160
+    },
+    "splits": {
+     "validation": 2160
+    },
+    "suites": {
+     "development": 2160
+    },
+    "rows_used": 2160,
+    "effective_rows_sha256": "a9a8eb7ce4f2413fd67e78b6c4557afc30fd2a42e953c4c960a786df8530cae0"
+   },
+   {
+    "path": "data/tk_train_geriatric__census1_v9clean__allages1__allages2.jsonl",
+    "sha256": "abff1035fc5ef487653cd3134cc3d04a5cdb4a4dc62e72d44cfa2b83a07248ee",
+    "manifest_sha256": "4e4c62a08531f7ac4a7438dd88e6a4be7f22614f146b501472f258868d6e51a9",
+    "rows": 2996,
+    "annotation_policies": {
+     "clinical-phi-v2": 2996
+    },
+    "splits": {
+     "train": 2996
+    },
+    "suites": {
+     "takeover_training_v1": 2996
+    },
+    "rows_used": 2996,
+    "effective_rows_sha256": "82796eefc3e11d371bac327de292c82ce97c3fb9326428ad67298dfe71ac823c"
+   },
+   {
+    "path": "data/tk_train_primary__census1_v9clean__allages1__allages2.jsonl",
+    "sha256": "4a9ff82eb8f890ef116700ad5fb10ff8e7ed71c35834e1085283bc633bb1b1ff",
+    "manifest_sha256": "257b3e35d38d285aea58c4f14dbe1bd42271a2d37e21a6bf1c3f663bcf48814b",
+    "rows": 2998,
+    "annotation_policies": {
+     "clinical-phi-v2": 2998
+    },
+    "splits": {
+     "train": 2998
+    },
+    "suites": {
+     "takeover_training_v1": 2998
+    },
+    "rows_used": 2998,
+    "effective_rows_sha256": "b43afc8b9ba4f0b805d31c96e2d554357dc1f61e26caa0a5b13749a006a3fbf0"
+   }
+  ],
+  "effective_train_rows": 115615,
+  "effective_train_rows_sha256": "1430fa431f8ab14f261665956efeb81013614324fe3db75d050c3e704c93d8a1",
+  "selection_text_overlap": 0,
+  "selection_overlap_scope": "current_run_training_rows",
+  "sealed_overlap_audit": "not_performed_by_this_script"
+ },
+ "initialization": {
+  "mode": "pretrained",
+  "test_used_for_training": false
+ },
+ "status": "training",
+ "last_evaluated_step": 9288,
+ "completed_steps": 9288,
+ "planned_steps": 13932,
+ "selection_metric": "privacy_lexicographic: mean any-label direct recall, then indirect recall, then any-label precision (each rounded to 4 decimals), then mean min(typed precision, recall)",
+ "device": "mps",
+ "torch": "2.14.1",
+ "deberta_gather_free_attention": true,
+ "checkpoint": {
+  "step": 9288,
+  "path": "models/takeover-deberta-mix9-001/step-009288"
+ }
+}
