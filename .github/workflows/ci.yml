@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The Release workflow dispatches CI on Release Please branches.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -35,7 +37,7 @@ jobs:
       - name: Install CPU PyTorch
         run: uv pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Install package
-        run: uv pip install -e '.[dev]'
+        run: uv pip install -e . --group dev
       - uses: actions/cache@v4
         with:
           path: .cache/tiktoken

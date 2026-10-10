@@ -1,0 +1,269 @@
+name: Release
+
+# Release Please keeps a release pull request open on main. Merging it creates a
+# draft GitHub release; this workflow then builds that exact commit, publishes
+# it to PyPI through Trusted Publishing, checks PyPI serves the same files, and
+# only then publishes the tag and GitHub release. See RELEASING.md.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact package version to publish or recover, such as 0.1.0
+        required: true
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  prepare:
+    name: release-prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # Open release PRs and create draft releases.
+      issues: write # Apply Release Please labels.
+      pull-requests: write # Open and update the release PR.
+    outputs:
+      release: ${{ steps.metadata.outputs.release }}
+      pr_branch: ${{ steps.metadata.outputs.pr_branch }}
+      version: ${{ steps.metadata.outputs.version }}
+      tag: ${{ steps.metadata.outputs.tag }}
+      sha: ${{ steps.metadata.outputs.sha }}
+    steps:
+      - name: Create release
+        id: release
+        if: github.event_name == 'push'
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-pull-request: true
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      # Propose the next release only once the current version is tagged, so an
+      # unpublished version is never skipped.
+      - name: Check current release tag
+        id: current_release
+        if: github.event_name == 'push' && steps.release.outputs.release_created != 'true'
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          manifest=$(python3 -c 'import json; print(json.load(open(".release-please-manifest.json"))["."])')
+          if [ "$version" != "$manifest" ]; then
+            echo "::error::pyproject.toml is $version but the release manifest is $manifest"
+            exit 1
+          fi
+          if [ -n "$(git ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/v$version")" ]; then
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::v$version is not tagged yet; publish it with workflow_dispatch before the next release PR."
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create or update release PR
+        id: release_pr
+        if: >-
+          github.event_name == 'push' &&
+          steps.release.outputs.release_created != 'true' &&
+          steps.current_release.outputs.tag_exists == 'true'
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
+      - name: Resolve release metadata
+        id: metadata
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_VERSION: ${{ inputs.version }}
+          RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
+          RELEASE_PR: ${{ steps.release_pr.outputs.pr }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          WORKFLOW_REF: ${{ github.ref }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        shell: python3 {0}
+        run: |
+          import json, os, re
+
+          env = os.environ
+          out = {"release": "false", "pr_branch": "", "version": "", "tag": "", "sha": ""}
+          if env.get("RELEASE_PR"):
+              pr = json.loads(env["RELEASE_PR"])
+              if pr["baseBranchName"] != "main":
+                  raise SystemExit(f"unexpected release PR base: {pr['baseBranchName']}")
+              if not pr.get("headBranchName") or re.search(r"[\r\n]", pr["headBranchName"]):
+                  raise SystemExit("invalid release PR branch")
+              out["pr_branch"] = pr["headBranchName"]
+
+          if env["EVENT_NAME"] == "push":
+              if env.get("RELEASE_CREATED") == "true":
+                  out.update(release="true", version=env["RELEASE_VERSION"], tag=env["RELEASE_TAG"], sha=env["RELEASE_SHA"])
+                  if out["sha"] != env["WORKFLOW_SHA"]:
+                      raise SystemExit("Release Please targeted a commit other than this main push")
+          elif env["EVENT_NAME"] == "workflow_dispatch":
+              # Publish or recover an exact version from the head of main.
+              if env["WORKFLOW_REF"] != "refs/heads/main":
+                  raise SystemExit("manual releases must run from main")
+              version = env["MANUAL_VERSION"]
+              out.update(release="true", version=version, tag=f"v{version}", sha=env["WORKFLOW_SHA"])
+          else:
+              raise SystemExit(f"unsupported event: {env['EVENT_NAME']}")
+
+          if out["release"] == "true":
+              if not re.fullmatch(r"\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?(?:\.post\d+)?", out["version"]):
+                  raise SystemExit(f"invalid version: {out['version']}")
+              if out["tag"] != f"v{out['version']}":
+                  raise SystemExit(f"unexpected tag: {out['tag']}")
+              if not re.fullmatch(r"[0-9a-f]{40}", out["sha"]):
+                  raise SystemExit(f"invalid release commit: {out['sha']}")
+
+          with open(env["GITHUB_OUTPUT"], "a") as f:
+              f.writelines(f"{key}={value}\n" for key, value in out.items())
+
+  check-release-pr:
+    name: release-pr-checks
+    needs: prepare
+    if: needs.prepare.outputs.pr_branch != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write # Dispatch CI for the Release Please branch without a PAT.
+    steps:
+      - name: Run CI on the release PR branch
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PR_BRANCH: ${{ needs.prepare.outputs.pr_branch }}
+        run: |
+          gh api --method POST "repos/$GH_REPO/actions/workflows/ci.yml/dispatches" -f "ref=$RELEASE_PR_BRANCH"
+
+  build:
+    name: release-build
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: "3.13"
+      - name: Check the release version
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          manifest=$(python -c 'import json; print(json.load(open(".release-please-manifest.json"))["."])')
+          if [ "$version" != "$RELEASE_VERSION" ] || [ "$manifest" != "$RELEASE_VERSION" ]; then
+            echo "::error::pyproject.toml is $version and the manifest $manifest; requested $RELEASE_VERSION"
+            exit 1
+          fi
+      - run: uv build
+      # PyPI rejects direct URL dependencies; fail here rather than at upload.
+      - name: Check the distribution metadata
+        run: |
+          uvx twine check --strict dist/*
+          if unzip -p dist/*.whl '*.dist-info/METADATA' | grep -E '^Requires-Dist: [^;]* @ '; then
+            echo "::error::Published metadata contains a direct URL dependency"
+            exit 1
+          fi
+          (cd dist && sha256sum -- * > ../SHA256SUMS) && mv SHA256SUMS dist/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-${{ needs.prepare.outputs.version }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: release-publish
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/outis/${{ needs.prepare.outputs.version }}/
+    permissions:
+      id-token: write # Authenticate to PyPI with Trusted Publishing.
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist-${{ needs.prepare.outputs.version }}
+          path: dist/
+      - run: (cd dist && sha256sum --check SHA256SUMS && rm SHA256SUMS)
+      # A recovery run may find this version already uploaded; the next step
+      # then requires PyPI to hold exactly these files.
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          skip-existing: true
+      - name: Check PyPI serves the built files
+        shell: python3 {0}
+        run: |
+          import hashlib, json, os, pathlib, time, urllib.request
+
+          version = os.environ["RELEASE_VERSION"]
+          built = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in pathlib.Path("dist").iterdir()}
+          for _ in range(24):
+              try:
+                  with urllib.request.urlopen(f"https://pypi.org/pypi/outis/{version}/json") as response:
+                      served = {f["filename"]: f["digests"]["sha256"] for f in json.load(response)["urls"]}
+              except OSError:
+                  served = {}
+              if served == built:
+                  raise SystemExit(0)
+              time.sleep(5)
+          raise SystemExit(f"PyPI serves {served}, built {built}")
+
+  finalize:
+    name: release-finalize
+    needs: [prepare, build, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # Create the release tag and attach the distributions.
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist-${{ needs.prepare.outputs.version }}
+          path: dist/
+      - name: Create or finish the GitHub release
+        run: |
+          (cd dist && sha256sum --check SHA256SUMS)
+          tag_object=$(git ls-remote "https://github.com/$GH_REPO.git" "refs/tags/$RELEASE_TAG" | cut -f1)
+          tag_commit=$(git ls-remote "https://github.com/$GH_REPO.git" "refs/tags/$RELEASE_TAG^{}" | cut -f1)
+          tag_sha=${tag_commit:-$tag_object}
+          if [ -n "$tag_sha" ]; then test "$tag_sha" = "$RELEASE_SHA"; fi
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+            if [ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true ]; then
+              gh release edit "$RELEASE_TAG" --draft=false
+            fi
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --target "$RELEASE_SHA" \
+              --title "Outis $RELEASE_VERSION" \
+              --notes "See [CHANGELOG.md](https://github.com/$GH_REPO/blob/$RELEASE_TAG/CHANGELOG.md) and the package on [PyPI](https://pypi.org/project/outis/$RELEASE_VERSION/)."
+          fi
