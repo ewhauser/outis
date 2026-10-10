@@ -16,6 +16,10 @@ detected span comes from the model. Everything runs on your machine; no text
 is sent to a hosted service. It ships as a Python library, a CLI and a FastAPI
 server.
 
+- **Model:** [ewhauser/outis-deberta-v3-base](https://huggingface.co/ewhauser/outis-deberta-v3-base) on Hugging Face
+- **Training data:** [ewhauser/outis-synthetic-phi](https://huggingface.co/datasets/ewhauser/outis-synthetic-phi), the synthetic
+  corpora the model was trained and selected on
+
 > [!IMPORTANT]
 > This is research software. It has **not** met all of its [evaluation targets](docs/evaluation.md), and it has been evaluated only on
 > synthetic and public benchmark text, never on real clinical records. It does
@@ -46,10 +50,15 @@ cd outis
 uv sync
 ```
 
-The default model directory is `models/deid-deberta-v3-base`.
-Its configuration and tokenizer are in the repository; the 736 MB weight file
-(`hf/model.safetensors`) is distributed separately with the model card and
-must be placed in `hf/`. Add the `pdf` extra (`uv sync --extra pdf`) for PDF file input.
+The default model's configuration and tokenizer are in
+`models/deid-deberta-v3-base`. Download its 736 MB weight file from
+[Hugging Face](https://huggingface.co/ewhauser/outis-deberta-v3-base):
+
+```sh
+uv run hf download ewhauser/outis-deberta-v3-base hf/model.safetensors --local-dir models/deid-deberta-v3-base
+```
+
+Add the `pdf` extra (`uv sync --extra pdf`) for PDF file input.
 
 ### Python
 

@@ -32,7 +32,7 @@ model-only; there is no rule layer.
 |---|---|
 | Base model | `microsoft/deberta-v3-base` (184M parameters), fully fine-tuned |
 | Checkpoint | `models/deid-deberta-v3-base` |
-| Weights | `hf/model.safetensors`, 736 MB, not stored in git |
+| Weights | `hf/model.safetensors`, 736 MB, on Hugging Face: [ewhauser/outis-deberta-v3-base](https://huggingface.co/ewhauser/outis-deberta-v3-base) |
 | Context window | 512 tokens, overlapping windows (overlap 128) for longer text |
 | Labels | BIOES tags over 14 types: NAME, DATE, ADDRESS, PHONE, EMAIL, MRN, SSN, ACCOUNT, ID, URL, IP, AGE, LOCATION, FACILITY |
 | Ages | Every age is detected; the request policy's `ages` setting decides what is removed (default `over_89`) |
@@ -67,7 +67,9 @@ All task-specific text is synthetic: written by this project's generators or
 by independently authored synthetic banks. No external clinical dataset was
 used, and the public benchmarks below are evaluation only. People, dates and
 identifiers are invented; the [places addendum](docs/annotation-policy-v2-places.md)
-allows real US public place and care-site names as surface values.
+allows real US public place and care-site names as surface values. The
+training and selection corpora are published as
+[ewhauser/outis-synthetic-phi](https://huggingface.co/datasets/ewhauser/outis-synthetic-phi).
 
 The model is a single run from `microsoft/deberta-v3-base`: three
 epochs (13,932 steps, learning rate 3e-5, batch 32) on 46 banks, the earlier

@@ -6,7 +6,8 @@ DeBERTa-v3-base token classifier with a BIOES decoder; there is no rule layer.
 All task-specific text is synthetic; no clinical dataset is used for training.
 
 The default model is `models/deid-deberta-v3-base`
-(epoch 2 of a three-epoch run). Its weights are distributed separately.
+(epoch 2 of a three-epoch run). Its weights are on Hugging Face as
+[ewhauser/outis-deberta-v3-base](https://huggingface.co/ewhauser/outis-deberta-v3-base).
 
 ## Environment
 
@@ -24,7 +25,10 @@ Inference sends no text to any hosted service. On Apple silicon, set
 Training banks are JSONL files of synthetic notes with gold spans under the
 [annotation policy](annotation-policy-v2.md). Each has a
 `*.jsonl.manifest.json` with its SHA-256, row count and label support. The
-corpora used for the default model are not stored in this repository.
+corpora used for the default model are not stored in this repository; they
+are published as [ewhauser/outis-synthetic-phi](https://huggingface.co/datasets/ewhauser/outis-synthetic-phi), with the 46
+training and 5 selection banks as Parquet and as the original JSONL with
+manifests. The evaluation banks are not published.
 
 The generators in `scripts/takeover/author*.py` write the targeted banks
 (name mentions, transcripts, lab and pathology, radiology, spoken PHI, FHIR,
