@@ -66,8 +66,7 @@ Rules for mixed and ambiguous text:
   conflicting.
 - **P5a was added on 2026-10-04** to point at the v2 `at` rule adopted in commit
   `d9bbd85`. A content-free check found no conflicting gold in the places
-  curriculum (no FACILITY `at` place pairs) or in `blind_places_v1`
-  (`atrule_check.json`).
+  curriculum (no FACILITY `at` place pairs) or in the blind places bank.
 
 Decision N4 was confirmed with the addendum. The current detector is not yet
 consistent with it: a spot check on 2026-10-04 redacted `Ohio` in

@@ -67,9 +67,9 @@ evidence of generalisation and are reported separately.
 
 ## Evaluation banks
 
-- **Held-out synthetic author** (`heldout_dev_v2`): 2,400 notes written by an
+- **Held-out synthetic author**: 2,400 notes written by an
   author isolated from the training generators. The main development bank.
-- **Blind places bank** (`blind_places_v3`): 2,352 notes testing real city and
+- **Blind places bank**: 2,352 notes testing real city and
   care-site names, and public references (instruments, diseases, institutions,
   states) that must not be tagged. Scored once per model, aggregates only.
 - **Public benchmarks**: ASQ-PHI, MedDeID English and Technetium-I, scored

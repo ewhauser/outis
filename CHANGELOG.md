@@ -14,8 +14,8 @@ First public release.
   `OUTIS_SECRET`, `OUTIS_MODEL_DIR`, `OUTIS_DEVICE`, `OUTIS_RESTRICTED_DIR` and
   `OUTIS_PLACE_CACHE`.
 
-- DeBERTa-v3-base token classifier (`deberta_mix9_001` step 9288) with a
-  constrained BIOES decoder over 14 PHI types; detection is model-only.
+- DeBERTa-v3-base token classifier with a constrained BIOES decoder over 14 PHI types; detection is
+  model-only.
 - Redaction, masking and patient-consistent synthetic replacement with
   interval-preserving date shifting.
 - Python library, CLI and local FastAPI server with structured-data and file

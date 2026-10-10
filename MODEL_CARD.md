@@ -71,12 +71,13 @@ allows real US public place and care-site names as surface values. The
 training and selection corpora are published as
 [ewhauser/outis-synthetic-phi](https://huggingface.co/datasets/ewhauser/outis-synthetic-phi).
 
-The model is a single run from `microsoft/deberta-v3-base`: three
-epochs (13,932 steps, learning rate 3e-5, batch 32) on 46 banks, the earlier
-mixture with every age annotated (`__allages2`) plus banks for care-site
-boundaries (tk21), names that are ordinary words (tk22), ages in context
-(tk23) and named instruments, scores and eponyms (tk24). Epoch 2 (step 9288)
-was chosen by the privacy-first selection rule on the development banks.
+The model is fine-tuned from `microsoft/deberta-v3-base` for three epochs
+(learning rate 3e-5, batch 32) on 46 synthetic banks covering general
+clinical notes and targeted cases: care-site names and boundaries, names that
+are ordinary words, ages in context, and named instruments, scores and
+eponyms that are not PHI. The checkpoint after the second epoch was chosen by
+a privacy-first rule on separate selection banks: direct-identifier recall
+first, then indirect recall, then precision.
 
 Every training bank passed a sealed-overlap audit, has no text or identity
 overlap with the development banks or the held-out bank, and is filtered
