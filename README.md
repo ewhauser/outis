@@ -1,11 +1,13 @@
-# Clinical Deidentifier
+# Outis
 
-[![CI](https://github.com/ewhauser/deidentifier/actions/workflows/ci.yml/badge.svg)](https://github.com/ewhauser/deidentifier/actions/workflows/ci.yml)
+[![CI](https://github.com/ewhauser/outis/actions/workflows/ci.yml/badge.svg)](https://github.com/ewhauser/outis/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
 Local PHI detection, typed redaction and patient-consistent synthetic
 replacement for English clinical text.
+
+Outis is Greek for "nobody": the name Odysseus gave the Cyclops.
 
 The detector is a fully fine-tuned
 [DeBERTa-v3-base](https://huggingface.co/microsoft/deberta-v3-base) token
@@ -40,8 +42,8 @@ server.
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 
 ```sh
-git clone https://github.com/ewhauser/deidentifier.git
-cd deidentifier
+git clone https://github.com/ewhauser/outis.git
+cd outis
 uv venv --python 3.13
 uv pip install --python .venv/bin/python -e .
 ```
@@ -54,7 +56,7 @@ model store. Add the `pdf` extra (`-e '.[pdf]'`) for PDF file input.
 ### Python
 
 ```python
-from clinical_deid import Deidentifier
+from outis import Deidentifier
 
 deid = Deidentifier(secret=b"application-secret-at-least-32-bytes")
 
@@ -93,7 +95,7 @@ secret in `.cache/local-api-secret`. For other deployments, see
 ### CLI
 
 ```sh
-.venv/bin/clinical-deid text --input note.txt --mode redact
+.venv/bin/outis text --input note.txt --mode redact
 ```
 
 ## How it works

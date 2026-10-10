@@ -14,7 +14,7 @@ and the same config and input bytes produce identical HTML.
 The module form is also supported:
 
 ```sh
-.venv/bin/python -m clinical_deid.evaluation.report \
+.venv/bin/python -m outis.evaluation.report \
   --config reports/pipeline_report_config.json \
   --output reports/pipeline_report.html
 ```
@@ -157,7 +157,7 @@ does not invent a new evaluation timestamp.
 
 ```sh
 .venv/bin/python -m pytest -q tests/test_report.py tests/test_report_progress.py
-.venv/bin/ruff check src/clinical_deid/evaluation/report.py src/clinical_deid/evaluation/report_html.py \
-  src/clinical_deid/evaluation/report_progress.py scripts/build_report.py \
+.venv/bin/ruff check src/outis/evaluation/report.py src/outis/evaluation/report_html.py \
+  src/outis/evaluation/report_progress.py scripts/build_report.py \
   tests/test_report.py tests/test_report_progress.py
 ```

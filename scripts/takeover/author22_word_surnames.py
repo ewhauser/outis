@@ -30,18 +30,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from clinical_deid.data.annotation_policy import (  # noqa: E402
+from outis.data.annotation_policy import (  # noqa: E402
     POLICY_VERSION,
     annotation_errors,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.generators.places import (  # noqa: E402
+from outis.data.generators.places import (  # noqa: E402
     EXCLUSIONS_SHA256,
     excluded_sequences,
     excluded_value,
 )
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 SEED = 22022
 SUITE = "tk22_word_surnames"
@@ -1655,8 +1655,8 @@ def manifest_for(rows: list[dict], payload: bytes, seed: int, stats: dict) -> di
             "generator": "scripts/takeover/author22_word_surnames.py",
             "generator_sha256": sha256_file(Path(__file__).resolve()),
             "seed": seed,
-            "policy_module_sha256": {m: sha256_file(ROOT / "src" / "clinical_deid" / "data" / m) for m in policy_modules},
-            "types_sha256": sha256_file(ROOT / "src" / "clinical_deid" / "types.py"),
+            "policy_module_sha256": {m: sha256_file(ROOT / "src" / "outis" / "data" / m) for m in policy_modules},
+            "types_sha256": sha256_file(ROOT / "src" / "outis" / "types.py"),
             "isolation": "authored from the brief, the policy and addendum, types.py, policy fixture modules, "
                          "validate_bank.py, AGENTS.md and CLEANUP.md only; no corpus, bank or report read",
         },

@@ -22,14 +22,14 @@ compliance.
 | --- | --- |
 | This page | Span conventions, cohorts, provenance, metadata and audit rules |
 | [Places addendum](annotation-policy-v2-places.md) (`clinical-phi-v2-places`) | Real localities, care-site abbreviations and public references to places |
-| [`annotation_policy.py`](../src/clinical_deid/data/annotation_policy.py) and [`annotation_policy_places.py`](../src/clinical_deid/data/annotation_policy_places.py) | Executable contract with exact character-offset examples |
+| [`annotation_policy.py`](../src/outis/data/annotation_policy.py) and [`annotation_policy_places.py`](../src/outis/data/annotation_policy_places.py) | Executable contract with exact character-offset examples |
 
 Not part of the annotation policy: the API's request policies in
-`src/clinical_deid/policy.py`, whose own version is `"1"`. They control what a
+`src/outis/policy.py`, whose own version is `"1"`. They control what a
 caller redacts and have nothing to do with how gold spans are annotated.
 
 The executable contract and exact character-offset examples are
-[`annotation_policy.py`](../src/clinical_deid/data/annotation_policy.py). The original
+[`annotation_policy.py`](../src/outis/data/annotation_policy.py). The original
 corpora, annotations, generators, checkpoints, manifests and reports remain
 historical evidence. Legacy generators are superseded for new remediation
 training, but retained to reproduce their original artifacts. Corrected labels
@@ -66,7 +66,7 @@ is a release decision: the request policy's `ages` setting defaults to
 `over_89`, which leaves ages of 89 and under in place as the Safe Harbor age
 rule allows; `all` removes every age. GOALS.md continues to gate ages over 89;
 evaluation reports ages of 89 and under separately (`AGE_89_AND_UNDER`).
-Fixtures: `src/clinical_deid/data/annotation_policy_ages.py`. The age examples
+Fixtures: `src/outis/data/annotation_policy_ages.py`. The age examples
 in `POLICY_FIXTURES` that leave ages of 89 and under unannotated predate this
 change and are superseded; corpora relabelled under it carry the `__allages1`
 suffix. The suffix is context for recognizing
@@ -88,7 +88,7 @@ diagnostics do not replace exact typed-span evaluation.
 The table above leaves some cases open. In early October 2026, ten independent readers
 were given only the policy, protocol, types and fixtures and asked to choose a
 convention for 35 such cases. They agreed 10 of 10 on every case in the table
-below. The one split case, employer names, is decided after the table. The rows for a leading `The` and for service organisations were decided by the owner on 2026-10-05 for the care-site and locality bank; their fixtures are `CARE_SITE_FIXTURES` in `src/clinical_deid/data/annotation_policy_care_sites.py`. Training banks were normalised to these choices, and they
+below. The one split case, employer names, is decided after the table. The rows for a leading `The` and for service organisations were decided by the owner on 2026-10-05 for the care-site and locality bank; their fixtures are `CARE_SITE_FIXTURES` in `src/outis/data/annotation_policy_care_sites.py`. Training banks were normalised to these choices, and they
 are in force for all new authoring and annotation. The record is
 [`convention_census_001.json`](../reports/takeover/convention_census_001.json).
 Not every row has an executable fixture yet.

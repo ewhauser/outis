@@ -110,7 +110,7 @@ contains patient information. Conditions:
 
 The decisions are exact-offset examples in `PLACE_FIXTURES`, and the value
 pool rule is `place_value_pool`, both in
-[`annotation_policy_places.py`](../src/clinical_deid/data/annotation_policy_places.py).
+[`annotation_policy_places.py`](../src/outis/data/annotation_policy_places.py).
 They live in a separate module so that source hashes recorded by earlier
 generators for `annotation_policy.py` stay reproducible. Generators and banks
 using this addendum record `clinical-phi-v2` as their policy and

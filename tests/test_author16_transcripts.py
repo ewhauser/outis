@@ -12,13 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.data.annotation_policy import (
+from outis.data.annotation_policy import (
     annotation_errors,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.annotation_policy_transcripts import TRANSCRIPT_FIXTURES
-from clinical_deid.data.generators.places import excluded_sequences, excluded_value
+from outis.data.annotation_policy_transcripts import TRANSCRIPT_FIXTURES
+from outis.data.generators.places import excluded_sequences, excluded_value
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "takeover" / "author16_transcripts.py"

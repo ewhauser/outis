@@ -5,7 +5,7 @@ Writes data/tk20_train_fhir.jsonl and its manifest. Every resource template and
 value pool is written by this project from the FHIR R4 specification; no
 external generator or example set is used. Conventions are decisions F1 to F4
 in docs/annotation-policy-v2.md and the fixtures in
-src/clinical_deid/data/annotation_policy_fhir.py:
+src/outis/data/annotation_policy_fhir.py:
 
 * every PHI value inside a JSON string is its own span; keys, quotes, JSON
   punctuation and XHTML tags stay outside;
@@ -37,12 +37,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from clinical_deid.data.annotation_policy import (  # noqa: E402
+from outis.data.annotation_policy import (  # noqa: E402
     POLICY_VERSION,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.generators.places import (  # noqa: E402
+from outis.data.generators.places import (  # noqa: E402
     excluded_sequences,
     excluded_value,
 )
@@ -2367,7 +2367,7 @@ def fixture_span_texts() -> frozenset[str]:
     texts: set[str] = set()
     for name in ("annotation_policy", "annotation_policy_places", "annotation_policy_care_sites", "annotation_policy_targeted",
                  "annotation_policy_transcripts", "annotation_policy_reports", "annotation_policy_spoken", "annotation_policy_fhir"):
-        module = importlib.import_module(f"clinical_deid.data.{name}")
+        module = importlib.import_module(f"outis.data.{name}")
         for attr in dir(module):
             if attr.endswith("FIXTURES"):
                 for fx in getattr(module, attr):
@@ -2457,7 +2457,7 @@ def make_row(layout: Layout, ctx: Ctx, used: Counter, seen: set[str]) -> dict:
     phi = ctx.phi
     if bool(spans) != phi:
         raise Reject("polarity")
-    from clinical_deid.data.annotation_policy import annotation_errors
+    from outis.data.annotation_policy import annotation_errors
 
     if annotation_errors(text, spans):
         raise Reject("offsets")
@@ -2547,7 +2547,7 @@ def build_rows(seed: int = SEED, target: int = TARGET_ROWS):
 
 
 def label_support(rows) -> dict:
-    from clinical_deid.types import ENTITY_TYPES
+    from outis.types import ENTITY_TYPES
 
     c = Counter(s["label"] for r in rows for s in r["spans"])
     return {label: c[label] for label in ENTITY_TYPES}

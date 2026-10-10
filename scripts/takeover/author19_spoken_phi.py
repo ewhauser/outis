@@ -34,18 +34,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from clinical_deid.data.annotation_policy import (  # noqa: E402
+from outis.data.annotation_policy import (  # noqa: E402
     POLICY_VERSION,
     annotation_errors,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.generators.places import (  # noqa: E402
+from outis.data.generators.places import (  # noqa: E402
     exclusion_hashes,
     excluded_sequences,
     excluded_value,
 )
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 SEED = 190006
 N_ROWS = 1500

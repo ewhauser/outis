@@ -14,8 +14,8 @@ import time
 from common import ROOT, load_corpus, write_predictions
 
 sys.path.insert(0, str(ROOT / "src"))
-from clinical_deid.evaluation.evaluate import detector_source_manifest, model_manifest  # noqa: E402
-from clinical_deid.paths import DEFAULT_MODEL_DIR  # noqa: E402
+from outis.evaluation.evaluate import detector_source_manifest, model_manifest  # noqa: E402
+from outis.paths import DEFAULT_MODEL_DIR  # noqa: E402
 
 
 def main() -> None:
@@ -31,7 +31,7 @@ def main() -> None:
         parser.error("--system must start with 'project'")
     rows, _ = load_corpus(args.benchmark)
     artifacts, sources = model_manifest(args.model_dir), detector_source_manifest()
-    from clinical_deid.detection.hf_encoder import load_detector
+    from outis.detection.hf_encoder import load_detector
     detector = load_detector(args.model_dir, device=args.device, batch_size=args.batch_size)
     started = time.perf_counter()
     predictions = []

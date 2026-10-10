@@ -28,14 +28,14 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(ROOT / ".cache" / "tiktoken"))
 
-from clinical_deid.evaluation.evaluate import (  # noqa: E402
+from outis.evaluation.evaluate import (  # noqa: E402
     detector_source_manifest,
     evaluate,
     load_verified_corpus,
     model_manifest,
 )
-from clinical_deid.evaluation.runtime import neural_runtime_manifest  # noqa: E402
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.evaluation.runtime import neural_runtime_manifest  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 PROTECTED_WORDS = ("blind_qualification_v6", "blind_qualification_v7", "blind_qualification_v9",
                    "qualification_v9", "v7_qualification_author_qa", ".sealed", "controls/validation.jsonl",
@@ -104,9 +104,9 @@ def guarded_model_manifest(path):
 def source_manifest():
     sources = detector_source_manifest()
     for name, path in {
-        "hf_encoder.py": ROOT / "src/clinical_deid/detection/hf_encoder.py",
-        "evaluate.py": ROOT / "src/clinical_deid/evaluation/evaluate.py",
-        "runtime.py": ROOT / "src/clinical_deid/evaluation/runtime.py",
+        "hf_encoder.py": ROOT / "src/outis/detection/hf_encoder.py",
+        "evaluate.py": ROOT / "src/outis/evaluation/evaluate.py",
+        "runtime.py": ROOT / "src/outis/evaluation/runtime.py",
         "scripts/takeover/eval_bank.py": Path(__file__),
     }.items():
         sources[name] = hashlib.sha256(check_path(path).read_bytes()).hexdigest()
@@ -178,7 +178,7 @@ def main():
     runtime = neural_runtime_manifest(args.model_dir)
     sources = source_manifest()
 
-    from clinical_deid.detection.hf_encoder import load_detector
+    from outis.detection.hf_encoder import load_detector
 
     started = time.perf_counter()
     detector = load_detector(args.model_dir, device=args.device, batch_size=args.batch_size)

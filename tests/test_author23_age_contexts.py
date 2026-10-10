@@ -15,12 +15,12 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from clinical_deid.data.annotation_policy import (  # noqa: E402
+from outis.data.annotation_policy import (  # noqa: E402
     annotation_errors,
     identity_split,
 )
-from clinical_deid.data.annotation_policy_ages import AGE_FIXTURES  # noqa: E402
-from clinical_deid.data.generators.places import excluded_sequences  # noqa: E402
+from outis.data.annotation_policy_ages import AGE_FIXTURES  # noqa: E402
+from outis.data.generators.places import excluded_sequences  # noqa: E402
 
 SPEC = importlib.util.spec_from_file_location(
     "author23", ROOT / "scripts/takeover/author23_age_contexts.py"

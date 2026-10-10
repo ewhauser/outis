@@ -56,7 +56,7 @@ from labels import COARSE, project_label
 from score import age_characters, load_predictions, merge_names
 
 sys.path.insert(0, str(ROOT / "src"))
-from clinical_deid.evaluation.evaluate import (  # noqa: E402
+from outis.evaluation.evaluate import (  # noqa: E402
     DIRECT_IDENTIFIERS,
     INDIRECT_IDENTIFIERS,
     cluster_lower,

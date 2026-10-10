@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in improving Clinical Deidentifier.
+Thanks for your interest in improving Outis.
 
 ## Ground rules
 
@@ -45,7 +45,7 @@ CI.
 ## Code layout
 
 ```
-src/clinical_deid/
+src/outis/
   service.py, api.py, cli.py   Deidentifier facade, HTTP API and CLI
   policy.py, entities.py, types.py, analysis.py, operations.py
   detection/                   ModernBERT token classifier and BIOES decoder

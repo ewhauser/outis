@@ -6,11 +6,11 @@ from collections import Counter
 
 import pytest
 
-from clinical_deid.data.generators import compositional
-from clinical_deid.data.generators import narrative as baseline
-from clinical_deid.data.generators.base import MarkedValue, render_marked, validate_row
-from clinical_deid.evaluation.evaluate import load_verified_corpus
-from clinical_deid.types import ENTITY_TYPES
+from outis.data.generators import compositional
+from outis.data.generators import narrative as baseline
+from outis.data.generators.base import MarkedValue, render_marked, validate_row
+from outis.evaluation.evaluate import load_verified_corpus
+from outis.types import ENTITY_TYPES
 
 
 def _values(row):

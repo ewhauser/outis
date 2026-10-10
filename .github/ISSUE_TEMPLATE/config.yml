@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/ewhauser/deidentifier/security/advisories/new
+    url: https://github.com/ewhauser/outis/security/advisories/new
     about: Report security issues privately.

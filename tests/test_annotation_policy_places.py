@@ -2,8 +2,8 @@ from collections import Counter
 
 import pytest
 
-from clinical_deid.data.annotation_policy import POLICY_VERSION, annotation_errors
-from clinical_deid.data.annotation_policy_places import (
+from outis.data.annotation_policy import POLICY_VERSION, annotation_errors
+from outis.data.annotation_policy_places import (
     PLACE_FIXTURES,
     VALUE_POOLS,
     place_value_pool,

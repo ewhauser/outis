@@ -32,15 +32,15 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from clinical_deid.data.annotation_policy import (  # noqa: E402
+from outis.data.annotation_policy import (  # noqa: E402
     POLICY_VERSION, annotation_errors, canonical_identity_group, identity_split,
 )
-from clinical_deid.data.annotation_policy_places import ADDENDUM, place_value_pool  # noqa: E402
-from clinical_deid.data.generators import place_sources  # noqa: E402
-from clinical_deid.data.generators.places import (  # noqa: E402
+from outis.data.annotation_policy_places import ADDENDUM, place_value_pool  # noqa: E402
+from outis.data.generators import place_sources  # noqa: E402
+from outis.data.generators.places import (  # noqa: E402
     EXCLUSIONS_SHA256, excluded_sequences, excluded_value,
 )
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 VERSION = "1.0"
 SEED = 21007
@@ -1563,9 +1563,9 @@ def source_pins() -> dict:
 
 def module_hashes() -> dict:
     out = {}
-    for rel in ("src/clinical_deid/data/annotation_policy.py", "src/clinical_deid/data/annotation_policy_places.py",
-                "src/clinical_deid/data/annotation_policy_care_sites.py", "src/clinical_deid/data/annotation_policy_ages.py",
-                "src/clinical_deid/data/generators/places.py", "src/clinical_deid/data/generators/place_sources.py",
+    for rel in ("src/outis/data/annotation_policy.py", "src/outis/data/annotation_policy_places.py",
+                "src/outis/data/annotation_policy_care_sites.py", "src/outis/data/annotation_policy_ages.py",
+                "src/outis/data/generators/places.py", "src/outis/data/generators/place_sources.py",
                 BRIEF):
         out[rel] = sha256_bytes((ROOT / rel).read_bytes())
     return out
@@ -1633,7 +1633,7 @@ def build(seed: int = SEED) -> dict:
             "seed": seed,
             "input_sha256": module_hashes(),
             "inputs_read": [BRIEF, "docs/annotation-policy-v2.md", "docs/annotation-policy-v2-places.md",
-                            "src/clinical_deid/types.py", "src/clinical_deid/data/annotation_policy*.py (fixture modules)",
+                            "src/outis/types.py", "src/outis/data/annotation_policy*.py (fixture modules)",
                             "scripts/takeover/validate_bank.py", "AGENTS.md", "CLEANUP.md",
                             "helper functions exclusion_hash, excluded_sequences, excluded_value, place_value_pool, place_sources loaders",
                             ".cache/place_sources (pinned public sources)"],

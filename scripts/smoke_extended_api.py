@@ -14,9 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fastapi.testclient import TestClient
 
-from clinical_deid.api import create_app
-from clinical_deid.paths import DEFAULT_MODEL_DIR
-from clinical_deid.service import Deidentifier
+from outis.api import create_app
+from outis.paths import DEFAULT_MODEL_DIR
+from outis.service import Deidentifier
 
 
 def main():

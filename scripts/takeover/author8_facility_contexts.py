@@ -285,7 +285,7 @@ def runtime():
     os.environ['TRANSFORMERS_OFFLINE'] = '1'
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(str(CHECKPOINT / "hf"), local_files_only=True)
-    source_path = ROOT / "src/clinical_deid/detection/hf_encoder.py"
+    source_path = ROOT / "src/outis/detection/hf_encoder.py"
     source = source_path.read_text()
     tree = ast.parse(source)
     funcs = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in {"window_jobs", "special_layout"}]
@@ -466,7 +466,7 @@ def build():
             'placement_method': 'Arithmetic section insertion varies organization position; actual tokenizer offsets and actual runtime window ownership recorded on every row. No model inference.'},
         'structural_checks': {'unique_ids': True, 'unique_texts': True, 'valid_nonoverlapping_exact_character_spans': True, 'metadata_complete': True, 'identities_train_hash_partition': True, 'controls_have_zero_spans': True, 'minimum_three_actual_windows_for_all_long_notes': True, 'all_target_categories_in_all_layouts': True},
         'author_review': AUTHOR_REVIEW,
-        'read_scope': ['docs/annotation-policy-v2.md', 'src/clinical_deid/data/annotation_policy.py', 'scripts/takeover/normalize_conventions.py', 'scripts/takeover/normalize_date_intervals.py', 'scripts/takeover/prepare_training_mixture.py', 'src/clinical_deid/detection/hf_encoder.py', 'models/takeover-mbbase-mix3-001/step-003081/config.json', 'models/takeover-mbbase-mix3-001/step-003081/hf/tokenizer.json', 'models/takeover-mbbase-mix3-001/step-003081/hf/tokenizer_config.json', 'models/takeover-mbbase-mix3-001/step-003081/hf/config.json'],
+        'read_scope': ['docs/annotation-policy-v2.md', 'src/outis/data/annotation_policy.py', 'scripts/takeover/normalize_conventions.py', 'scripts/takeover/normalize_date_intervals.py', 'scripts/takeover/prepare_training_mixture.py', 'src/outis/detection/hf_encoder.py', 'models/takeover-mbbase-mix3-001/step-003081/config.json', 'models/takeover-mbbase-mix3-001/step-003081/hf/tokenizer.json', 'models/takeover-mbbase-mix3-001/step-003081/hf/tokenizer_config.json', 'models/takeover-mbbase-mix3-001/step-003081/hf/config.json'],
         'limitations': ['Synthetic prose uses 40 author-created clinical scenarios and reusable coordination contexts; row count is not independent clinical evidence.', 'Institution names are invented but coincidental real-world matches were not checked through external search.', 'Long notes are deliberately expanded clinical-domain reviews with shared neutral nursing paragraphs; they are authored stress records, not naturally sampled encounters.', 'No development or sealed comparison, model inference, quality auditor, normalization CLI, or training-mixture mutation was run.', 'An independent semantic review and separately authorized collision/admission checks remain necessary before any future training use.', 'No institutional subunits or ambiguous named wards were intentionally authored.'],
         'current_mixture_changed': False, 'outputs_frozen_mode': '0444',
     }

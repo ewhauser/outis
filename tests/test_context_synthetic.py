@@ -1,8 +1,8 @@
 import hashlib
 import json
 
-from clinical_deid.data.generators.base import validate_row
-from clinical_deid.data.generators.context import (
+from outis.data.generators.base import validate_row
+from outis.data.generators.context import (
     AGE_FRAMES,
     CONTACT_BUNDLES,
     EMAIL_FRAMES,
@@ -11,7 +11,7 @@ from clinical_deid.data.generators.context import (
     generate_rows,
     write_dataset,
 )
-from clinical_deid.types import ENTITY_TYPES
+from outis.types import ENTITY_TYPES
 
 
 def test_context_generation_valid_and_covers_all_labels():

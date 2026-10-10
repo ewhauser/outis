@@ -7,7 +7,7 @@ from collections import Counter, defaultdict
 import pytest
 import tiktoken
 
-from clinical_deid.data.generators.remediation_development import (
+from outis.data.generators.remediation_development import (
     ENTITY_TYPES,
     POLICY,
     _negative,
@@ -17,7 +17,7 @@ from clinical_deid.data.generators.remediation_development import (
     generate_corpus,
     identity_group,
 )
-from clinical_deid.evaluation.evaluate import load_verified_corpus
+from outis.evaluation.evaluate import load_verified_corpus
 
 
 def fragments(row, label):

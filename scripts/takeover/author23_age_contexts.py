@@ -5,7 +5,7 @@ docs/annotation-policy-v2.md (clinical-phi-v2), including the 2026-10-06
 all-ages rule and the 2026-10-07 decisions D1 (a hypothetical, example or
 template person's age is not AGE) and D2 (a decade of any age is AGE on the
 decade word; "in her", "early" and "late" stay outside). Fixtures:
-src/clinical_deid/data/annotation_policy_ages.py.
+src/outis/data/annotation_policy_ages.py.
 
 Every person, date, identifier, facility and locality is invented. No real
 place names are used, so the places addendum's value pools do not apply.
@@ -30,14 +30,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from clinical_deid.data.annotation_policy import (  # noqa: E402
+from outis.data.annotation_policy import (  # noqa: E402
     POLICY_VERSION,
     annotation_errors,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.generators.places import excluded_sequences, excluded_value  # noqa: E402
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.data.generators.places import excluded_sequences, excluded_value  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 SEED = 2323
 SUITE = "tk23_age_contexts"
@@ -1042,8 +1042,8 @@ def write_bank(rows, pools, stats, seed, output: Path = OUTPUT):
     label_support = support(rows)
     policy_files = [
         "docs/annotation-policy-v2.md", "docs/age-contexts-bank-brief.md",
-        "src/clinical_deid/data/annotation_policy.py", "src/clinical_deid/data/annotation_policy_ages.py",
-        "src/clinical_deid/types.py", "src/clinical_deid/data/generators/places.py",
+        "src/outis/data/annotation_policy.py", "src/outis/data/annotation_policy_ages.py",
+        "src/outis/types.py", "src/outis/data/generators/places.py",
         "data/places_exclusions.sha256.json",
     ]
     manifest = {

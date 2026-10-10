@@ -9,9 +9,9 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from clinical_deid.api import create_app
-from clinical_deid.service import Deidentifier
-from clinical_deid.types import Span
+from outis.api import create_app
+from outis.service import Deidentifier
+from outis.types import Span
 
 SECRET = b"test-only-api-extensions-secret-1234567890"
 TEXT = "Alice Calder was seen on 2024-10-03. Glucose 109 mg/dL."
@@ -252,7 +252,7 @@ def test_nested_validation_locations_never_echo_submitted_keys(service, path, pa
 def test_http_body_byte_limit_includes_chunked_requests(
     service, monkeypatch, content_length
 ):
-    import clinical_deid.api as api
+    import outis.api as api
 
     monkeypatch.setattr(api, "MAX_REQUEST_BYTES", 512)
     body = json.dumps({"text": "PRIVATE-TEXT" * 100}).encode()
@@ -364,7 +364,7 @@ def test_websocket_runtime_failure_never_echoes_internal_values(caplog):
 
 
 def test_websocket_envelope_byte_limit(service, monkeypatch):
-    import clinical_deid.api as api
+    import outis.api as api
 
     monkeypatch.setattr(api, "MAX_REQUEST_BYTES", 512)
     with TestClient(create_app(service)) as client:

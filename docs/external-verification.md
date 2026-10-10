@@ -151,7 +151,7 @@ the scorer.
 | Exact span P/R/F1 | Predicted boundaries equal to gold boundaries, ignoring labels. |
 | Leak-free PHI documents | Documents with PHI in which every gold character is covered. |
 | Clean hard negatives | Documents without PHI that receive no prediction at all. |
-| Coarse typed P/R/F1 | Exact boundaries and coarse group, scored by `clinical_deid.evaluation.evaluate.evaluate`, with per-group recall and Wilson bounds. |
+| Coarse typed P/R/F1 | Exact boundaries and coarse group, scored by `outis.evaluation.evaluate.evaluate`, with per-group recall and Wilson bounds. |
 
 Every prediction counts towards the label-agnostic metrics, including labels
 that map to no project type (for example MedDeID's `Profession`), because the
@@ -430,9 +430,9 @@ The owner approved its use for evaluation only on 2026-10-06 (AGENTS.md).
 - Each person obtains it under their own agreement. Keep the raw files outside
   every git repository.
 - `n2c2_2014.py --split test --raw <folder of XML files>` converts it into
-  `$DEID_RESTRICTED_DIR/corpora/n2c2_2014_test.jsonl` (default
+  `$OUTIS_RESTRICTED_DIR/corpora/n2c2_2014_test.jsonl` (default
   `~/working/deid/restricted`). Predictions for restricted benchmarks are
-  written under `$DEID_RESTRICTED_DIR/predictions/`. The harness refuses a
+  written under `$OUTIS_RESTRICTED_DIR/predictions/`. The harness refuses a
   restricted folder inside a git repository.
 - `score.py` writes no failure examples for restricted benchmarks; results
   files hold aggregate scores only and may be committed.

@@ -3,7 +3,7 @@ import pytest
 torch = pytest.importorskip("torch")
 transformers = pytest.importorskip("transformers")
 
-from clinical_deid.detection import deberta_attention  # noqa: E402
+from outis.detection import deberta_attention  # noqa: E402
 
 
 def tiny_deberta(share_att_key=True, position_buckets=16):

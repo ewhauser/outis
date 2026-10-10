@@ -1,5 +1,5 @@
-from clinical_deid.data.annotation_policy import POLICY_VERSION, annotation_errors
-from clinical_deid.data.annotation_policy_eponyms import EPONYM_FIXTURES
+from outis.data.annotation_policy import POLICY_VERSION, annotation_errors
+from outis.data.annotation_policy_eponyms import EPONYM_FIXTURES
 
 
 def gold(key):

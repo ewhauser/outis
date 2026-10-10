@@ -11,13 +11,13 @@ hosted inference service; downloads happen only during setup.
 
 The local launcher binds to `127.0.0.1` and creates an owner-readable replacement
 key once in the ignored `.cache/local-api-secret` file. It reuses that key across
-restarts. A configured `DEID_SECRET` takes precedence. Preserve the key to keep
+restarts. A configured `OUTIS_SECRET` takes precedence. Preserve the key to keep
 patient mappings stable; do not commit it or share it with API clients.
 
-`clinical-deid serve` is the packaged equivalent. It reads `DEID_MODEL_DIR`
+`outis serve` is the packaged equivalent. It reads `OUTIS_MODEL_DIR`
 (default `models/takeover-deberta-mix9-001/step-009288`) and refuses to start
 without a fine-tuned encoder checkpoint there. On Apple silicon, set
-`DEID_DEVICE=mps`; CPU is supported.
+`OUTIS_DEVICE=mps`; CPU is supported.
 
 ## Detector
 
@@ -42,7 +42,7 @@ Scores are model probabilities, not calibrated safety estimates.
 
 Request bodies and source PHI are not logged by the application. Validation and
 runtime errors return sanitized messages, and responses use `Cache-Control:
-no-store`. Set `DEID_API_KEY` for `X-API-Key` authentication. The CLI requires it
+no-store`. Set `OUTIS_API_KEY` for `X-API-Key` authentication. The CLI requires it
 when binding beyond loopback. Configure TLS and network access controls in
 your deployment; downstream proxies and caller logs must follow your data
 handling policy. `GET /health` checks process liveness; `/ready` verifies a

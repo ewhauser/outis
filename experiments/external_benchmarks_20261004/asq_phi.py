@@ -21,7 +21,7 @@ from common import CORPORA, HERE, ROOT, digest_bytes, write_json, write_jsonl
 from labels import ASQ_PHI_GOLD
 
 sys.path.insert(0, str(ROOT / "src"))
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 
 SOURCE = {

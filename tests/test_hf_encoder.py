@@ -4,15 +4,15 @@ torch = pytest.importorskip("torch")
 transformers = pytest.importorskip("transformers")
 tokenizers = pytest.importorskip("tokenizers")
 
-from clinical_deid.detection.decoding import TAGS  # noqa: E402
-from clinical_deid.detection.hf_encoder import (  # noqa: E402
+from outis.detection.decoding import TAGS  # noqa: E402
+from outis.detection.hf_encoder import (  # noqa: E402
     ENCODER_KIND,
     HFTokenDetector,
     refine_boundaries,
     special_layout,
     window_jobs,
 )
-from clinical_deid.types import Span  # noqa: E402
+from outis.types import Span  # noqa: E402
 
 
 def tiny_tokenizer():
@@ -148,7 +148,7 @@ def test_emissions_cover_long_documents_across_windows():
 
 
 def test_trim_merged_punctuation_balances_parentheses_and_periods():
-    from clinical_deid.detection.hf_encoder import trim_merged_punctuation
+    from outis.detection.hf_encoder import trim_merged_punctuation
 
     text = (
         "call ((717) 555-0185) or (+1 509 555 0126) and Samira O.. Next (617) 555-0101"
@@ -172,7 +172,7 @@ def test_detect_batch_is_model_only():
 def test_only_encoder_checkpoints_load(tmp_path):
     import json
 
-    from clinical_deid.detection.hf_encoder import load_detector
+    from outis.detection.hf_encoder import load_detector
 
     (tmp_path / "config.json").write_text(json.dumps({"adapter": {"hidden_size": 640}}))
     with pytest.raises(ValueError, match="only fine-tuned hf_token_classifier"):
@@ -194,7 +194,7 @@ def test_invalid_batch_size_rejected(batch_size):
 def test_model_root_errors_are_clear_and_publication_fails_closed(tmp_path):
     import json
 
-    from clinical_deid.detection.hf_encoder import load_detector
+    from outis.detection.hf_encoder import load_detector
 
     (tmp_path / "config.json").write_text(json.dumps({"model_type": "modernbert"}))
     with pytest.raises(ValueError, match="nested Hugging Face"):

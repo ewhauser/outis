@@ -3,9 +3,9 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-from clinical_deid.entities import Entity
-from clinical_deid.replacement.surrogates import replace
-from clinical_deid.replacement.transform import (
+from outis.entities import Entity
+from outis.replacement.surrogates import replace
+from outis.replacement.transform import (
     ReidentifyRequest,
     ReplacementOptions,
     link_entities,
@@ -497,7 +497,7 @@ def test_ambiguous_context_requires_assigned_local_ids_instead_of_restarting_num
 
 
 def test_prepared_context_builds_global_indexes_once_for_many_fields(monkeypatch):
-    import clinical_deid.replacement.transform as module
+    import outis.replacement.transform as module
 
     values = ["Jane Smith"] * 512
     context = "\n".join(values)
@@ -535,7 +535,7 @@ def test_prepared_context_builds_global_indexes_once_for_many_fields(monkeypatch
 def test_prepared_context_is_immutable_and_keeps_identifiers_out_of_repr():
     from dataclasses import FrozenInstanceError
 
-    from clinical_deid.replacement.transform import prepare_context
+    from outis.replacement.transform import prepare_context
 
     prepared = prepare_context("Jane Smith", [Entity(0, 10, "NAME")])
     assert "Jane" not in repr(prepared)
@@ -550,7 +550,7 @@ def test_prepared_context_is_immutable_and_keeps_identifiers_out_of_repr():
 
 
 def test_prepared_and_raw_context_render_identically_including_synthetic_aliases():
-    from clinical_deid.replacement.transform import prepare_context
+    from outis.replacement.transform import prepare_context
 
     text = "Jane Smith\nJane"
     spans = [Entity(0, 10, "NAME"), Entity(11, 15, "NAME")]
@@ -579,7 +579,7 @@ def test_prepared_and_raw_context_render_identically_including_synthetic_aliases
 
 
 def test_mapping_creation_does_not_walk_global_context_in_python_per_field(monkeypatch):
-    import clinical_deid.replacement.transform as module
+    import outis.replacement.transform as module
 
     context = "Jane Smith\nJane"
     prepared = module.prepare_context(
@@ -614,9 +614,9 @@ def test_mapping_creation_does_not_walk_global_context_in_python_per_field(monke
 
 
 def test_structured_service_prepares_shared_context_exactly_once(monkeypatch):
-    import clinical_deid.replacement.transform as module
-    from clinical_deid.formats.structured import process_structured
-    from clinical_deid.service import Deidentifier
+    import outis.replacement.transform as module
+    from outis.formats.structured import process_structured
+    from outis.service import Deidentifier
 
     class Detector:
         def detect_batch(self, texts):

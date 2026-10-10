@@ -13,11 +13,11 @@ tags:
   - synthetic-data
 ---
 
-# Clinical Deidentifier: DeBERTa-v3 mix9
+# Outis: DeBERTa-v3 mix9
 
 A clinical PHI token classifier: DeBERTa-v3-base fully fine-tuned as a BIOES
 tagger over 14 PHI types. It is meant to run inside the
-[Clinical Deidentifier](https://github.com/ewhauser/deidentifier) library,
+[Outis](https://github.com/ewhauser/outis) library,
 which adds the decoder, policies and synthetic replacement. Detection is
 model-only; there is no rule layer.
 
@@ -37,7 +37,7 @@ model-only; there is no rule layer.
 | Labels | BIOES tags over 14 types: NAME, DATE, ADDRESS, PHONE, EMAIL, MRN, SSN, ACCOUNT, ID, URL, IP, AGE, LOCATION, FACILITY |
 | Ages | Every age is detected; the request policy's `ages` setting decides what is removed (default `over_89`) |
 | Decoding | Constrained Viterbi over legal BIOES transitions, exact character offsets |
-| Runtime | DeBERTa's relative-attention bias uses a gather-free implementation with identical outputs (`clinical_deid.detection.deberta_attention`) |
+| Runtime | DeBERTa's relative-attention bias uses a gather-free implementation with identical outputs (`outis.detection.deberta_attention`) |
 | License | Apache-2.0 (fine-tuned weights and code); base model MIT |
 
 Promoted to the default on 2026-10-09 by the owner. It passed the
@@ -142,7 +142,7 @@ been inspected and are development evidence. Full tables:
 ## How to use
 
 ```python
-from clinical_deid import Deidentifier
+from outis import Deidentifier
 
 deid = Deidentifier()  # loads the default checkpoint
 print(deid.deidentify("Mara Calder was seen on 2024-02-28.", mode="redact")["text"])

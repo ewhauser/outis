@@ -9,7 +9,7 @@ regulatory qualification; see the [evaluation results](../README.md#results).
 
 Start the server as described in the [README](../README.md#quickstart).
 Interactive schemas are at `/docs`; the generated schema is at `/openapi.json`.
-When `DEID_API_KEY` is configured, send `X-API-Key` on processing and operational
+When `OUTIS_API_KEY` is configured, send `X-API-Key` on processing and operational
 requests. `/health` is public. HTTP responses use `Cache-Control: no-store`.
 
 ## Endpoints

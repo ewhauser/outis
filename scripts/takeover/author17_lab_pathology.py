@@ -6,7 +6,7 @@ is invented: names are composed from syllable pools, identifiers follow the
 invented schemes documented in AUTHOR_REPORT.md, phones are 555-0100..0199,
 domains are reserved and IPs are TEST-NET. Conventions follow
 docs/annotation-policy-v2.md, decisions L1 to L4
-(clinical_deid.data.annotation_policy_reports.REPORT_FIXTURES).
+(outis.data.annotation_policy_reports.REPORT_FIXTURES).
 
 Usage (from the worktree root):
   PYTHONPATH=src python scripts/takeover/author17_lab_pathology.py
@@ -29,12 +29,12 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(ROOT / ".cache" / "tiktoken"))
 
-from clinical_deid.data.annotation_policy import (  # noqa: E402
+from outis.data.annotation_policy import (  # noqa: E402
     POLICY_VERSION,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.generators.places import excluded_sequences  # noqa: E402
+from outis.data.generators.places import excluded_sequences  # noqa: E402
 
 SEED = 17017
 SUITE = "tk17_lab_pathology"

@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from clinical_deid.data.corpus_quality import audit_corpora  # noqa: E402
+from outis.data.corpus_quality import audit_corpora  # noqa: E402
 
 
 def main(argv=None):

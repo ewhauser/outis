@@ -203,7 +203,7 @@ wheels = [
 ]
 
 [[package]]
-name = "clinical-deid"
+name = "outis"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -244,7 +244,7 @@ pdf = [
 
 [package.metadata]
 requires-dist = [
-    { name = "clinical-deid", extras = ["pdf", "generators"], marker = "extra == 'dev'" },
+    { name = "outis", extras = ["pdf", "generators"], marker = "extra == 'dev'" },
     { name = "defusedxml", specifier = ">=0.7" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },

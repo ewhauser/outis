@@ -11,13 +11,13 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.data.annotation_policy import (
+from outis.data.annotation_policy import (
     POLICY_VERSION,
     annotation_errors,
     identity_split,
 )
-from clinical_deid.data.annotation_policy_reports import REPORT_FIXTURES
-from clinical_deid.data.generators.places import excluded_sequences, excluded_value
+from outis.data.annotation_policy_reports import REPORT_FIXTURES
+from outis.data.generators.places import excluded_sequences, excluded_value
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "takeover" / "author18_radiology.py"

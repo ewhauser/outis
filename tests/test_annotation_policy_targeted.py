@@ -1,14 +1,14 @@
-from clinical_deid.data.annotation_policy import (
+from outis.data.annotation_policy import (
     POLICY_FIXTURES,
     POLICY_VERSION,
     annotation_errors,
 )
-from clinical_deid.data.annotation_policy_care_sites import (
+from outis.data.annotation_policy_care_sites import (
     CARE_SITE_FIXTURES,
     CARE_SITE_FOLLOWUP_FIXTURES,
 )
-from clinical_deid.data.annotation_policy_places import PLACE_FIXTURES
-from clinical_deid.data.annotation_policy_targeted import (
+from outis.data.annotation_policy_places import PLACE_FIXTURES
+from outis.data.annotation_policy_targeted import (
     TARGETED_FIXTURES,
     TARGETED_FOLLOWUP_FIXTURES,
 )

@@ -34,21 +34,21 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(ROOT / ".cache" / "tiktoken"))
 
-from clinical_deid.data.annotation_policy import (  # noqa: E402
+from outis.data.annotation_policy import (  # noqa: E402
     POLICY_VERSION,
     annotation_errors,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.annotation_policy_places import (  # noqa: E402
+from outis.data.annotation_policy_places import (  # noqa: E402
     ADDENDUM,
     place_value_pool,
 )
-from clinical_deid.data.generators.places import (  # noqa: E402
+from outis.data.generators.places import (  # noqa: E402
     excluded_sequences,
     excluded_value,
 )
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 SEED = 13013
 SEED_V2 = 14013
@@ -3058,7 +3058,7 @@ def check_bank(rows):
 
 
 def write_reports(rows, manifest, world):
-    from clinical_deid.data.annotation_policy import COHORTS  # noqa: F401
+    from outis.data.annotation_policy import COHORTS  # noqa: F401
 
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     shares = value_shares(rows)
@@ -3579,7 +3579,7 @@ def write_reports_v4(rows, manifest, world):
         "",
         "Every row was checked against `data/places_exclusions.sha256.json` (hash-only list, file sha256 "
         f"`{manifest['exclusion_filter']['list_file_sha256']}`) with `exclusion_hash`, `excluded_sequences` and "
-        "`excluded_value` from `clinical_deid.data.generators.places`: a unit is rejected and re-drawn if any row's "
+        "`excluded_value` from `outis.data.generators.places`: a unit is rejected and re-drawn if any row's "
         "inserted values, or any 1-8 word sequence of its text (in the row's final case), hash onto the list. Value "
         "pools (cities, CMS names, counties, stems, saints, streets, instrument and disease words) and person-name "
         "draws were screened the same way before use. Counts only; no matching string was printed, logged or inspected.",

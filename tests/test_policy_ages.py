@@ -1,10 +1,10 @@
-from clinical_deid.policy import (
+from outis.policy import (
     DetectionPolicy,
     age_value,
     apply_policy,
     policy_metadata,
 )
-from clinical_deid.types import Span
+from outis.types import Span
 
 TEXT = "A 72-year-old, her mother died at seventy-two, and her aunt is 93; age unknown-ish."
 

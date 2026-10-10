@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.detection import hf_encoder
-from clinical_deid.types import ENTITY_TYPES, Span
+from outis.detection import hf_encoder
+from outis.types import ENTITY_TYPES, Span
 
 ROOT = Path(__file__).resolve().parents[1]
 

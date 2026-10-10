@@ -12,18 +12,25 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.data.annotation_policy import (
+from outis.data.annotation_policy import (
     POLICY_FIXTURES,
     annotation_errors,
     identity_split,
 )
-from clinical_deid.data.annotation_policy_ages import AGE_FIXTURES
-from clinical_deid.data.annotation_policy_care_sites import CARE_SITE_FIXTURES
-from clinical_deid.data.annotation_policy_places import PLACE_FIXTURES, place_value_pool
-from clinical_deid.data.generators import place_sources
+from outis.data.annotation_policy_ages import AGE_FIXTURES
+from outis.data.annotation_policy_care_sites import CARE_SITE_FIXTURES
+from outis.data.annotation_policy_places import PLACE_FIXTURES, place_value_pool
+from outis.data.generators import place_sources
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "takeover" / "author21_care_site_boundaries.py"
+
+
+def recorded_sha256(script):
+    """Hash of the generator as recorded, before the package was renamed to outis."""
+    return hashlib.sha256(
+        script.read_bytes().replace(b"outis", b"clinical_deid")
+    ).hexdigest()
 
 
 def _load():
@@ -180,10 +187,7 @@ def test_written_bank_matches_build(built):
     assert payload == built["payload"]
     manifest = json.loads(bank.with_suffix(bank.suffix + ".manifest.json").read_text())
     assert manifest["sha256"] == hashlib.sha256(payload).hexdigest()
-    assert (
-        manifest["author_provenance"]["generator_sha256"]
-        == hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
-    )
+    assert manifest["author_provenance"]["generator_sha256"] == recorded_sha256(SCRIPT)
 
 
 @needs_sources
@@ -298,7 +302,7 @@ def test_zero_heldout_values(rows):
 
 @needs_sources
 def test_exclusion_filter_applied(rows):
-    from clinical_deid.data.generators.places import excluded_sequences
+    from outis.data.generators.places import excluded_sequences
 
     assert all(excluded_sequences(row["text"]) == 0 for row in rows)
 

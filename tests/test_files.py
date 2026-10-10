@@ -9,7 +9,7 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from clinical_deid.formats.files import MIME_TYPES, A, C, P, R, S, W, process_file
+from outis.formats.files import MIME_TYPES, A, C, P, R, S, W, process_file
 
 
 class StubService:
@@ -274,7 +274,7 @@ def test_digital_pdf_extract_redact_rebuild():
 def test_pdf_without_optional_extra_is_a_clear_validation_error(monkeypatch):
     pdf = make_pdf()
     monkeypatch.setitem(__import__("sys").modules, "pypdf", None)
-    with pytest.raises(ValueError, match=r"clinical-deid\[pdf\]"):
+    with pytest.raises(ValueError, match=r"outis\[pdf\]"):
         invoke(pdf, "pdf")
 
 
@@ -380,7 +380,7 @@ def test_pdf_compressed_content_is_bounded_before_extraction():
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import DecodedStreamObject, NameObject
 
-    from clinical_deid.formats.files import MAX_ZIP_BYTES
+    from outis.formats.files import MAX_ZIP_BYTES
 
     writer = PdfWriter()
     writer.append_pages_from_reader(PdfReader(io.BytesIO(make_pdf())))

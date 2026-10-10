@@ -6,19 +6,19 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.data.annotation_policy import (
+from outis.data.annotation_policy import (
     POLICY_VERSION,
     annotation_errors,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.annotation_policy_places import (
+from outis.data.annotation_policy_places import (
     ADDENDUM,
     PLACE_FIXTURES,
     place_value_pool,
 )
-from clinical_deid.data.generators import place_sources
-from clinical_deid.data.generators.places import (
+from outis.data.generators import place_sources
+from outis.data.generators.places import (
     PHENOMENON_TAGS,
     POSITIVES,
     SPLITS,
@@ -29,7 +29,7 @@ from clinical_deid.data.generators.places import (
     validate_row,
     value_partition,
 )
-from clinical_deid.data.generators.places_contexts import (
+from outis.data.generators.places_contexts import (
     LABELLED_SLOTS,
     LAYOUTS,
     TEMPLATES,
@@ -38,7 +38,7 @@ from clinical_deid.data.generators.places_contexts import (
 ROOT = Path(__file__).resolve().parents[1]
 needs_sources = pytest.mark.skipif(
     not place_sources.sources_available(),
-    reason="pinned place sources not cached; run `python -m clinical_deid.data.generators.place_sources fetch`",
+    reason="pinned place sources not cached; run `python -m outis.data.generators.place_sources fetch`",
 )
 DECISIONS = {
     PHENOMENON_TAGS[key]
@@ -62,14 +62,14 @@ DECISIONS |= {"state_inside_locality", "leading_abbreviation"}
 
 @pytest.fixture(scope="module")
 def corpus():
-    from clinical_deid.data.generators.places import generate
+    from outis.data.generators.places import generate
 
     return generate()
 
 
 @pytest.fixture(scope="module")
 def bank():
-    from clinical_deid.data.generators.places import value_bank
+    from outis.data.generators.places import value_bank
 
     return value_bank()
 
@@ -200,7 +200,7 @@ def test_sources_are_pinned_by_url_and_sha256():
 
 @needs_sources
 def test_generation_is_deterministic_and_seeded():
-    from clinical_deid.data.generators.places import generate
+    from outis.data.generators.places import generate
 
     first = generate(seed=7, train_count=300, validation_count=120)
     assert first == generate(seed=7, train_count=300, validation_count=120)
@@ -402,12 +402,12 @@ def test_span_boundaries_follow_the_fixtures(corpus):
 
 @needs_sources
 def test_packaged_artifacts_reproduce_and_pass_strict_audit():
-    from clinical_deid.data.corpus_quality import audit_corpora
-    from clinical_deid.data.generators.places import build_artifacts
+    from outis.data.corpus_quality import audit_corpora
+    from outis.data.generators.places import build_artifacts
 
     if not (ROOT / "data/places_train.jsonl").exists():
         pytest.skip(
-            "generated corpora are gitignored; run `python -m clinical_deid.data.generators.places generate`"
+            "generated corpora are gitignored; run `python -m outis.data.generators.places generate`"
         )
     artifacts = build_artifacts()
     # Manifests record source hashes of the pre-restructure module layout;
@@ -464,7 +464,7 @@ def _blind_hash(value):
 
 
 def test_exclusion_list_is_pinned_and_hash_only():
-    from clinical_deid.data.generators.places import (
+    from outis.data.generators.places import (
         EXCLUSIONS,
         EXCLUSIONS_SHA256,
         exclusion_hashes,
@@ -478,8 +478,8 @@ def test_exclusion_list_is_pinned_and_hash_only():
 
 @needs_sources
 def test_exclusion_filter_rejects_listed_sequences(monkeypatch, corpus):
-    from clinical_deid.data.generators import places as places_synthetic
-    from clinical_deid.data.generators.places import (
+    from outis.data.generators import places as places_synthetic
+    from outis.data.generators.places import (
         ExcludedNameError,
         excluded_sequences,
     )
@@ -502,7 +502,7 @@ def test_exclusion_filter_rejects_listed_sequences(monkeypatch, corpus):
 def test_no_blind_bank_exclusion_matches_in_emitted_rows(corpus):
     import string
 
-    from clinical_deid.data.generators.places import (
+    from outis.data.generators.places import (
         contamination,
         exclusion_hashes,
         row_values,

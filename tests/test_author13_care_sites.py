@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.data.annotation_policy import annotation_errors
-from clinical_deid.data.annotation_policy_care_sites import (
+from outis.data.annotation_policy import annotation_errors
+from outis.data.annotation_policy_care_sites import (
     CARE_SITE_FIXTURES,
     CARE_SITE_FOLLOWUP_FIXTURES,
 )
-from clinical_deid.data.annotation_policy_places import PLACE_FIXTURES, place_value_pool
+from outis.data.annotation_policy_places import PLACE_FIXTURES, place_value_pool
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
@@ -474,7 +474,7 @@ def test_v4_size_ids_pools_and_caps(bank4):
 
 
 def test_v4_has_zero_exclusion_matches(bank4):
-    from clinical_deid.data.generators.places import excluded_sequences, excluded_value
+    from outis.data.generators.places import excluded_sequences, excluded_value
 
     bank, world = bank4
     # In memory and in the written file; only counts are asserted, never the strings.

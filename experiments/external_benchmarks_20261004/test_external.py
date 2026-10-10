@@ -161,20 +161,20 @@ class N2c2ConversionTest(unittest.TestCase):
     def test_restricted_paths_stay_outside_git(self):
         import os
         import tempfile
-        old = os.environ.get("DEID_RESTRICTED_DIR")
+        old = os.environ.get("OUTIS_RESTRICTED_DIR")
         try:
-            os.environ["DEID_RESTRICTED_DIR"] = str(common.ROOT / "tmp_restricted")
+            os.environ["OUTIS_RESTRICTED_DIR"] = str(common.ROOT / "tmp_restricted")
             with self.assertRaises(ValueError):
                 common.restricted_root()
             with tempfile.TemporaryDirectory() as outside:
-                os.environ["DEID_RESTRICTED_DIR"] = outside
+                os.environ["OUTIS_RESTRICTED_DIR"] = outside
                 self.assertTrue(str(common.corpus_path("n2c2_2014_test")).startswith(str(Path(outside).resolve())))
                 self.assertEqual(common.corpus_path("asq_phi").parent, common.CORPORA)
         finally:
             if old is None:
-                os.environ.pop("DEID_RESTRICTED_DIR", None)
+                os.environ.pop("OUTIS_RESTRICTED_DIR", None)
             else:
-                os.environ["DEID_RESTRICTED_DIR"] = old
+                os.environ["OUTIS_RESTRICTED_DIR"] = old
 
     def test_converter_maps_types_aligns_offsets_and_drops_profession(self):
         import tempfile

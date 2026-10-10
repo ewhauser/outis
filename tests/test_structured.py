@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from clinical_deid.formats.structured import process_structured
+from outis.formats.structured import process_structured
 
 
 class StubService:
@@ -283,8 +283,8 @@ def test_processor_warnings_and_explicit_restoration_mappings_are_preserved():
 
 
 def test_real_service_shares_markers_across_more_than_sixteen_fields():
-    from clinical_deid.service import Deidentifier
-    from clinical_deid.types import Span
+    from outis.service import Deidentifier
+    from outis.types import Span
 
     class Detector:
         def detect_batch(self, texts):
@@ -310,8 +310,8 @@ def test_real_service_shares_markers_across_more_than_sixteen_fields():
 
 
 def test_linked_detection_cross_field_entities_are_redacted_in_every_fragment():
-    from clinical_deid.service import Deidentifier
-    from clinical_deid.types import Span
+    from outis.service import Deidentifier
+    from outis.types import Span
 
     class Detector:
         def detect_batch(self, texts):

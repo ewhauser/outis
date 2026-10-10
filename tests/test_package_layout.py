@@ -1,8 +1,8 @@
 import ast
 
-from clinical_deid.paths import PACKAGE_ROOT
+from outis.paths import PACKAGE_ROOT
 
-RESEARCH = ("clinical_deid.data", "clinical_deid.training", "clinical_deid.evaluation")
+RESEARCH = ("outis.data", "outis.training", "outis.evaluation")
 RESEARCH_DIRS = {"data", "training", "evaluation"}
 
 

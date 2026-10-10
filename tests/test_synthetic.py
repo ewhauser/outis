@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from clinical_deid.data.generators.base import (
+from outis.data.generators.base import (
     TRAIN_TEMPLATES,
     VALIDATION_TEMPLATES,
     VOCABULARY,
@@ -12,7 +12,7 @@ from clinical_deid.data.generators.base import (
     validate_row,
     write_dataset,
 )
-from clinical_deid.types import ENTITY_TYPES
+from outis.types import ENTITY_TYPES
 
 
 def test_marked_offsets_with_unicode_repetition_and_regex_characters():

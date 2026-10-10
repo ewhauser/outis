@@ -1,5 +1,5 @@
-from clinical_deid.data.annotation_policy import POLICY_VERSION, annotation_errors
-from clinical_deid.data.annotation_policy_spoken import SPOKEN_FIXTURES
+from outis.data.annotation_policy import POLICY_VERSION, annotation_errors
+from outis.data.annotation_policy_spoken import SPOKEN_FIXTURES
 
 
 def gold(key):

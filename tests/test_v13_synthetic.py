@@ -2,17 +2,17 @@ from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
-from clinical_deid.data.annotation_policy import (
+from outis.data.annotation_policy import (
     annotation_errors,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.v13.contexts import (
+from outis.data.v13.contexts import (
     FAMILIES,
     NEGATIVE_FAMILIES,
     validate_families,
 )
-from clinical_deid.data.v13.synthetic import generate
+from outis.data.v13.synthetic import generate
 
 
 def test_original_family_contract_and_all_families_render():
@@ -141,7 +141,7 @@ def test_public_dates_are_not_in_the_future_of_fictional_record_and_scheduled_ev
 
 
 def test_recipient_id_prose_explicitly_says_routing_not_account():
-    from clinical_deid.data.v13.contexts import RETENTION_CONTEXTS
+    from outis.data.v13.contexts import RETENTION_CONTEXTS
 
     item = next(
         x
@@ -178,7 +178,7 @@ def test_every_context_pair_contains_an_actual_date_or_site_ownership_flip():
 def test_date_forms_vary_within_every_family_independently_of_month():
     import random
 
-    from clinical_deid.data.v13.synthetic import choose_values
+    from outis.data.v13.synthetic import choose_values
 
     for f_index, family in enumerate(FAMILIES):
         if not any(m.entity_kind == "date" for m in family.mentions):
@@ -214,11 +214,11 @@ def test_packaged_payloads_reproduce_and_lineage_changes_only_bookkeeping():
 
     import pytest
 
-    from clinical_deid.data.v13.replay import build_replay
-    from clinical_deid.data.v13.synthetic import build_payloads
+    from outis.data.v13.replay import build_replay
+    from outis.data.v13.synthetic import build_payloads
 
     root = Path(__file__).resolve().parents[1]
-    from clinical_deid.data.v13.replay import SOURCE
+    from outis.data.v13.replay import SOURCE
 
     required = [
         SOURCE,
@@ -272,7 +272,7 @@ def test_packaged_payloads_reproduce_and_lineage_changes_only_bookkeeping():
 def test_replay_rejects_source_hash_mismatch_before_parsing(tmp_path, monkeypatch):
     import pytest
 
-    from clinical_deid.data.v13 import replay as v13_replay
+    from outis.data.v13 import replay as v13_replay
 
     source = tmp_path / "untrusted_train.jsonl"
     source.write_bytes(b"this is not JSON and must not be parsed")

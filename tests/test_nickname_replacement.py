@@ -6,16 +6,16 @@ from datetime import date
 
 import pytest
 
-from clinical_deid.entities import Entity
-from clinical_deid.replacement.nicknames import nickname_bindings
-from clinical_deid.replacement.surrogates import replace
-from clinical_deid.replacement.transform import (
+from outis.entities import Entity
+from outis.replacement.nicknames import nickname_bindings
+from outis.replacement.surrogates import replace
+from outis.replacement.transform import (
     link_entities,
     prepare_context,
     reidentify,
     render,
 )
-from clinical_deid.service import Deidentifier
+from outis.service import Deidentifier
 
 SECRET = b"candidate-nickname-regression-secret-at-least-32-bytes"
 PATIENT = "invented-patient"
@@ -343,7 +343,7 @@ def test_nickname_equal_to_owner_synthetic_first_uses_safe_family_name(extended)
 def test_pathological_given_and_family_collision_redacts_with_warning(
     monkeypatch, extended, first, last
 ):
-    import clinical_deid.replacement.surrogates as replacement_module
+    import outis.replacement.surrogates as replacement_module
 
     monkeypatch.setattr(replacement_module, "_fictional_name", lambda *_: (first, last))
     text, spans = marked(DECLARATION.replace("Pip", "Reese"))
@@ -363,7 +363,7 @@ def test_pathological_given_and_family_collision_redacts_with_warning(
 def test_contained_normalized_nickname_token_uses_family_alias(
     monkeypatch, nickname, extended
 ):
-    import clinical_deid.replacement.surrogates as replacement_module
+    import outis.replacement.surrogates as replacement_module
 
     monkeypatch.setattr(
         replacement_module, "_fictional_name", lambda *_: ("Robin Reese", "Fern")
@@ -387,7 +387,7 @@ def test_contained_normalized_nickname_token_uses_family_alias(
 def test_http_synthetic_response_uses_same_proof_for_ids_and_rendering():
     from fastapi.testclient import TestClient
 
-    from clinical_deid.api import create_app
+    from outis.api import create_app
 
     note = marked(DECLARATION)
     service = Deidentifier(detector=Injected([note]), secret=SECRET)
@@ -409,7 +409,7 @@ def test_http_synthetic_response_uses_same_proof_for_ids_and_rendering():
 
 
 def test_structured_shared_fields_preserve_occurrence_offsets_and_nulls():
-    from clinical_deid.formats.structured import process_structured
+    from outis.formats.structured import process_structured
 
     notes = [
         marked(DECLARATION),

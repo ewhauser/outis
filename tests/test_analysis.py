@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from clinical_deid.analysis import analyze_entities
-from clinical_deid.entities import Entity
+from outis.analysis import analyze_entities
+from outis.entities import Entity
 
 
 def analyzed(value, label, **options):

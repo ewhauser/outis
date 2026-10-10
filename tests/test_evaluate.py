@@ -2,19 +2,19 @@ import json
 
 import pytest
 
-from clinical_deid.data.challenge import (
+from outis.data.challenge import (
     FRAGMENTS,
     SCENARIOS,
     generate,
     unmark,
     write_corpus,
 )
-from clinical_deid.evaluation.evaluate import (
+from outis.evaluation.evaluate import (
     evaluate,
     load_verified_corpus,
     wilson_lower,
 )
-from clinical_deid.types import ENTITY_TYPES, Span
+from outis.types import ENTITY_TYPES, Span
 
 
 def row(text="Zoë has fever", start=0, end=3, label="NAME"):
@@ -148,12 +148,12 @@ def test_duplicate_corpus_identifiers_are_rejected():
 def test_detector_source_manifest_includes_changed_transitive_helpers(
     tmp_path, monkeypatch
 ):
-    import clinical_deid.evaluation.evaluate as evaluation
-    import clinical_deid.paths as paths
+    import outis.evaluation.evaluate as evaluation
+    import outis.paths as paths
 
     for name, text in {
-        "detection/hf_encoder.py": "from clinical_deid.detection.helper import refine\n",
-        "detection/helper.py": "from clinical_deid.types import Span\ndef refine(): pass\n",
+        "detection/hf_encoder.py": "from outis.detection.helper import refine\n",
+        "detection/helper.py": "from outis.types import Span\ndef refine(): pass\n",
         "types.py": "class Span: pass\n",
     }.items():
         (tmp_path / name).parent.mkdir(exist_ok=True)
@@ -264,7 +264,7 @@ def test_privacy_block_separates_masking_from_exact_typing():
 
 
 def test_cluster_lower_resamples_documents_and_is_deterministic():
-    from clinical_deid.evaluation.evaluate import cluster_lower
+    from outis.evaluation.evaluate import cluster_lower
 
     documents = [(10, 10)] * 9 + [(0, 10)]
     lower = cluster_lower(documents)
@@ -274,7 +274,7 @@ def test_cluster_lower_resamples_documents_and_is_deterministic():
 
 
 def test_ages_89_and_under_are_reported_outside_the_gate_groups():
-    from clinical_deid.evaluation.evaluate import evaluate
+    from outis.evaluation.evaluate import evaluate
 
     rows = [
         {

@@ -10,14 +10,21 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.data.annotation_policy import annotation_errors, identity_split
-from clinical_deid.data.annotation_policy_eponyms import EPONYM_FIXTURES
-from clinical_deid.data.annotation_policy_places import place_value_pool
-from clinical_deid.types import ENTITY_TYPES
+from outis.data.annotation_policy import annotation_errors, identity_split
+from outis.data.annotation_policy_eponyms import EPONYM_FIXTURES
+from outis.data.annotation_policy_places import place_value_pool
+from outis.types import ENTITY_TYPES
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "takeover" / "author24_instrument_eponyms.py"
 BANK = ROOT / "data" / "tk24_train_instrument_eponyms.jsonl"
+
+
+def recorded_sha256(script):
+    """Hash of the generator as recorded, before the package was renamed to outis."""
+    return hashlib.sha256(
+        script.read_bytes().replace(b"outis", b"clinical_deid")
+    ).hexdigest()
 
 
 def _load():
@@ -65,10 +72,7 @@ def test_written_bank_matches_generator(rows):
     assert manifest["sha256"] == hashlib.sha256(payload).hexdigest()
     assert manifest["rows"] == manifest["documents"] == len(rows)
     assert manifest["author_provenance"]["seed"] == author24.SEED
-    assert (
-        manifest["author_provenance"]["generator_sha256"]
-        == hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
-    )
+    assert manifest["author_provenance"]["generator_sha256"] == recorded_sha256(SCRIPT)
 
 
 def test_offsets_and_structure(rows):

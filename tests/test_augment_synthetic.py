@@ -2,15 +2,15 @@ import hashlib
 import json
 import re
 
-from clinical_deid.data.generators.augment import (
+from outis.data.generators.augment import (
     CLAUSES,
     EPONYMS,
     IDENTITIES,
     generate_rows,
     write_dataset,
 )
-from clinical_deid.data.generators.base import validate_row
-from clinical_deid.types import ENTITY_TYPES
+from outis.data.generators.base import validate_row
+from outis.types import ENTITY_TYPES
 
 
 def test_augmentation_offsets_and_every_entity_dense():

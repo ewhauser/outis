@@ -14,8 +14,8 @@ def main():
     parser.add_argument("--output", default="reports/api_smoke.json")
     parser.add_argument(
         "--api-key",
-        default=os.environ.get("DEID_API_KEY"),
-        help="Optional X-API-Key; defaults to DEID_API_KEY and is never recorded",
+        default=os.environ.get("OUTIS_API_KEY"),
+        help="Optional X-API-Key; defaults to OUTIS_API_KEY and is never recorded",
     )
     args = parser.parse_args()
 

@@ -3,14 +3,14 @@ import time
 
 import pytest
 
-from clinical_deid.entities import Entity
-from clinical_deid.policy import (
+from outis.entities import Entity
+from outis.policy import (
     DetectionPolicy,
     apply_policy,
     policy_metadata,
     validate_policy,
 )
-from clinical_deid.types import Span
+from outis.types import Span
 
 
 def values(text, spans):
@@ -191,7 +191,7 @@ def test_unsafe_repetition_is_rejected_before_pattern_compilation(monkeypatch, p
     def unexpected_compile(*args, **kwargs):
         raise AssertionError("Untrusted expression reached compilation")
 
-    monkeypatch.setattr("clinical_deid.policy.regex.compile", unexpected_compile)
+    monkeypatch.setattr("outis.policy.regex.compile", unexpected_compile)
     with pytest.raises(ValueError, match="Invalid detection policy"):
         validate_policy({"custom_entities": [{"label": "CUSTOM", "pattern": pattern}]})
 
@@ -229,7 +229,7 @@ def test_zero_width_on_nonempty_text_fails_closed():
 
 
 def test_count_limit_and_invalid_detector_offsets_fail_closed(monkeypatch):
-    monkeypatch.setattr("clinical_deid.policy.MAX_POLICY_MATCHES", 2)
+    monkeypatch.setattr("outis.policy.MAX_POLICY_MATCHES", 2)
     with pytest.raises(ValueError, match="Detection count"):
         apply_policy(
             "xxx", [], {"custom_entities": [{"label": "CUSTOM", "pattern": "x"}]}

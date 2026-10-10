@@ -3,7 +3,7 @@
 The data is under the n2c2 data use agreement. Obtain it yourself through the
 DBMI Data Portal, keep it outside every git repository, and point this script
 at the extracted XML folder. The converted corpus is written under
-``DEID_RESTRICTED_DIR`` (default ``~/working/deid/restricted``), never into the
+``OUTIS_RESTRICTED_DIR`` (default ``~/working/deid/restricted``), never into the
 repository. Only counts are printed.
 
 Each file is ``<deIdi2b2><TEXT><![CDATA[...]]></TEXT><TAGS>...</TAGS></deIdi2b2>``;
@@ -26,7 +26,7 @@ import xml.etree.ElementTree as ET
 from common import ROOT, corpus_path, digest_bytes, write_json, write_jsonl
 
 sys.path.insert(0, str(ROOT / "src"))
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 # Native subtype -> project label. None: no project type (kept in source_tags only).
 TYPE_MAP = {

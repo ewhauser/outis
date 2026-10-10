@@ -5,8 +5,8 @@ import json
 
 import pytest
 
-import clinical_deid.evaluation.evaluate as evaluation
-from clinical_deid.types import ENTITY_TYPES
+import outis.evaluation.evaluate as evaluation
+from outis.types import ENTITY_TYPES
 
 
 def frozen_fixture(tmp_path, counts):

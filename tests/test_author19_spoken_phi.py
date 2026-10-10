@@ -11,18 +11,18 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.data.annotation_policy import (
+from outis.data.annotation_policy import (
     POLICY_VERSION,
     annotation_errors,
     identity_split,
 )
-from clinical_deid.data.annotation_policy_spoken import SPOKEN_FIXTURES
-from clinical_deid.data.generators.places import (
+from outis.data.annotation_policy_spoken import SPOKEN_FIXTURES
+from outis.data.generators.places import (
     excluded_sequences,
     excluded_value,
     exclusion_hashes,
 )
-from clinical_deid.types import ENTITY_TYPES
+from outis.types import ENTITY_TYPES
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "takeover" / "author19_spoken_phi.py"
@@ -35,6 +35,13 @@ _spec.loader.exec_module(gen)
 
 WORD_NUMBERS = {w: i for i, w in enumerate(gen.ONES)}
 WORD_NUMBERS.update({w: 10 * i for i, w in enumerate(gen.TENS) if w})
+
+
+def recorded_sha256(script):
+    """Hash of the generator as recorded, before the package was renamed to outis."""
+    return hashlib.sha256(
+        script.read_bytes().replace(b"outis", b"clinical_deid")
+    ).hexdigest()
 
 
 def parse_age(value: str) -> int:
@@ -75,9 +82,7 @@ def test_committed_bank_is_reproduced_byte_for_byte(rows):
     assert payload == BANK.read_bytes()
     manifest = json.loads(MANIFEST.read_text())
     assert manifest["sha256"] == hashlib.sha256(payload).hexdigest()
-    assert (
-        manifest["generator_sha256"] == hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
-    )
+    assert manifest["generator_sha256"] == recorded_sha256(SCRIPT)
 
 
 def test_offsets_and_row_schema(rows):

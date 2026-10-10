@@ -8,6 +8,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Renamed to Outis.** The repository is now `ewhauser/outis` and the data
+  repository `ewhauser/outis-data`. The distribution, CLI and import package
+  are `outis` (previously `clinical-deid` and `clinical_deid`). Environment
+  variables use the `OUTIS_` prefix: `OUTIS_API_KEY`, `OUTIS_SECRET`,
+  `OUTIS_MODEL_DIR`, `OUTIS_DEVICE`, `OUTIS_RESTRICTED_DIR` and
+  `OUTIS_PLACE_CACHE`; the old `DEID_` and `CLINICAL_DEID_` names are no longer
+  read. Replacement output and generated corpora are unchanged: the hashing
+  keys and generator seed prefix keep their original strings. Reports, data
+  and model records keep the old name as written.
 - **Default model.** The default detector is now DeBERTa-v3-base
   `deberta_mix9_001` step 9288 (`models/takeover-deberta-mix9-001/step-009288`),
   promoted by the owner on 2026-10-09. It passed the GOALS.md regression rules
@@ -130,5 +139,5 @@ The initial development release. The default checkpoint is the fourth-stage
   facilities are kept whole.
 - NAME boundaries around initials, possessives and quotes.
 
-[Unreleased]: https://github.com/ewhauser/deidentifier/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/ewhauser/deidentifier/releases/tag/v0.1.0
+[Unreleased]: https://github.com/ewhauser/outis/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ewhauser/outis/releases/tag/v0.1.0

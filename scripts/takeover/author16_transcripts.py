@@ -32,13 +32,13 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(ROOT / ".cache" / "tiktoken"))
 
-from clinical_deid.data.annotation_policy import (  # noqa: E402
+from outis.data.annotation_policy import (  # noqa: E402
     POLICY_VERSION,
     annotation_errors,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.generators.places import (  # noqa: E402
+from outis.data.generators.places import (  # noqa: E402
     excluded_sequences,
     excluded_value,
 )
@@ -3471,7 +3471,7 @@ def write_bank(rows, stats, out: Path, seed, n):
     payload = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
     out.write_text(payload, encoding="utf-8")
     support = Counter(s["label"] for r in rows for s in r["spans"])
-    from clinical_deid.types import ENTITY_TYPES
+    from outis.types import ENTITY_TYPES
     label_support = {lab: support[lab] for lab in ENTITY_TYPES}
     tokens = sorted(r["tokens"] for r in rows)
     pct = lambda q: tokens[min(len(tokens) - 1, int(q * len(tokens)))]  # noqa: E731
@@ -3494,7 +3494,7 @@ def write_bank(rows, stats, out: Path, seed, n):
                          "over_512": sum(1 for t in tokens if t > 512), "over_2048": sum(1 for t in tokens if t > 2048), "mean": round(statistics.mean(tokens), 1)},
         "value_repetition": {"cap_rows": stats["cap"], "max_rows_for_any_span_value": max(usage.values()) if usage else 0,
                              "max_rows_for_any_name_token": max((v for k, v in usage.items() if k.startswith("n:")), default=0)},
-        "exclusion_filter": {"source": "data/places_exclusions.sha256.json via clinical_deid.data.generators.places", "counts_only": True,
+        "exclusion_filter": {"source": "data/places_exclusions.sha256.json via outis.data.generators.places", "counts_only": True,
                              "value_exclusion_rejects": stats["rejected_draws"].get("value_exclusion", 0),
                              "row_sequence_exclusion_rejects": stats["rejected_draws"].get("row_sequence_exclusion", 0),
                              "template_variants_dropped": stats["template_variants_dropped_by_exclusion"],

@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "Clinical Deidentifier"
+title: "Outis"
 abstract: >-
   Local PHI detection, typed redaction and patient-consistent synthetic
   replacement for English clinical text, using a clinical adapter on the
@@ -9,7 +9,7 @@ type: software
 authors:
   - family-names: Hauser
     given-names: Eric
-repository-code: "https://github.com/ewhauser/deidentifier"
+repository-code: "https://github.com/ewhauser/outis"
 license: Apache-2.0
 version: 0.1.0
 date-released: "2026-10-04"

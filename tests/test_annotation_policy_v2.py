@@ -2,7 +2,7 @@ import unicodedata
 
 import pytest
 
-from clinical_deid.data.annotation_policy import (
+from outis.data.annotation_policy import (
     ANNOTATION_POLICY,
     POLICY_FIXTURES,
     POLICY_VERSION,
@@ -98,8 +98,8 @@ def test_date_range_fixture_is_one_span_and_listed_dates_stay_separate():
 
 
 def test_every_fixture_date_range_survives_synthetic_shifting():
-    from clinical_deid.replacement.surrogates import replace
-    from clinical_deid.types import Span
+    from outis.replacement.surrogates import replace
+    from outis.types import Span
 
     row = {r["id"]: r for r in POLICY_FIXTURES}["date_range_one_span"]
     spans = [Span(s["start"], s["end"], s["label"]) for s in row["spans"]]

@@ -5,8 +5,8 @@ import re
 from collections import Counter
 from datetime import datetime
 
-from clinical_deid.data.generators.base import validate_row
-from clinical_deid.data.generators.narrative import (
+from outis.data.generators.base import validate_row
+from outis.data.generators.narrative import (
     FRAMES,
     NARRATIVE_FRAMES,
     NEGATIVE_FRAMES,
@@ -17,7 +17,7 @@ from clinical_deid.data.generators.narrative import (
     single_token_words,
     write_dataset,
 )
-from clinical_deid.types import ENTITY_TYPES
+from outis.types import ENTITY_TYPES
 
 
 def test_narrative_all_types_clean_notes_and_exact_offsets():
@@ -140,7 +140,7 @@ def test_narrative_manifests_hashes_and_authored_provenance(tmp_path):
             (tmp_path / f"narrative_{split}.jsonl.manifest.json").read_text()
         )
         assert adjacent["sha256"] == details["sha256"] and adjacent["split"] == split
-        from clinical_deid.evaluation.evaluate import load_verified_corpus
+        from outis.evaluation.evaluate import load_verified_corpus
 
         verified, _ = load_verified_corpus(tmp_path / f"narrative_{split}.jsonl")
         assert len(verified) == details["count"]

@@ -10,9 +10,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from clinical_deid.api import create_app
-from clinical_deid.service import Deidentifier
-from clinical_deid.types import Span
+from outis.api import create_app
+from outis.service import Deidentifier
+from outis.types import Span
 
 SECRET = b"test-only-secret-never-use-in-production-12345"
 TEXT = "Zoë Núñez was seen on 2024-10-03. Glucose 109 mg/dL. Review 2024-10-17."
@@ -445,7 +445,7 @@ def test_http_smoke_exact_spans_default_cross_note_mapping_and_env_auth(
     module = smoke_module()
     calls = fake_smoke_http(monkeypatch, module)
     api_key = "PRIVATE-SMOKE-AUTH-KEY"
-    monkeypatch.setenv("DEID_API_KEY", api_key)
+    monkeypatch.setenv("OUTIS_API_KEY", api_key)
     output = tmp_path / "smoke.json"
     monkeypatch.setattr(
         sys,

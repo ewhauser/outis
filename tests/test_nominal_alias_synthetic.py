@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 import tiktoken
 
-from clinical_deid.data.generators import nominal_alias as generator
-from clinical_deid.evaluation.evaluate import load_verified_corpus
+from outis.data.generators import nominal_alias as generator
+from outis.evaluation.evaluate import load_verified_corpus
 
 
 @pytest.fixture(scope="module")

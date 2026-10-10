@@ -26,8 +26,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(ROOT / ".cache" / "tiktoken"))
 
-from clinical_deid.data.annotation_policy import COHORTS, POLICY_VERSION, annotation_errors  # noqa: E402
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.data.annotation_policy import COHORTS, POLICY_VERSION, annotation_errors  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 EXPLANATIONS = re.compile(
     r"\b(?:gold spans?|PHI|annotation policy|hard negative|training data|tokenizer|ownership join"

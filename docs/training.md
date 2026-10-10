@@ -20,7 +20,7 @@ export HF_HOME="$PWD/.cache/huggingface"
 ```
 
 Inference sends no text to any hosted service. On Apple silicon, set
-`DEID_DEVICE=mps`; CPU is supported.
+`OUTIS_DEVICE=mps`; CPU is supported.
 
 ## Training a candidate
 
@@ -67,8 +67,8 @@ existing differing artifacts. The development generator is independently authore
 Run commands from this checkout with `PYTHONPATH=src:scripts`:
 
 ```sh
-PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.remediation --output data/NEW_train.jsonl
-PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.remediation_development --output data/NEW_validation.jsonl
+PYTHONPATH=src .venv/bin/python -m outis.data.generators.remediation --output data/NEW_train.jsonl
+PYTHONPATH=src .venv/bin/python -m outis.data.generators.remediation_development --output data/NEW_validation.jsonl
 PYTHONPATH=src:scripts .venv/bin/python scripts/audit_corpus_quality.py \
   --corpus train=data/NEW_train.jsonl --corpus validation=data/NEW_validation.jsonl \
   --output reports/NEW_quality.json
@@ -95,15 +95,15 @@ than cross-entropy alone. Additional training duration is a comparison caveat;
 this experiment alone cannot establish that context composition caused a gain.
 
 ```sh
-.venv/bin/python -m clinical_deid.data.generators.narrative
-.venv/bin/python -m clinical_deid.data.generators.compositional
+.venv/bin/python -m outis.data.generators.narrative
+.venv/bin/python -m outis.data.generators.compositional
 .venv/bin/python scripts/retire_final_to_development.py \
   --source data/challenge_final.jsonl --output data/retired_v4_development.jsonl
 ```
 
 ## Places addendum curriculum
 
-`clinical_deid.data.generators.places` writes terse and ordinary training rows for the
+`outis.data.generators.places` writes terse and ordinary training rows for the
 [places addendum](annotation-policy-v2-places.md): real localities, care-site
 abbreviations and short names, matched public-reference negatives and mixed
 care/citation rows. Real names come only from pinned Census Gazetteer and CMS
@@ -112,9 +112,9 @@ the addendum's `train` value pool, and never from the blind places bank's
 hashed exclusion list.
 
 ```sh
-PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.place_sources fetch
-PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.places generate
-PYTHONPATH=src .venv/bin/python -m clinical_deid.data.generators.places check
+PYTHONPATH=src .venv/bin/python -m outis.data.generators.place_sources fetch
+PYTHONPATH=src .venv/bin/python -m outis.data.generators.places generate
+PYTHONPATH=src .venv/bin/python -m outis.data.generators.places check
 ```
 
 `check` regenerates both splits and confirms they are byte-identical to the

@@ -5,7 +5,7 @@ import json
 import pytest
 from test_hf_encoder import tiny_detector
 
-from clinical_deid.evaluation.runtime import neural_runtime_manifest
+from outis.evaluation.runtime import neural_runtime_manifest
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ def test_runtime_pins_hf_code_versions_and_actual_tokenizer(hf_candidate):
 
 
 def test_hf_detector_uses_saved_local_files(hf_candidate):
-    from clinical_deid.detection.hf_encoder import load_detector
+    from outis.detection.hf_encoder import load_detector
 
     directory, detector, _ = hf_candidate
     actual = load_detector(directory, device="cpu", batch_size=8)

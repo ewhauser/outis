@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 import tiktoken
 
-from clinical_deid.data.generators import generalization as generator
-from clinical_deid.types import ENTITY_TYPES
+from outis.data.generators import generalization as generator
+from outis.types import ENTITY_TYPES
 
 
 @pytest.fixture(scope="module")

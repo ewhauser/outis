@@ -8,7 +8,7 @@ every row. Everything is invented. Deterministic: the same seed and source
 give the same bytes.
 
 Conventions come from docs/annotation-policy-v2.md and the report fixtures in
-src/clinical_deid/data/annotation_policy_reports.py. Briefly: accession numbers
+src/outis/data/annotation_policy_reports.py. Briefly: accession numbers
 are ID; MRN captions stay outside the span; a person known only by initials is
 NAME; honorifics and credentials stay outside NAME; series and image numbers,
 measurements, slice positions, device and scanner models, contrast doses and
@@ -37,18 +37,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from clinical_deid.data.annotation_policy import (  # noqa: E402
+from outis.data.annotation_policy import (  # noqa: E402
     POLICY_VERSION,
     annotation_errors,
     canonical_identity_group,
     identity_split,
 )
-from clinical_deid.data.generators.places import (  # noqa: E402
+from outis.data.generators.places import (  # noqa: E402
     EXCLUSIONS_SHA256,
     excluded_sequences,
     excluded_value,
 )
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 SEED = 18_2026
 ROWS = 1500

@@ -11,10 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.data.annotation_policy import annotation_errors, identity_split
-from clinical_deid.data.annotation_policy_reports import REPORT_FIXTURES
-from clinical_deid.data.generators.places import excluded_sequences
-from clinical_deid.types import ENTITY_TYPES
+from outis.data.annotation_policy import annotation_errors, identity_split
+from outis.data.annotation_policy_reports import REPORT_FIXTURES
+from outis.data.generators.places import excluded_sequences
+from outis.types import ENTITY_TYPES
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "takeover" / "author17_lab_pathology.py"

@@ -33,10 +33,10 @@ os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(ROOT / ".cache" / "tiktoken"))
 
 import torch  # noqa: E402
 
-from clinical_deid.data.annotation_policy import POLICY_VERSION  # noqa: E402
-from clinical_deid.detection.deberta_attention import apply_gather_free_attention  # noqa: E402
-from clinical_deid.detection.decoding import TAGS  # noqa: E402
-from clinical_deid.detection.hf_encoder import (  # noqa: E402
+from outis.data.annotation_policy import POLICY_VERSION  # noqa: E402
+from outis.detection.deberta_attention import apply_gather_free_attention  # noqa: E402
+from outis.detection.decoding import TAGS  # noqa: E402
+from outis.detection.hf_encoder import (  # noqa: E402
     ENCODER_KIND,
     LEADING_SEPARATORS,
     TRAILING_SEPARATORS,
@@ -46,11 +46,11 @@ from clinical_deid.detection.hf_encoder import (  # noqa: E402
     trim_merged_punctuation,
     window_jobs,
 )
-from clinical_deid.evaluation.evaluate import (  # noqa: E402
+from outis.evaluation.evaluate import (  # noqa: E402
     evaluate,
     load_verified_corpus,
 )
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 TAG_INDEX = {tag: i for i, tag in enumerate(TAGS)}
 PROTECTED = ("blind_qualification_v6", "blind_qualification_v7", "blind_qualification_v9",

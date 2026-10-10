@@ -9,9 +9,9 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from clinical_deid.data.annotation_policy import annotation_errors, identity_split
-from clinical_deid.data.corpus_quality import audit_corpora
-from clinical_deid.data.v12.development import (
+from outis.data.annotation_policy import annotation_errors, identity_split
+from outis.data.corpus_quality import audit_corpora
+from outis.data.v12.development import (
     CACHE_FILE,
     CACHE_SHA256,
     LONG_PASSAGES,
@@ -24,7 +24,7 @@ from clinical_deid.data.v12.development import (
     token_span_positions,
     write_bank,
 )
-from clinical_deid.types import ENTITY_TYPES
+from outis.types import ENTITY_TYPES
 
 ROOT = Path(__file__).resolve().parents[1]
 

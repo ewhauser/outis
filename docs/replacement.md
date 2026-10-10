@@ -5,7 +5,7 @@ consistent for a patient across notes. Redaction mode needs none of this setup.
 
 ## Secret and patient anchor
 
-Set `DEID_SECRET` to a secret with at least 32 bytes and keep it stable. Synthetic
+Set `OUTIS_SECRET` to a secret with at least 32 bytes and keep it stable. Synthetic
 requests also require a stable `patient_id`; it anchors date shifts across notes.
 This anchor is exact and case-sensitive, including whitespace. Reuse the same
 opaque identifier for the patient in every request.
@@ -13,8 +13,8 @@ Rotate the secret when a new mapping universe is desired. Independent secrets
 produce independent mappings. Example startup:
 
 ```sh
-export DEID_SECRET="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(48))')"
-.venv/bin/clinical-deid serve
+export OUTIS_SECRET="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+.venv/bin/outis serve
 ```
 
 ```json

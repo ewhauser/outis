@@ -27,8 +27,8 @@ RESTRICTED_BENCHMARKS = frozenset({"n2c2_2014_train", "n2c2_2014_test"})
 
 
 def restricted_root() -> Path:
-    """Directory for restricted data, from DEID_RESTRICTED_DIR; refused inside any git repository."""
-    root = Path(os.environ.get("DEID_RESTRICTED_DIR", "~/working/deid/restricted")).expanduser().resolve()
+    """Directory for restricted data, from OUTIS_RESTRICTED_DIR; refused inside any git repository."""
+    root = Path(os.environ.get("OUTIS_RESTRICTED_DIR", "~/working/deid/restricted")).expanduser().resolve()
     for candidate in (root, *root.parents):
         if (candidate / ".git").exists():
             raise ValueError(f"restricted data must not live inside a git repository: {candidate}")

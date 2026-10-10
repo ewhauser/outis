@@ -6,12 +6,12 @@ import re
 
 import pytest
 
-from clinical_deid.entities import Entity
-from clinical_deid.formats.structured import process_structured
-from clinical_deid.policy import DetectionPolicy
-from clinical_deid.replacement.transform import ReplacementOptions, reidentify
-from clinical_deid.service import Deidentifier
-from clinical_deid.types import ENTITY_TYPES, Span
+from outis.entities import Entity
+from outis.formats.structured import process_structured
+from outis.policy import DetectionPolicy
+from outis.replacement.transform import ReplacementOptions, reidentify
+from outis.service import Deidentifier
+from outis.types import ENTITY_TYPES, Span
 
 SECRET = b"test-only-service-extension-secret-0123456789"
 MODEL_LABELS = (
@@ -444,7 +444,7 @@ def test_explicit_empty_replacement_uses_configured_defaults(service):
 
 
 def test_shared_segments_prepare_full_context_only_once(service, monkeypatch):
-    import clinical_deid.replacement.transform as transform
+    import outis.replacement.transform as transform
 
     prepare = transform.prepare_context
     calls = []

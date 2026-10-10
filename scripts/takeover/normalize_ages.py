@@ -58,7 +58,7 @@ PUBLIC_CONTEXT = re.compile(
 
 
 def _value(word: str) -> float | None:
-    from clinical_deid.policy import age_value
+    from outis.policy import age_value
 
     return age_value(word)
 

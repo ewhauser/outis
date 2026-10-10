@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.evaluation.report import ReportError, build_report, load_report
+from outis.evaluation.report import ReportError, build_report, load_report
 
 ADAPTER = "a" * 64
 CONFIG = "b" * 64

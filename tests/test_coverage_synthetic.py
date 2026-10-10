@@ -2,8 +2,8 @@ import hashlib
 import json
 import re
 
-from clinical_deid.data.generators.base import validate_row
-from clinical_deid.data.generators.coverage import (
+from outis.data.generators.base import validate_row
+from outis.data.generators.coverage import (
     CARE_SUFFIXES,
     FRAMES,
     ROLE_RELATIONSHIPS,
@@ -11,7 +11,7 @@ from clinical_deid.data.generators.coverage import (
     generate_rows,
     write_dataset,
 )
-from clinical_deid.types import ENTITY_TYPES
+from outis.types import ENTITY_TYPES
 
 
 def test_coverage_every_type_and_exact_offsets():

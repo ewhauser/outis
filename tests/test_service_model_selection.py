@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from clinical_deid.api import create_app
-from clinical_deid.detection import hf_encoder
-from clinical_deid.service import Deidentifier
-from clinical_deid.types import Span
+from outis.api import create_app
+from outis.detection import hf_encoder
+from outis.service import Deidentifier
+from outis.types import Span
 
 
 class FakeDetector:
@@ -56,7 +56,7 @@ def test_explicit_hf_service_uses_factory_and_preserves_options(hf_bundle, monke
 
 
 def test_default_model_is_the_promoted_encoder(tmp_path, monkeypatch):
-    from clinical_deid.paths import DEFAULT_MODEL_DIR
+    from outis.paths import DEFAULT_MODEL_DIR
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(hf_encoder, "HFTokenDetector", FakeDetector)
@@ -119,10 +119,10 @@ def test_http_model_environment_selects_hf_and_exposes_bundle_version(
     hf_bundle, monkeypatch
 ):
     monkeypatch.setattr(hf_encoder, "HFTokenDetector", FakeDetector)
-    monkeypatch.setenv("DEID_MODEL_DIR", str(hf_bundle))
-    monkeypatch.setenv("DEID_DEVICE", "cpu")
-    monkeypatch.delenv("DEID_API_KEY", raising=False)
-    monkeypatch.delenv("DEID_SECRET", raising=False)
+    monkeypatch.setenv("OUTIS_MODEL_DIR", str(hf_bundle))
+    monkeypatch.setenv("OUTIS_DEVICE", "cpu")
+    monkeypatch.delenv("OUTIS_API_KEY", raising=False)
+    monkeypatch.delenv("OUTIS_SECRET", raising=False)
     with TestClient(create_app()) as client:
         ready = client.get("/ready")
         assert ready.status_code == 200

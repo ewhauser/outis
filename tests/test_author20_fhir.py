@@ -13,14 +13,14 @@ from pathlib import Path
 
 import pytest
 
-from clinical_deid.data.annotation_policy import (
+from outis.data.annotation_policy import (
     POLICY_VERSION,
     annotation_errors,
     identity_split,
 )
-from clinical_deid.data.annotation_policy_fhir import FHIR_FIXTURES
-from clinical_deid.data.generators.places import excluded_sequences
-from clinical_deid.types import ENTITY_TYPES
+from outis.data.annotation_policy_fhir import FHIR_FIXTURES
+from outis.data.generators.places import excluded_sequences
+from outis.types import ENTITY_TYPES
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("author20_fhir", ROOT / "scripts" / "takeover" / "author20_fhir.py")

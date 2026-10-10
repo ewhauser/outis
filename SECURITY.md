@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report vulnerabilities privately through
-[GitHub private vulnerability reporting](https://github.com/ewhauser/deidentifier/security/advisories/new).
+[GitHub private vulnerability reporting](https://github.com/ewhauser/outis/security/advisories/new).
 Do not open a public issue.
 
 Include the affected version or commit, reproduction steps, and the impact.

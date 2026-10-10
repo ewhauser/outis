@@ -29,7 +29,7 @@ import urllib.request
 from common import HERE, ROOT, corpus_path, digest, digest_bytes, write_json, write_jsonl
 
 sys.path.insert(0, str(ROOT / "src"))
-from clinical_deid.types import ENTITY_TYPES  # noqa: E402
+from outis.types import ENTITY_TYPES  # noqa: E402
 
 SOURCES = {
     "meddeid_en": {

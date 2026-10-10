@@ -3,7 +3,7 @@
 import unittest
 from copy import deepcopy
 
-from clinical_deid.evaluation.report_html import _timing
+from outis.evaluation.report_html import _timing
 
 COMPLETE_NOTE = (
     "Cached timing composition: neural inference was not performed in this evaluation. "

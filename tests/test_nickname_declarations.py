@@ -2,8 +2,8 @@ import unicodedata
 
 import pytest
 
-from clinical_deid.replacement.names import nickname as nick
-from clinical_deid.types import Span
+from outis.replacement.names import nickname as nick
+from outis.types import Span
 
 
 def span(text, value, label="NAME", occurrence=0):
