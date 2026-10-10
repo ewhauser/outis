@@ -218,7 +218,13 @@ jobs:
           import hashlib, json, os, pathlib, time, urllib.request
 
           version = os.environ["RELEASE_VERSION"]
-          built = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in pathlib.Path("dist").iterdir()}
+          # The publish action leaves *.publish.attestation files beside the
+          # distributions; compare only what was uploaded.
+          built = {
+              p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+              for p in pathlib.Path("dist").iterdir()
+              if p.name.endswith((".whl", ".tar.gz"))
+          }
           for _ in range(24):
               try:
                   with urllib.request.urlopen(f"https://pypi.org/pypi/outis/{version}/json") as response:
