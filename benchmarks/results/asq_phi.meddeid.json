@@ -1,0 +1,39 @@
+{
+ "benchmark": "asq_phi",
+ "corpus_manifest_sha256": "0031bd8711020e99dcdda029e2f4cc720ee91cf1b412938c57cd240fd1f97fd4",
+ "scorer_sha256": "b0ef1352722dcb2417fbb386bedc455d6c6dc6c6d8a9caa948828db8d5e58395",
+ "published_reference": {
+  "character_recall": 0.989,
+  "non_pii_redaction": 0.0621,
+  "non_pii_redaction_age_adjusted": 0.0089
+ },
+ "label_agnostic": {
+  "character_recall": 0.9914272592743787,
+  "character_recall_wilson_lower_95": 0.9904651723201845,
+  "exact_span": {
+   "f1": 0.7979109241259248,
+   "fn": 223,
+   "fp": 1170,
+   "precision": 0.701530612244898,
+   "recall": 0.9249915909855365,
+   "tp": 2750
+  },
+  "explicit_age_characters_redacted": 6408,
+  "gold_characters": 39194,
+  "hard_negatives_clean": {
+   "count": 32,
+   "documents": 219,
+   "rate": 0.1461187214611872
+  },
+  "non_pii_characters": 119651,
+  "non_pii_redacted_characters": 7572,
+  "non_pii_redaction": 0.06328405111532708,
+  "non_pii_redaction_age_adjusted": 0.009728293119154876,
+  "phi_documents_leak_free": {
+   "count": 776,
+   "documents": 832,
+   "rate": 0.9326923076923077
+  }
+ },
+ "system": "meddeid"
+}

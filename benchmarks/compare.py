@@ -36,7 +36,7 @@ def main() -> None:
         "columns use each benchmark's own gold, which penalises conventions the policy "
         "deliberately differs on (honorifics and credentials inside names, unannotated "
         "ages and years). Before attributing a gap to a model, check the convention "
-        f"flags and the miss shapes in `<benchmark>.{VIEW}.md`.",
+        f"flags and the miss shapes in `<benchmark>.{VIEW}.json`.",
         "",
     ]
     for path in sorted(RESULTS.glob(f"*.{VIEW}.json")):

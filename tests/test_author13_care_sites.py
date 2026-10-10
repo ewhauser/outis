@@ -251,6 +251,8 @@ def test_every_version_reproduces_byte_for_byte(version, seed, name):
     ).encode()
     manifest = json.loads((ROOT / "data" / f"{name}.manifest.json").read_text())
     assert hashlib.sha256(payload).hexdigest() == manifest["sha256"]
+    if not (ROOT / "data" / name).exists():
+        pytest.skip("bank not present (corpora live in the private data repository)")
     assert (ROOT / "data" / name).read_bytes() == payload
 
 
@@ -480,6 +482,8 @@ def test_v4_has_zero_exclusion_matches(bank4):
     # In memory and in the written file; only counts are asserted, never the strings.
     assert author13.exclusion_matches(bank) == 0
     path = ROOT / "data" / "tk13_train_care_sites_localities__v4.jsonl"
+    if not path.exists():
+        pytest.skip("bank not present (corpora live in the private data repository)")
     import json
 
     on_disk = [json.loads(line) for line in path.read_text().splitlines()]

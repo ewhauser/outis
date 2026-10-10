@@ -4,45 +4,25 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
 .env
 .env.*
 !.env.example
-# Data corpora. Ignored by default, but the corpora listed in
-# CLEANUP.data.sha256 are force-added (git add -f) for safekeeping until the
-# history rewrite in CLEANUP.md. Git keeps tracking them despite this rule.
-# To commit a new corpus, follow "Committing new data" in CLEANUP.md.
-# Never force-add sealed or blind qualification payloads (data/blind_*,
-# *.sealed); scripts/check_data_tracking.py rejects them.
-data/**/*.jsonl
-data/*.sealed
-*.sealed
 *.bak
-# Generated experiment corpora, feature caches, and process-local locks.
-# Keep completed phase summaries and small trained adapter weights versioned.
-reports/**/*.jsonl
-!reports/**/phases.jsonl
-reports/**/*.npz
-reports/**/run.lock
+logs/
+
+# Corpora, their manifests and the evaluation banks live in the private data
+# repository. Never commit note text, sealed or blind banks, or their exclusion
+# lists. Only the public care-site list is tracked here.
+data/*
+!data/care_site_names.json
+*.sealed
+
+# Evaluation outputs, other checkpoints and model weights.
+reports/
+experiments/
+models/*
+!models/deid-deberta-v3-base/
 models/**/model.safetensors
 models/**/pytorch_model.bin
 models/**/*.pt
-*.egg-info/
-logs/
-# Claude Code worktrees are full checkouts; never commit them.
-.claude/worktrees/
-
-# Sealed qualification bank author artifacts (generators, seal scripts, ledgers).
-# Never commit; they can reproduce sealed content. Kept only on local disk.
-data/qualification_v9*_author_artifacts/
-
-# Blind places banks: only the sealing record is tracked. The corpus,
-# generator, source lists, QA, manifest and reviews can reveal or reproduce
-# sealed content. Kept in the private outis-data repository.
-data/blind_places_*/*
-!data/blind_places_*/sealing_record.json
-# Local leftovers from the removed Privacy-Filter adapter; safe to delete.
-models/privacy-filter-base/
-vendor/
-# Held-out development bank: rows never committed; hash record lives in reports/heldout_dev_v1/.
-data/heldout_dev_v1/
-data/heldout_dev_v2/

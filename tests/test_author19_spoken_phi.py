@@ -64,6 +64,8 @@ def load_bank():
 
 @pytest.fixture(scope="module")
 def rows():
+    if not BANK.exists():
+        pytest.skip("bank not present (corpora live in the private data repository)")
     return load_bank()
 
 

@@ -1,0 +1,56 @@
+{
+  "benchmark": "meddeid_en",
+  "characters": {
+    "gold": 25061,
+    "non_gold": 491699,
+    "total": 516760
+  },
+  "converter_sha256": "4360f4dfbc7ece2b3a9f763d474e1f96e2e3d46046ff2f240686ce0fa7d8af2f",
+  "documents": 300,
+  "gold_spans": 1678,
+  "label_support": {
+    "ACCOUNT": 0,
+    "ADDRESS": 108,
+    "AGE": 100,
+    "DATE": 204,
+    "EMAIL": 63,
+    "FACILITY": 169,
+    "ID": 324,
+    "IP": 0,
+    "LOCATION": 30,
+    "MRN": 0,
+    "NAME": 644,
+    "PHONE": 36,
+    "SSN": 0,
+    "URL": 0
+  },
+  "overlapping_spans": 0,
+  "rows": 300,
+  "sample": null,
+  "sha256": "a69f770c129093a1a21420c122fbf4f6247e7c547ba44eb2371ffd2dfe734d8b",
+  "source": {
+    "dataset": "MedDeID English synthetic benchmark",
+    "file": "meddeid_english_synthetic_benchmark_test.jsonl",
+    "licence": "CC BY 4.0",
+    "sha256": "c6089f2e36cbca90571941ce3a7f29954aea14e1c6487cb950c157999589be7e",
+    "sha256_verified": true,
+    "terms": "final evaluation only; no training, validation, tuning or model selection",
+    "url": "https://huggingface.co/datasets/stighellemans/meddeid-english-synthetic-benchmark/resolve/288c5718e5112e75c857ddf511a30e6eb6b32cdb/data/test.jsonl"
+  },
+  "source_label_support": {
+    "Address_Location:Caregiver": 12,
+    "Address_Location:Other": 18,
+    "Address_Location:Patient": 108,
+    "Age_Birthdate": 144,
+    "Contactdetails": 99,
+    "Date": 160,
+    "ID:Caregiver": 58,
+    "ID:Patient": 266,
+    "Name:Caregiver": 186,
+    "Name:Other": 118,
+    "Name:Patient": 340,
+    "Organization:Healthcare": 141,
+    "Organization:Other": 28,
+    "Profession": 39
+  }
+}

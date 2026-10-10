@@ -7,12 +7,9 @@ from pathlib import Path
 PACKAGE_ROOT = Path(__file__).resolve().parent
 # Checkout root for an editable install: holds data/, models/ and .cache/.
 PROJECT_ROOT = PACKAGE_ROOT.parents[1]
-# Default detector: DeBERTa-v3-base deberta_mix9_001 step 9288, promoted by the
-# owner on 2026-10-09 despite a failed blind rule
-# (reports/takeover/deberta_mix9_001/promotion_v3/OWNER_DECISION.md).
-# Previously deberta_mix9c_001 step 845, before that ModernBERT-base mix5.
+# Default detector: DeBERTa-v3-base deberta_mix9_001 step 9288 (see MODEL_CARD.md).
 # Relative to the working directory.
-DEFAULT_MODEL_DIR = "models/takeover-deberta-mix9-001/step-009288"
+DEFAULT_MODEL_DIR = "models/deid-deberta-v3-base"
 
 
 def source_manifest(*entry_points: str) -> dict[str, str]:

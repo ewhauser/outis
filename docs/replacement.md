@@ -13,8 +13,8 @@ Rotate the secret when a new mapping universe is desired. Independent secrets
 produce independent mappings. Example startup:
 
 ```sh
-export OUTIS_SECRET="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(48))')"
-.venv/bin/outis serve
+export OUTIS_SECRET="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+uv run outis serve
 ```
 
 ```json

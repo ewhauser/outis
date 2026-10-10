@@ -24,7 +24,7 @@ def main() -> None:
     parser.add_argument("--model-dir", default=str(ROOT / DEFAULT_MODEL_DIR))
     parser.add_argument("--device", choices=("auto", "cpu", "mps", "cuda"), default="auto")
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--system", default="project-mix5",
+    parser.add_argument("--system", default="project",
                         help="system key; must start with project")
     args = parser.parse_args()
     if not args.system.startswith("project"):

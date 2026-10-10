@@ -1,0 +1,52 @@
+{
+  "benchmark": "technetium_test5k",
+  "characters": {
+    "gold": 656561,
+    "non_gold": 9180582,
+    "total": 9837143
+  },
+  "converter_sha256": "dbcda289b8ab77cb92a274c610853d6fd96273851585e86cc8ce48ee972b5343",
+  "documents": 5000,
+  "gold_spans": 66297,
+  "label_support": {
+    "ACCOUNT": 0,
+    "ADDRESS": 0,
+    "AGE": 10986,
+    "DATE": 15000,
+    "EMAIL": 5000,
+    "FACILITY": 0,
+    "ID": 5000,
+    "IP": 0,
+    "LOCATION": 15000,
+    "MRN": 0,
+    "NAME": 10311,
+    "PHONE": 5000,
+    "SSN": 0,
+    "URL": 0
+  },
+  "overlap_resolution": "Technetium-I: overlapping NAME spans merged; AGE spans overlapping another type dropped",
+  "overlapping_spans": 0,
+  "rows": 5000,
+  "sample": {
+    "seed": 20261006,
+    "size": 5000
+  },
+  "sha256": "afbadba3a1155e9e8d60374199b2af5ab79275c1f45d70eecf42d0c4f9fe6daa",
+  "source": {
+    "dataset": "Technetium-I test split",
+    "file": "technetium_i_test.jsonl",
+    "licence": "EUPL-1.2",
+    "sha256": "673e5c746136f16de1dadc2b9926264b227a3b16e964b3788e3cec7c36ff7c41",
+    "sha256_verified": true,
+    "url": "https://huggingface.co/datasets/temlm-foundation/Technetium-I/resolve/b6ffde5e2b43395b197f4a49ba01d1914394a6cb/test.jsonl"
+  },
+  "source_label_support": {
+    "AGE": 12350,
+    "DATE": 15000,
+    "EMAIL": 5000,
+    "ID": 5000,
+    "LOCATION": 15000,
+    "NAME": 20374,
+    "PHONE": 5000
+  }
+}

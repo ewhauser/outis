@@ -6,16 +6,16 @@ requests, model loading, or new runtime dependencies. The page works offline,
 and the same config and input bytes produce identical HTML.
 
 ```sh
-.venv/bin/python scripts/build_report.py \
-  --config reports/pipeline_report_config.json \
+uv run scripts/build_report.py \
+  --config CONFIG.json \
   --output reports/pipeline_report.html
 ```
 
 The module form is also supported:
 
 ```sh
-.venv/bin/python -m outis.evaluation.report \
-  --config reports/pipeline_report_config.json \
+uv run python -m outis.evaluation.report \
+  --config CONFIG.json \
   --output reports/pipeline_report.html
 ```
 
@@ -45,10 +45,10 @@ breakdown.
 For a local HTTP preview, serve only the output directory you intend to expose:
 
 ```sh
-.venv/bin/python scripts/build_report.py \
-  --config reports/pipeline_report_config.json \
+uv run scripts/build_report.py \
+  --config CONFIG.json \
   --output /tmp/deid-report-preview/index.html
-.venv/bin/python -m http.server 4173 --bind 127.0.0.1 \
+uv run python -m http.server 4173 --bind 127.0.0.1 \
   --directory /tmp/deid-report-preview
 ```
 
@@ -156,8 +156,8 @@ Reported completion time comes only from the qualification wrapper; regeneration
 does not invent a new evaluation timestamp.
 
 ```sh
-.venv/bin/python -m pytest -q tests/test_report.py tests/test_report_progress.py
-.venv/bin/ruff check src/outis/evaluation/report.py src/outis/evaluation/report_html.py \
+uv run pytest -q tests/test_report.py tests/test_report_progress.py
+uv run ruff check src/outis/evaluation/report.py src/outis/evaluation/report_html.py \
   src/outis/evaluation/report_progress.py scripts/build_report.py \
   tests/test_report.py tests/test_report_progress.py
 ```

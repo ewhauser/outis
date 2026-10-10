@@ -1,0 +1,579 @@
+[
+ {
+  "benchmark": "asq_phi",
+  "corpus_manifest_sha256": "0031bd8711020e99dcdda029e2f4cc720ee91cf1b412938c57cd240fd1f97fd4",
+  "direct": {
+   "masked": 1335,
+   "recall": 0.9955257270693513,
+   "recall_cluster_lower_95": 0.9918215613382899,
+   "support": 1341
+  },
+  "gold_spans_entirely_neutral": 10,
+  "hard_negatives_clean": {
+   "count": 193,
+   "documents": 219,
+   "rate": 0.8812785388127854
+  },
+  "indirect": {
+   "masked": 1607,
+   "recall": 0.9907521578298397,
+   "recall_cluster_lower_95": 0.9858287122612446,
+   "support": 1622
+  },
+  "misses": {
+   "DATE": {
+    "not_detected": 2,
+    "partial_shapes": {
+     "leading:title_like_word": 1
+    },
+    "partly_covered": 1
+   },
+   "EMAIL": {
+    "not_detected": 1,
+    "partial_shapes": {},
+    "partly_covered": 0
+   },
+   "LOCATION": {
+    "not_detected": 9,
+    "partial_shapes": {
+     "leading:title_like_word": 3
+    },
+    "partly_covered": 3
+   },
+   "MRN": {
+    "not_detected": 0,
+    "partial_shapes": {
+     "leading:digits": 1,
+     "trailing:other": 1
+    },
+    "partly_covered": 1
+   },
+   "NAME": {
+    "not_detected": 4,
+    "partial_shapes": {},
+    "partly_covered": 0
+   }
+  },
+  "name": {
+   "masked": 810,
+   "recall": 0.995085995085995,
+   "recall_cluster_lower_95": 0.9901234567901235,
+   "support": 814
+  },
+  "non_phi_redaction": 0.009056232887932043,
+  "non_phi_value_characters": 85466,
+  "per_label": {
+   "ACCOUNT": {
+    "masked": 4,
+    "recall": 1.0,
+    "support": 4
+   },
+   "DATE": {
+    "masked": 794,
+    "recall": 0.9962358845671268,
+    "support": 797
+   },
+   "EMAIL": {
+    "masked": 30,
+    "recall": 0.967741935483871,
+    "support": 31
+   },
+   "ID": {
+    "masked": 106,
+    "recall": 1.0,
+    "support": 106
+   },
+   "IP": {
+    "masked": 1,
+    "recall": 1.0,
+    "support": 1
+   },
+   "LOCATION": {
+    "masked": 813,
+    "recall": 0.9854545454545455,
+    "support": 825
+   },
+   "MRN": {
+    "masked": 304,
+    "recall": 0.9967213114754099,
+    "support": 305
+   },
+   "NAME": {
+    "masked": 810,
+    "recall": 0.995085995085995,
+    "support": 814
+   },
+   "PHONE": {
+    "masked": 47,
+    "recall": 1.0,
+    "support": 47
+   },
+   "SSN": {
+    "masked": 33,
+    "recall": 1.0,
+    "support": 33
+   }
+  },
+  "phi_documents_leak_free": {
+   "count": 812,
+   "documents": 832,
+   "rate": 0.9759615384615384
+  },
+  "prediction_receipt_sha256": "5db250b713a4009e573477c2b202c50332d1302b3bd876165e2a34d43bed362d",
+  "scorer_sha256": "a64468e4d0b4e7a06c20f6b46f790d5ab982c6841647b3933ee1b02c96613772",
+  "system": "meddeid",
+  "uncovered_fragments": {
+   "DATE": {
+    "july": 1
+   },
+   "LOCATION": {
+    "cleveland": 1,
+    "new": 1,
+    "san": 1
+   },
+   "MRN": {
+    "123 jh": 1
+   }
+  },
+  "value_character_recall": 0.9966002021501424,
+  "value_character_recall_wilson_lower_95": 0.995907725596465,
+  "value_characters": 32649,
+  "view": "policy-aligned (aligned3); see score_aligned.py docstring"
+ },
+ {
+  "benchmark": "asq_phi",
+  "corpus_manifest_sha256": "0031bd8711020e99dcdda029e2f4cc720ee91cf1b412938c57cd240fd1f97fd4",
+  "direct": {
+   "masked": 1309,
+   "recall": 0.9761372110365399,
+   "recall_cluster_lower_95": 0.9672131147540983,
+   "support": 1341
+  },
+  "gold_spans_entirely_neutral": 10,
+  "hard_negatives_clean": {
+   "count": 119,
+   "documents": 219,
+   "rate": 0.54337899543379
+  },
+  "indirect": {
+   "masked": 1066,
+   "recall": 0.657213316892725,
+   "recall_cluster_lower_95": 0.6397285626156693,
+   "support": 1622
+  },
+  "misses": {
+   "EMAIL": {
+    "not_detected": 1,
+    "partial_shapes": {
+     "trailing:lowercase_words": 21
+    },
+    "partly_covered": 21
+   },
+   "ID": {
+    "not_detected": 8,
+    "partial_shapes": {},
+    "partly_covered": 0
+   },
+   "LOCATION": {
+    "not_detected": 169,
+    "partial_shapes": {
+     "interior:other": 6,
+     "leading:caps_abbreviation": 1,
+     "leading:other": 40,
+     "leading:title_like_word": 4,
+     "trailing:lowercase_words": 1,
+     "trailing:other": 340
+    },
+    "partly_covered": 387
+   },
+   "NAME": {
+    "not_detected": 0,
+    "partial_shapes": {
+     "interior:other": 1
+    },
+    "partly_covered": 1
+   },
+   "PHONE": {
+    "not_detected": 1,
+    "partial_shapes": {},
+    "partly_covered": 0
+   }
+  },
+  "name": {
+   "masked": 813,
+   "recall": 0.9987714987714987,
+   "recall_cluster_lower_95": 0.9951100244498777,
+   "support": 814
+  },
+  "non_phi_redaction": 0.022546977745536236,
+  "non_phi_value_characters": 85466,
+  "per_label": {
+   "ACCOUNT": {
+    "masked": 4,
+    "recall": 1.0,
+    "support": 4
+   },
+   "DATE": {
+    "masked": 797,
+    "recall": 1.0,
+    "support": 797
+   },
+   "EMAIL": {
+    "masked": 9,
+    "recall": 0.2903225806451613,
+    "support": 31
+   },
+   "ID": {
+    "masked": 98,
+    "recall": 0.9245283018867925,
+    "support": 106
+   },
+   "IP": {
+    "masked": 1,
+    "recall": 1.0,
+    "support": 1
+   },
+   "LOCATION": {
+    "masked": 269,
+    "recall": 0.32606060606060605,
+    "support": 825
+   },
+   "MRN": {
+    "masked": 305,
+    "recall": 1.0,
+    "support": 305
+   },
+   "NAME": {
+    "masked": 813,
+    "recall": 0.9987714987714987,
+    "support": 814
+   },
+   "PHONE": {
+    "masked": 46,
+    "recall": 0.9787234042553191,
+    "support": 47
+   },
+   "SSN": {
+    "masked": 33,
+    "recall": 1.0,
+    "support": 33
+   }
+  },
+  "phi_documents_leak_free": {
+   "count": 262,
+   "documents": 832,
+   "rate": 0.31490384615384615
+  },
+  "prediction_receipt_sha256": "133ab7fe230674b17133838e6ebff57fc8a3b1a39f7eee8796d2b57106e65965",
+  "scorer_sha256": "a64468e4d0b4e7a06c20f6b46f790d5ab982c6841647b3933ee1b02c96613772",
+  "system": "gliner-trained",
+  "uncovered_fragments": {
+   "EMAIL": {
+    "a example com": 1,
+    "b example com": 2,
+    "doe example com": 1,
+    "e example com": 1,
+    "example baylor edu": 1,
+    "example com": 4,
+    "k example com": 2,
+    "l example com": 3,
+    "m example com": 2,
+    "p medsite com": 1
+   },
+   "LOCATION": {
+    "children s hospital": 20,
+    "clinic": 82,
+    "general": 12,
+    "general hospital": 11,
+    "health": 8,
+    "hospital": 73,
+    "medical center": 66,
+    "memorial hospital": 7,
+    "presbyterian": 10,
+    "presbyterian hospital": 9
+   },
+   "NAME": {
+    "a": 1
+   }
+  },
+  "value_character_recall": 0.7812490428497044,
+  "value_character_recall_wilson_lower_95": 0.7767319185081284,
+  "value_characters": 32649,
+  "view": "policy-aligned (aligned3); see score_aligned.py docstring"
+ },
+ {
+  "benchmark": "asq_phi",
+  "corpus_manifest_sha256": "0031bd8711020e99dcdda029e2f4cc720ee91cf1b412938c57cd240fd1f97fd4",
+  "direct": {
+   "masked": 1301,
+   "recall": 0.9701715137956749,
+   "recall_cluster_lower_95": 0.9605067064083458,
+   "support": 1341
+  },
+  "gold_spans_entirely_neutral": 10,
+  "hard_negatives_clean": {
+   "count": 120,
+   "documents": 219,
+   "rate": 0.547945205479452
+  },
+  "indirect": {
+   "masked": 1615,
+   "recall": 0.9956843403205918,
+   "recall_cluster_lower_95": 0.9919852034525277,
+   "support": 1622
+  },
+  "misses": {
+   "EMAIL": {
+    "not_detected": 1,
+    "partial_shapes": {
+     "trailing:lowercase_words": 22
+    },
+    "partly_covered": 22
+   },
+   "ID": {
+    "not_detected": 10,
+    "partial_shapes": {},
+    "partly_covered": 0
+   },
+   "LOCATION": {
+    "not_detected": 0,
+    "partial_shapes": {
+     "leading:caps_abbreviation": 1,
+     "leading:title_like_word": 3,
+     "trailing:other": 7
+    },
+    "partly_covered": 7
+   },
+   "MRN": {
+    "not_detected": 5,
+    "partial_shapes": {},
+    "partly_covered": 0
+   },
+   "NAME": {
+    "not_detected": 0,
+    "partial_shapes": {
+     "interior:other": 1
+    },
+    "partly_covered": 1
+   },
+   "PHONE": {
+    "not_detected": 1,
+    "partial_shapes": {},
+    "partly_covered": 0
+   }
+  },
+  "name": {
+   "masked": 813,
+   "recall": 0.9987714987714987,
+   "recall_cluster_lower_95": 0.9951100244498777,
+   "support": 814
+  },
+  "non_phi_redaction": 0.02434886387569326,
+  "non_phi_value_characters": 85466,
+  "per_label": {
+   "ACCOUNT": {
+    "masked": 4,
+    "recall": 1.0,
+    "support": 4
+   },
+   "DATE": {
+    "masked": 797,
+    "recall": 1.0,
+    "support": 797
+   },
+   "EMAIL": {
+    "masked": 8,
+    "recall": 0.25806451612903225,
+    "support": 31
+   },
+   "ID": {
+    "masked": 96,
+    "recall": 0.9056603773584906,
+    "support": 106
+   },
+   "IP": {
+    "masked": 1,
+    "recall": 1.0,
+    "support": 1
+   },
+   "LOCATION": {
+    "masked": 818,
+    "recall": 0.9915151515151515,
+    "support": 825
+   },
+   "MRN": {
+    "masked": 300,
+    "recall": 0.9836065573770492,
+    "support": 305
+   },
+   "NAME": {
+    "masked": 813,
+    "recall": 0.9987714987714987,
+    "support": 814
+   },
+   "PHONE": {
+    "masked": 46,
+    "recall": 0.9787234042553191,
+    "support": 47
+   },
+   "SSN": {
+    "masked": 33,
+    "recall": 1.0,
+    "support": 33
+   }
+  },
+  "phi_documents_leak_free": {
+   "count": 786,
+   "documents": 832,
+   "rate": 0.9447115384615384
+  },
+  "prediction_receipt_sha256": "2f601b5d24891f3226e9119bc0c9fa5ad3300f70dd959ad54ab62a11e0ffc6c4",
+  "scorer_sha256": "a64468e4d0b4e7a06c20f6b46f790d5ab982c6841647b3933ee1b02c96613772",
+  "system": "gliner-facility",
+  "uncovered_fragments": {
+   "EMAIL": {
+    "a example com": 1,
+    "b example com": 2,
+    "doe example com": 1,
+    "e example com": 1,
+    "example baylor edu": 1,
+    "example com": 4,
+    "k example com": 2,
+    "l example com": 3,
+    "m example com": 2,
+    "p medsite com": 1
+   },
+   "LOCATION": {
+    "dr s office": 1,
+    "hopkins": 1,
+    "md cancer center": 1,
+    "medical group": 1,
+    "s hopkins": 1,
+    "st s hospital": 2
+   },
+   "NAME": {
+    "a": 1
+   }
+  },
+  "value_character_recall": 0.9856963459830317,
+  "value_character_recall_wilson_lower_95": 0.9843500375048264,
+  "value_characters": 32649,
+  "view": "policy-aligned (aligned3); see score_aligned.py docstring"
+ },
+ {
+  "benchmark": "asq_phi",
+  "corpus_manifest_sha256": "0031bd8711020e99dcdda029e2f4cc720ee91cf1b412938c57cd240fd1f97fd4",
+  "direct": {
+   "masked": 1340,
+   "recall": 0.9992542878448919,
+   "recall_cluster_lower_95": 0.9977661950856291,
+   "support": 1341
+  },
+  "gold_spans_entirely_neutral": 10,
+  "hard_negatives_clean": {
+   "count": 205,
+   "documents": 219,
+   "rate": 0.9360730593607306
+  },
+  "indirect": {
+   "masked": 1619,
+   "recall": 0.9981504315659679,
+   "recall_cluster_lower_95": 0.9956869993838571,
+   "support": 1622
+  },
+  "misses": {
+   "EMAIL": {
+    "not_detected": 1,
+    "partial_shapes": {},
+    "partly_covered": 0
+   },
+   "LOCATION": {
+    "not_detected": 1,
+    "partial_shapes": {
+     "leading:title_like_word": 1,
+     "trailing:caps_abbreviation": 1,
+     "trailing:other": 1
+    },
+    "partly_covered": 2
+   }
+  },
+  "name": {
+   "masked": 814,
+   "recall": 1.0,
+   "recall_cluster_lower_95": 1.0,
+   "support": 814
+  },
+  "non_phi_redaction": 0.0018018861301570216,
+  "non_phi_value_characters": 85466,
+  "per_label": {
+   "ACCOUNT": {
+    "masked": 4,
+    "recall": 1.0,
+    "support": 4
+   },
+   "DATE": {
+    "masked": 797,
+    "recall": 1.0,
+    "support": 797
+   },
+   "EMAIL": {
+    "masked": 30,
+    "recall": 0.967741935483871,
+    "support": 31
+   },
+   "ID": {
+    "masked": 106,
+    "recall": 1.0,
+    "support": 106
+   },
+   "IP": {
+    "masked": 1,
+    "recall": 1.0,
+    "support": 1
+   },
+   "LOCATION": {
+    "masked": 822,
+    "recall": 0.9963636363636363,
+    "support": 825
+   },
+   "MRN": {
+    "masked": 305,
+    "recall": 1.0,
+    "support": 305
+   },
+   "NAME": {
+    "masked": 814,
+    "recall": 1.0,
+    "support": 814
+   },
+   "PHONE": {
+    "masked": 47,
+    "recall": 1.0,
+    "support": 47
+   },
+   "SSN": {
+    "masked": 33,
+    "recall": 1.0,
+    "support": 33
+   }
+  },
+  "phi_documents_leak_free": {
+   "count": 828,
+   "documents": 832,
+   "rate": 0.9951923076923077
+  },
+  "prediction_receipt_sha256": "3edf29b17e8b81831bfca8e7ef23aa261d65dca329a451fbfb77da541c765c77",
+  "scorer_sha256": "a64468e4d0b4e7a06c20f6b46f790d5ab982c6841647b3933ee1b02c96613772",
+  "system": "project",
+  "uncovered_fragments": {
+   "LOCATION": {
+    "dr s office": 1,
+    "ny": 1
+   }
+  },
+  "value_character_recall": 0.9993874238108365,
+  "value_character_recall_wilson_lower_95": 0.999053947267351,
+  "value_characters": 32649,
+  "view": "policy-aligned (aligned3); see score_aligned.py docstring"
+ }
+]

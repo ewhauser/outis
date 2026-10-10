@@ -1,0 +1,35 @@
+{
+ "benchmark": "meddeid_en",
+ "corpus_manifest_sha256": "60ead02c87c3304f4cd9465d140c08c2c6f62c92b78d61f4bac7fb3cf9dacd13",
+ "scorer_sha256": "ff668cdeb525338e65d37dd03589fb6feed249a7ee254feeedf58145e7313d39",
+ "published_reference": null,
+ "label_agnostic": {
+  "character_recall": 0.8953752843062927,
+  "character_recall_wilson_lower_95": 0.8915251108974789,
+  "exact_span": {
+   "f1": 0.6573903911787871,
+   "fn": 426,
+   "fp": 879,
+   "precision": 0.5875175973721257,
+   "recall": 0.7461263408820024,
+   "tp": 1252
+  },
+  "explicit_age_characters_redacted": 68,
+  "gold_characters": 25061,
+  "hard_negatives_clean": {
+   "count": 0,
+   "documents": 0,
+   "rate": null
+  },
+  "non_pii_characters": 491699,
+  "non_pii_redacted_characters": 3022,
+  "non_pii_redaction": 0.006146036497938779,
+  "non_pii_redaction_age_adjusted": 0.006007740507912361,
+  "phi_documents_leak_free": {
+   "count": 88,
+   "documents": 300,
+   "rate": 0.29333333333333333
+  }
+ },
+ "system": "gliner-facility"
+}

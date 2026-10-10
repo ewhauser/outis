@@ -11,14 +11,13 @@ Thanks for your interest in improving Outis.
   See the rules in [external verification](docs/external-verification.md).
 - **Report results honestly.** Name the bank behind every number. Do not
   merge development and qualification numbers.
-- **Privacy first.** The [project goal](GOALS.md) is that identifiers stay
-  masked. A wrong type on a masked span is an engineering cost, not a leak.
+- **Privacy first.** The [primary measure](docs/evaluation.md) is that
+  identifiers stay masked. A wrong type on a masked span is an engineering cost, not a leak.
 
 ## Development setup
 
 ```sh
-uv venv --python 3.13
-uv pip install --python .venv/bin/python -e '.[dev]'
+uv sync --extra dev
 ```
 
 ## Checks
@@ -26,8 +25,8 @@ uv pip install --python .venv/bin/python -e '.[dev]'
 CI runs both checks below on every pull request. Run them locally first:
 
 ```sh
-.venv/bin/ruff check .
-.venv/bin/python -m pytest -q
+uv run ruff check .
+uv run pytest -q
 ```
 
 The unit tests do not need the base encoder or GPU. Tests that verify frozen
@@ -35,12 +34,9 @@ data artifacts are skipped when the corpora under `data/` are missing.
 
 ## Data in the repository
 
-Synthetic corpora under `data/` are gitignored, but `main` currently tracks
-them until a planned history rewrite (about 1.8 GB, so clones are large).
-Before committing any data, read [CLEANUP.md](CLEANUP.md). Add new corpora by
-explicit path, list them in the cleanup manifests, and never commit sealed or
-blind qualification banks. `scripts/check_data_tracking.py` enforces this in
-CI.
+Synthetic corpora under `data/` are gitignored (`data/**/*.jsonl`) and are not
+in this repository; only their small `*.manifest.json` files are. Never commit
+corpora, sealed or blind qualification banks, or model weights.
 
 ## Code layout
 
@@ -48,7 +44,7 @@ CI.
 src/outis/
   service.py, api.py, cli.py   Deidentifier facade, HTTP API and CLI
   policy.py, entities.py, types.py, analysis.py, operations.py
-  detection/                   ModernBERT token classifier and BIOES decoder
+  detection/                   DeBERTa-v3 token classifier and BIOES decoder
   replacement/                 surrogates, nickname identities, transforms
     names/                     name and record witnesses for identity linking
   formats/                     structured data and native files
@@ -60,9 +56,9 @@ src/outis/
 Runtime code (`detection`, `replacement`, `formats` and the top-level
 modules) must not import from `data`, `training` or `evaluation`.
 
-Scripts under `reports/` and `experiments/` are frozen records of past runs.
-They import the module layout that existed when they ran, so run them from
-the commit that produced them.
+`scripts/takeover/` holds the training script, the evaluation script and the
+synthetic bank generators. `benchmarks/` holds
+the public-benchmark harness and its aggregate results.
 
 ## Pull requests
 
@@ -74,13 +70,11 @@ the commit that produced them.
   development bank from authors the training data never saw, and say which
   bank. Include the `privacy` block figures: any-label recall for direct and
   indirect identifiers, any-label precision and exact typed-span F1. Check the
-  change against the [regression rules](GOALS.md#regression-rules). Never tune
+  change against the [comparison rules](docs/evaluation.md#comparing-a-new-model-with-the-current-one). Never tune
   on a sealed qualification bank.
 - Add user-visible changes under `Unreleased` in [CHANGELOG.md](CHANGELOG.md).
+
 ## Training and evaluation work
 
-See [GOALS.md](GOALS.md), [training](docs/training.md) and the
-[evaluation protocol](reports/evaluation_protocol.md). New candidates use
-ModernBERT. Put new experiments in
-new, versioned output directories. Never overwrite a historical protocol or
-report.
+See [training](docs/training.md) and [evaluation methodology](docs/evaluation.md).
+Put new experiments in new, versioned output directories.

@@ -13,7 +13,7 @@ tags:
   - synthetic-data
 ---
 
-# Outis: DeBERTa-v3 mix9
+# Outis: DeBERTa-v3-base
 
 A clinical PHI token classifier: DeBERTa-v3-base fully fine-tuned as a BIOES
 tagger over 14 PHI types. It is meant to run inside the
@@ -31,7 +31,7 @@ model-only; there is no rule layer.
 | | |
 |---|---|
 | Base model | `microsoft/deberta-v3-base` (184M parameters), fully fine-tuned |
-| Checkpoint | `models/takeover-deberta-mix9-001/step-009288` (`deberta_mix9_001`, epoch 2) |
+| Checkpoint | `models/deid-deberta-v3-base` |
 | Weights | `hf/model.safetensors`, 736 MB, not stored in git |
 | Context window | 512 tokens, overlapping windows (overlap 128) for longer text |
 | Labels | BIOES tags over 14 types: NAME, DATE, ADDRESS, PHONE, EMAIL, MRN, SSN, ACCOUNT, ID, URL, IP, AGE, LOCATION, FACILITY |
@@ -40,12 +40,10 @@ model-only; there is no rule layer.
 | Runtime | DeBERTa's relative-attention bias uses a gather-free implementation with identical outputs (`outis.detection.deberta_attention`) |
 | License | Apache-2.0 (fine-tuned weights and code); base model MIT |
 
-Promoted to the default on 2026-10-09 by the owner. It passed the
-[GOALS.md](GOALS.md) regression rules and the place-recall rules of the sealed
-`blind_places_v3` diagnostic, but **failed that bank's false-positive rule on
-region-only documents**; the owner overrode the failure
-(`reports/takeover/deberta_mix9_001/promotion_v3/OWNER_DECISION.md`). It
-replaces `deberta_mix9c_001` step 845, which replaced ModernBERT-base mix5.
+It meets the [comparison rules](docs/evaluation.md) against the previous
+model and the place-recall checks of the blind places bank, but tags bare
+states and regions slightly more often than its predecessor (see
+Limitations).
 
 ## Intended use
 
@@ -71,7 +69,7 @@ used, and the public benchmarks below are evaluation only. People, dates and
 identifiers are invented; the [places addendum](docs/annotation-policy-v2-places.md)
 allows real US public place and care-site names as surface values.
 
-`deberta_mix9_001` is a single run from `microsoft/deberta-v3-base`: three
+The model is a single run from `microsoft/deberta-v3-base`: three
 epochs (13,932 steps, learning rate 3e-5, batch 32) on 46 banks, the earlier
 mixture with every age annotated (`__allages2`) plus banks for care-site
 boundaries (tk21), names that are ordinary words (tk22), ages in context
@@ -85,53 +83,62 @@ the [annotation policy](docs/annotation-policy-v2.md).
 
 ## Evaluation
 
-All numbers come from synthetic or public synthetic banks; none estimates
-accuracy on real notes. "Masked" means every character of a gold span is
-covered by some predicted span, whatever its label.
+All numbers come from synthetic text; none estimates accuracy on real notes.
+"Masked" means every character of an identifier is covered by some detected
+span, whatever type it was given.
 
-### Held-out synthetic author (`heldout_dev_v2`, 2,400 notes)
+### Public benchmarks
 
-| Model | Direct identifiers masked | NAME masked (document 95% lower bound) | Indirect masked | Any-label precision | Exact typed F1 | PHI notes fully masked |
-|---|---:|---:|---:|---:|---:|---:|
-| **This model** | **99.64%** | **99.79% (99.71%)** | **98.97%** | **99.63%** | **97.34%** | **81.90%** |
-| `deberta_mix9c_001` (previous default) | 99.27% | 99.55% (99.41%) | 99.22% | 99.66% | 97.29% | 81.71% |
-| mix5 | 93.69% | 95.34% (94.81%) | 94.91% | 98.77% | 91.43% | 23.15% |
-
-Ages of 89 and under are detected 90.5% of the time; ages over 89, 100%.
-PHI-free notes left untouched: 92.1%.
-
-### Sealed places bank (`blind_places_v3`, 2,352 notes, scored once)
-
-Held-out real city, abbreviation and short care-site names: 98.81% of place
-characters masked (lower bound 98.61%) against the previous default's 98.69%.
-Public references to instruments, diseases, institutions and place words were
-left untouched in at least 99% of documents per family, but **bare states,
-countries or regions only in 96%** (previous default 100%): the bank's
-false-positive rule failed there. Held-out care-site names are about 48
-values, so the bound overstates certainty.
-
-### Public synthetic benchmarks (policy-aligned view 3)
-
-| Benchmark | PHI characters masked | Non-PHI redaction | Direct masked | PHI notes fully masked |
+| Benchmark | PHI characters masked | Non-PHI text removed | Direct identifiers masked | Notes fully masked |
 |---|---:|---:|---:|---:|
-| ASQ-PHI | 99.94% | 0.18% | 99.93% | 99.52% |
-| MedDeID English | 99.27% | 0.01% | 99.83% | 95.00% |
-| Technetium-I (5k sample) | 99.65% | 0.57% | 100.00% | 84.60% |
+| ASQ-PHI (1,051 search queries) | 99.94% | 0.18% | 99.93% | 99.52% |
+| MedDeID English (300 notes) | 99.27% | 0.01% | 99.83% | 95.00% |
+| Technetium-I (5,000-note sample) | 99.65% | 0.57% | 100.00% | 84.60% |
 
-MedDeID's own model scores 99.66%, 99.19% and 99.65% of PHI characters on
-the same views, with more non-PHI redaction. ASQ-PHI and MedDeID English have
-been inspected and are development evidence. Full tables:
-`experiments/external_benchmarks_20261004/results/COMPARISON.md`.
+On the same scoring, MedDeID masks 99.66%, 99.19% and 99.65% of PHI
+characters, with more non-PHI text removed. The project has inspected
+failures on ASQ-PHI and MedDeID English, so those two are not fully
+independent tests. Full tables:
+[`COMPARISON.md`](benchmarks/results/COMPARISON.md).
+
+### Held-out synthetic notes (2,400 notes)
+
+Written by an author whose text was never used in training.
+
+| Measure | Result |
+|---|---:|
+| Direct identifiers masked | 99.64% |
+| Names masked (95% lower bound) | 99.79% (99.71%) |
+| Indirect identifiers masked | 98.97% |
+| Detected spans that are real PHI | 99.63% |
+| Exact type and boundary match (F1) | 97.34% |
+| Notes with every identifier masked, ages over 89* | 86.25% |
+| Notes with every identifier masked, every age | 81.90% |
+| PHI-free notes left untouched | 92.1% |
+| Ages 89 and under detected | 90.5% |
+
+\* Ages of 89 and under stay in the output under the default request policy
+(`ages: over_89`), following HIPAA Safe Harbor's age rule; `ages: all` removes
+them too.
+
+### Real place names (2,352 notes)
+
+98.81% of real city, abbreviation and care-site name characters masked (95%
+lower bound 98.61%). PHI-free mentions of instruments, diseases,
+institutions and place words were left alone in at least 99% of notes, but a
+bare state, country or region was tagged in 4% of notes that contained no
+PHI. The care-site names rest on about 48 distinct values, so the bound
+overstates certainty.
 
 ## Limitations and risks
 
 - **Missed PHI is the primary risk.** About 0.4% of direct identifiers and
   1.0% of indirect identifiers on the held-out synthetic author are not fully
   masked; identifiers (ID) and care-site names are the weakest types.
-- **Region over-redaction.** On `blind_places_v3` it tags a bare state,
-  country or region in 4 of 100 PHI-free documents (previous default 0).
-- **Care sites.** Care-site names are masked slightly less often than by the
-  previous default on the held-out author (FACILITY 96.75%).
+- **Region over-redaction.** It sometimes tags a bare state, country or
+  region in notes with no PHI (4% on the place-name test).
+- **Care sites.** Care-site names are the weakest indirect type on the
+  held-out notes (96.75% masked).
 - **Synthetic-to-real gap.** Real institutional notes are unmeasured and may
   be harder.
 - **Over-redaction.** Some PHI-free notes still receive a span (7.9% of

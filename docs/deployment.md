@@ -6,7 +6,7 @@ hosted inference service; downloads happen only during setup.
 ## Local launcher
 
 ```sh
-.venv/bin/python scripts/serve_local.py --port 8000
+uv run scripts/serve_local.py --port 8000
 ```
 
 The local launcher binds to `127.0.0.1` and creates an owner-readable replacement
@@ -15,7 +15,7 @@ restarts. A configured `OUTIS_SECRET` takes precedence. Preserve the key to keep
 patient mappings stable; do not commit it or share it with API clients.
 
 `outis serve` is the packaged equivalent. It reads `OUTIS_MODEL_DIR`
-(default `models/takeover-deberta-mix9-001/step-009288`) and refuses to start
+(default `models/deid-deberta-v3-base`) and refuses to start
 without a fine-tuned encoder checkpoint there. On Apple silicon, set
 `OUTIS_DEVICE=mps`; CPU is supported.
 

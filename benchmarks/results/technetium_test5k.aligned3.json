@@ -1,0 +1,176 @@
+[
+ {
+  "benchmark": "technetium_test5k",
+  "corpus_manifest_sha256": "4e0484ed56947f3e3356f8fd2f0d8b81a73228cc506ea529d204bdb0a6263a04",
+  "direct": {
+   "masked": 25311,
+   "recall": 1.0,
+   "recall_cluster_lower_95": 1.0,
+   "support": 25311
+  },
+  "gold_spans_entirely_neutral": 0,
+  "hard_negatives_clean": {
+   "count": 0,
+   "documents": 0,
+   "rate": null
+  },
+  "indirect": {
+   "masked": 40000,
+   "recall": 0.9759430049285122,
+   "recall_cluster_lower_95": 0.9742790335151987,
+   "support": 40986
+  },
+  "misses": {
+   "AGE": {
+    "not_detected": 986,
+    "partial_shapes": {},
+    "partly_covered": 0
+   }
+  },
+  "name": {
+   "masked": 10311,
+   "recall": 1.0,
+   "recall_cluster_lower_95": 1.0,
+   "support": 10311
+  },
+  "non_phi_redaction": 0.011421080655793598,
+  "non_phi_value_characters": 7179881,
+  "per_label": {
+   "AGE": {
+    "masked": 10000,
+    "recall": 0.9102494083378846,
+    "support": 10986
+   },
+   "DATE": {
+    "masked": 15000,
+    "recall": 1.0,
+    "support": 15000
+   },
+   "EMAIL": {
+    "masked": 5000,
+    "recall": 1.0,
+    "support": 5000
+   },
+   "ID": {
+    "masked": 5000,
+    "recall": 1.0,
+    "support": 5000
+   },
+   "LOCATION": {
+    "masked": 15000,
+    "recall": 1.0,
+    "support": 15000
+   },
+   "NAME": {
+    "masked": 10311,
+    "recall": 1.0,
+    "support": 10311
+   },
+   "PHONE": {
+    "masked": 5000,
+    "recall": 1.0,
+    "support": 5000
+   }
+  },
+  "phi_documents_leak_free": {
+   "count": 4230,
+   "documents": 5000,
+   "rate": 0.846
+  },
+  "prediction_receipt_sha256": "6dff6799144b74ed7c408b2778febbd5ce76772da8ec287b6b1882400c94e62c",
+  "scorer_sha256": "a64468e4d0b4e7a06c20f6b46f790d5ab982c6841647b3933ee1b02c96613772",
+  "system": "meddeid",
+  "uncovered_fragments": "not reported: benchmark is uninspected or restricted",
+  "value_character_recall": 0.9965497995839464,
+  "value_character_recall_wilson_lower_95": 0.9963944104735432,
+  "value_characters": 571561,
+  "view": "policy-aligned (aligned3); see score_aligned.py docstring"
+ },
+ {
+  "benchmark": "technetium_test5k",
+  "corpus_manifest_sha256": "4e0484ed56947f3e3356f8fd2f0d8b81a73228cc506ea529d204bdb0a6263a04",
+  "direct": {
+   "masked": 25311,
+   "recall": 1.0,
+   "recall_cluster_lower_95": 1.0,
+   "support": 25311
+  },
+  "gold_spans_entirely_neutral": 0,
+  "hard_negatives_clean": {
+   "count": 0,
+   "documents": 0,
+   "rate": null
+  },
+  "indirect": {
+   "masked": 40000,
+   "recall": 0.9759430049285122,
+   "recall_cluster_lower_95": 0.9742790335151987,
+   "support": 40986
+  },
+  "misses": {
+   "AGE": {
+    "not_detected": 986,
+    "partial_shapes": {},
+    "partly_covered": 0
+   }
+  },
+  "name": {
+   "masked": 10311,
+   "recall": 1.0,
+   "recall_cluster_lower_95": 1.0,
+   "support": 10311
+  },
+  "non_phi_redaction": 0.005682406156870845,
+  "non_phi_value_characters": 7179881,
+  "per_label": {
+   "AGE": {
+    "masked": 10000,
+    "recall": 0.9102494083378846,
+    "support": 10986
+   },
+   "DATE": {
+    "masked": 15000,
+    "recall": 1.0,
+    "support": 15000
+   },
+   "EMAIL": {
+    "masked": 5000,
+    "recall": 1.0,
+    "support": 5000
+   },
+   "ID": {
+    "masked": 5000,
+    "recall": 1.0,
+    "support": 5000
+   },
+   "LOCATION": {
+    "masked": 15000,
+    "recall": 1.0,
+    "support": 15000
+   },
+   "NAME": {
+    "masked": 10311,
+    "recall": 1.0,
+    "support": 10311
+   },
+   "PHONE": {
+    "masked": 5000,
+    "recall": 1.0,
+    "support": 5000
+   }
+  },
+  "phi_documents_leak_free": {
+   "count": 4230,
+   "documents": 5000,
+   "rate": 0.846
+  },
+  "prediction_receipt_sha256": "480620a25cbca78b8a5da03270dd0f6526d191c27ecdf9d747e0c90a73e09c04",
+  "scorer_sha256": "a64468e4d0b4e7a06c20f6b46f790d5ab982c6841647b3933ee1b02c96613772",
+  "system": "project",
+  "uncovered_fragments": "not reported: benchmark is uninspected or restricted",
+  "value_character_recall": 0.9965497995839464,
+  "value_character_recall_wilson_lower_95": 0.9963944104735432,
+  "value_characters": 571561,
+  "view": "policy-aligned (aligned3); see score_aligned.py docstring"
+ }
+]

@@ -17,8 +17,7 @@ is sent to a hosted service. It ships as a Python library, a CLI and a FastAPI
 server.
 
 > [!IMPORTANT]
-> This is research software. It has **not** met its [project goal](GOALS.md)
-> or its 99% exact-span qualification target, and it has been evaluated only on
+> This is research software. It has **not** met all of its [evaluation targets](docs/evaluation.md), and it has been evaluated only on
 > synthetic and public benchmark text, never on real clinical records. It does
 > not by itself provide HIPAA Safe Harbor or Expert Determination
 > de-identification. See [Limitations](#limitations).
@@ -44,16 +43,17 @@ Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 ```sh
 git clone https://github.com/ewhauser/outis.git
 cd outis
-uv venv --python 3.13
-uv pip install --python .venv/bin/python -e .
+uv sync
 ```
 
-The default model is `models/takeover-deberta-mix9-001/step-009288`. Its
-configuration and tokenizer are in the repository; the 736 MB weight file
-(`hf/model.safetensors`) is not, and must be placed there from the project's
-model store. Add the `pdf` extra (`-e '.[pdf]'`) for PDF file input.
+The default model directory is `models/deid-deberta-v3-base`.
+Its configuration and tokenizer are in the repository; the 736 MB weight file
+(`hf/model.safetensors`) is distributed separately with the model card and
+must be placed in `hf/`. Add the `pdf` extra (`uv sync --extra pdf`) for PDF file input.
 
 ### Python
+
+Run it with `uv run python`.
 
 ```python
 from outis import Deidentifier
@@ -78,7 +78,7 @@ and the model version.
 ### HTTP API
 
 ```sh
-.venv/bin/python scripts/serve_local.py --port 8000
+uv run scripts/serve_local.py --port 8000
 ```
 
 ```sh
@@ -95,7 +95,7 @@ secret in `.cache/local-api-secret`. For other deployments, see
 ### CLI
 
 ```sh
-.venv/bin/outis text --input note.txt --mode redact
+uv run outis text --input note.txt --mode redact
 ```
 
 ## How it works
@@ -106,39 +106,65 @@ text ─▶ DeBERTa-v3-base token classifier (overlapping 512-token windows)
 ```
 
 The default model was fine-tuned on about 116,000 synthetic notes from 46
-banks written by the generators and independent authors in this repository. No real
+banks written by this project's generators and independent synthetic authors. No real
 clinical data was used for training. See the [model card](MODEL_CARD.md).
 
 ## Results
 
-These figures come from synthetic or public benchmarks and are **not**
-estimates of accuracy on real clinical notes.
+All results come from synthetic text. None of them measures accuracy on real
+clinical notes.
 
-**Default model (`deberta_mix9_001`), held-out synthetic author.**
-`heldout_dev_v2`, 2,400 notes by an author the training data never saw.
-"Masked" means every character of a gold span is covered under any label.
+### Public benchmarks
 
-| Model | Direct identifiers masked | NAME masked (document 95% lower bound) | Indirect masked | Any-label precision | Exact typed F1 | PHI notes fully masked |
-|---|---:|---:|---:|---:|---:|---:|
-| Default (DeBERTa-v3, mix9) | 99.64% | 99.79% (99.71%) | 98.97% | 99.63% | 97.34% | 81.90% |
-| Previous default (DeBERTa-v3, mix9c) | 99.27% | 99.55% (99.41%) | 99.22% | 99.66% | 97.29% | 81.71% |
-| ModernBERT, mix5 | 93.69% | 95.34% (94.81%) | 94.91% | 98.77% | 91.43% | 23.15% |
+Share of PHI characters masked, and share of non-PHI text removed
+unnecessarily, scored the same way for every model
+([details](docs/external-verification.md)):
 
-**Sealed places bank (`blind_places_v3`).** Held-out real city,
-abbreviation and short care-site names: 98.81% of place characters masked
-(previous default: 98.69%). Region-only PHI-free documents were left
-untouched in 96% of cases against 100%, which failed the bank's
-false-positive rule; the owner promoted the model anyway. See the
-[result](reports/takeover/deberta_mix9_001/promotion_v3/RESULT.md) and the
-[owner decision](reports/takeover/deberta_mix9_001/promotion_v3/OWNER_DECISION.md).
+| Benchmark | This model | [MedDeID](https://huggingface.co/stighellemans/meddeid-english-synth) | [GLiNER-PII](https://huggingface.co/nvidia/gliner-PII)* |
+|---|---:|---:|---:|
+| [ASQ-PHI](https://doi.org/10.17632/csz5dzp7nx.1), 1,051 search queries | **99.94%** masked, 0.18% over | 99.66% masked, 0.91% over | 98.57% masked, 2.43% over |
+| [MedDeID English](https://huggingface.co/datasets/stighellemans/meddeid-english-synthetic-benchmark), 300 notes | **99.27%** masked, 0.01% over | 99.19% masked, 0.15% over | 94.87% masked, 0.64% over |
+| [Technetium-I](https://huggingface.co/datasets/temlm-foundation/Technetium-I), 5,000-note sample | 99.65% masked, **0.57%** over | 99.65% masked, 1.14% over | not run |
 
-**Public synthetic benchmarks** (policy-aligned):
-[external comparison](experiments/external_benchmarks_20261004/results/COMPARISON.md).
+\* `nvidia/gliner-PII` with one added zero-shot label for hospitals.
 
-Historical results for the removed adapter detector, including the V14
-qualification and the ASQ-PHI comparison, are in the
-[evaluation history](docs/evaluation-history.md) and
-[external verification](docs/external-verification.md).
+We have looked at this model's failures on ASQ-PHI and MedDeID English while
+developing it, so those two are not fully independent tests; Technetium-I has
+not been inspected.
+
+Per-identifier results are in the [full comparison](benchmarks/results/COMPARISON.md).
+
+### Held-out synthetic notes
+
+On 2,400 synthetic notes from an author whose writing was never used in
+training:
+
+| Measure | Result |
+|---|---:|
+| Direct identifiers masked (names, record numbers, phone numbers, emails, addresses and similar) | 99.64% |
+| Names masked (95% lower bound) | 99.79% (99.71%) |
+| Indirect identifiers masked (dates, ages over 89, places, facilities) | 98.97% |
+| Detected spans that are real PHI | 99.63% |
+| Exact type and boundary match (F1) | 97.34% |
+| Notes with every identifier masked* | 86.25% |
+
+\* Counts ages over 89, the ages HIPAA's Safe Harbor method lists as
+identifiers; ages of 89 and under stay in the output by default. The model
+detects every age, so setting the request policy's `ages` option to `all`
+removes younger ages too (see the [API guide](docs/api.md)). Counting every
+age, 81.90% of notes are fully masked.
+
+On these same notes MedDeID masked 86.08% of direct identifiers and GLiNER-PII
+79.09%. The notes follow this project's annotation conventions, which this
+model was trained on, so that gap overstates its advantage; the public
+benchmarks above are the fair comparison.
+
+A separate test of real place names (2,352 notes) masked 98.81% of city and
+care-site name characters, but tagged a bare state or country in 4% of notes
+that contained no PHI.
+
+How these numbers are computed is described in
+[evaluation methodology](docs/evaluation.md).
 
 ## Limitations
 
@@ -164,13 +190,12 @@ any output.
 
 | Guide | Contents |
 |---|---|
-| [Goals](GOALS.md) | The accepted project goal, targets and regression rules |
+| [Evaluation methodology](docs/evaluation.md) | Targets, any-label masking and how models are compared |
 | [API guide](docs/api.md) | Endpoints, policies, masks, structured data, files, WebSockets |
 | [Synthetic replacement](docs/replacement.md) | Secrets, patient anchors, date shifting, identity linking |
 | [Deployment](docs/deployment.md) | Launcher, default model, batch limits, security controls |
 | [Model card](MODEL_CARD.md) | Architecture, training data, evaluation, risks |
 | [Training](docs/training.md) | Training candidates and generating corpora |
-| [Evaluation history](docs/evaluation-history.md) | All qualification and development results |
 | [External verification](docs/external-verification.md) | Public benchmark protocol and results |
 | [Annotation policy](docs/annotation-policy-v2.md) | Span conventions for every entity type |
 | [Places addendum](docs/annotation-policy-v2-places.md) | Real localities, care-site abbreviations and public references |

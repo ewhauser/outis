@@ -175,6 +175,9 @@ def evaluate(
     failures = []
     documents = leak_free = negative_documents = negative_clean = 0
     phi_documents = phi_leak_free = 0
+    # The same counts with ages of 89 and under left out, matching the default
+    # release policy (ages="over_89"), which keeps those ages in the output.
+    release_documents = release_leak_free = 0
     duplicate_predictions = 0
     identifiers: set[str] = set()
     started = time.perf_counter()
@@ -250,7 +253,7 @@ def evaluate(
             covered = extent <= predicted_characters
             key = label
             if label == "AGE" and _age_89_and_under(text[start:end]):
-                # GOALS.md gates ages over 89; younger ages are reported separately.
+                # The privacy targets count ages over 89; younger ages are reported separately.
                 key = YOUNG_AGE
                 masked[key].update(support=1, masked=covered)
             else:
@@ -283,6 +286,14 @@ def evaluate(
             ),
         )
         safe = expected_characters <= predicted_characters
+        release_gold = {
+            span
+            for span in gold
+            if not (span[2] == "AGE" and _age_89_and_under(text[span[0] : span[1]]))
+        }
+        if release_gold:
+            release_documents += 1
+            release_leak_free += _characters(release_gold) <= predicted_characters
         documents += 1
         leak_free += safe
         counts["leak_free"] += safe
@@ -443,6 +454,16 @@ def evaluate(
             "leak_free_rate": phi_leak_free / phi_documents if phi_documents else None,
             "wilson_lower_95": wilson_lower(phi_leak_free, phi_documents)
             if phi_documents
+            else None,
+        },
+        "phi_bearing_documents_excluding_ages_89_and_under": {
+            "count": release_documents,
+            "leak_free_count": release_leak_free,
+            "leak_free_rate": release_leak_free / release_documents
+            if release_documents
+            else None,
+            "wilson_lower_95": wilson_lower(release_leak_free, release_documents)
+            if release_documents
             else None,
         },
         "per_label_character_exposure": {

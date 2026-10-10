@@ -1,0 +1,35 @@
+{
+ "benchmark": "technetium_test5k",
+ "corpus_manifest_sha256": "4e0484ed56947f3e3356f8fd2f0d8b81a73228cc506ea529d204bdb0a6263a04",
+ "scorer_sha256": "ff668cdeb525338e65d37dd03589fb6feed249a7ee254feeedf58145e7313d39",
+ "published_reference": null,
+ "label_agnostic": {
+  "character_recall": 0.9969964710057405,
+  "character_recall_wilson_lower_95": 0.9968611665733969,
+  "exact_span": {
+   "f1": 0.7307779285391225,
+   "fn": 21056,
+   "fp": 12278,
+   "precision": 0.7865400997931118,
+   "recall": 0.682398901911097,
+   "tp": 45241
+  },
+  "explicit_age_characters_redacted": 0,
+  "gold_characters": 656561,
+  "hard_negatives_clean": {
+   "count": 0,
+   "documents": 0,
+   "rate": null
+  },
+  "non_pii_characters": 9180582,
+  "non_pii_redacted_characters": 68318,
+  "non_pii_redaction": 0.00744157614408324,
+  "non_pii_redaction_age_adjusted": 0.00744157614408324,
+  "phi_documents_leak_free": {
+   "count": 4230,
+   "documents": 5000,
+   "rate": 0.846
+  }
+ },
+ "system": "project"
+}

@@ -64,7 +64,7 @@ AGE boundaries are deliberately consistent across surface forms: annotate
 scores are comparable with benchmarks that annotate all ages. What is removed
 is a release decision: the request policy's `ages` setting defaults to
 `over_89`, which leaves ages of 89 and under in place as the Safe Harbor age
-rule allows; `all` removes every age. GOALS.md continues to gate ages over 89;
+rule allows; `all` removes every age. The privacy targets count ages over 89 as indirect identifiers;
 evaluation reports ages of 89 and under separately (`AGE_89_AND_UNDER`).
 Fixtures: `src/outis/data/annotation_policy_ages.py`. The age examples
 in `POLICY_FIXTURES` that leave ages of 89 and under unannotated predate this
@@ -89,9 +89,7 @@ The table above leaves some cases open. In early October 2026, ten independent r
 were given only the policy, protocol, types and fixtures and asked to choose a
 convention for 35 such cases. They agreed 10 of 10 on every case in the table
 below. The one split case, employer names, is decided after the table. The rows for a leading `The` and for service organisations were decided by the owner on 2026-10-05 for the care-site and locality bank; their fixtures are `CARE_SITE_FIXTURES` in `src/outis/data/annotation_policy_care_sites.py`. Training banks were normalised to these choices, and they
-are in force for all new authoring and annotation. The record is
-[`convention_census_001.json`](../reports/takeover/convention_census_001.json).
-Not every row has an executable fixture yet.
+are in force for all new authoring and annotation. Not every row has an executable fixture yet.
 
 | Label | Case | Convention |
 | --- | --- | --- |
@@ -164,7 +162,7 @@ patient's care site is FACILITY under the ordinary rule.
 **Known risk.** Independent authors do not always follow the ID and ACCOUNT
 split. One proxy-bank author labelled insurance member and claim numbers
 ACCOUNT. A bank that does so will show ID and ACCOUNT type errors that are not
-detector misses. Under [GOALS.md](../GOALS.md) such a span is still masked.
+detector misses. Under the [evaluation methodology](evaluation.md) such a span is still masked.
 
 ## Realistic and stress cohorts
 
@@ -248,16 +246,13 @@ Rules for those corpora:
   census conventions by `scripts/takeover/normalize_conventions.py`. Use those
   versions, not the originals, when training.
 
-The short convention summary that used to sit in the
-[evaluation protocol](../reports/evaluation_protocol.md) was removed on
-2026-10-04 in favour of this page.
 
 ## Audit and qualification boundary
 
 Run the read-only auditor on explicit development paths, for example:
 
 ```sh
-.venv/bin/python scripts/audit_corpus_quality.py \
+uv run scripts/audit_corpus_quality.py \
   --corpus train=data/remediation_train.jsonl \
   --corpus validation=data/remediation_development.jsonl \
   --output reports/remediation_quality.json

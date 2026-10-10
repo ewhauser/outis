@@ -2,22 +2,19 @@
 
 External verification measures the detector on public benchmarks that this
 project did not author, and compares it with other open de-identification
-models under one fixed protocol. It complements the internal
-[evaluation protocol](../reports/evaluation_protocol.md), which qualifies the
-detector on independently authored synthetic banks.
-
-The project's acceptance gate is the goal in [GOALS.md](../GOALS.md), which
-measures whether identifiers stay masked under any label. External results are
+models under one fixed protocol. It complements the internal evaluation on independently authored synthetic
+banks described in [evaluation methodology](evaluation.md), which measures
+whether identifiers stay masked under any label. External results are
 evidence of how the detector transfers to someone else's text and annotation
 conventions, and each scored result should include that any-label coverage.
 They are never used to select, tune or train a model.
 
-GOALS.md ultimately requires evaluation on real notes. That is deferred. Until
-the owner reopens it, do not start access requests for benchmarks that contain
-real clinical text, such as n2c2 2014.
+Evaluation on real notes is not part of this repository. Benchmarks that
+contain real clinical text, such as n2c2 2014, are used only under their own
+data use agreements and never committed.
 
 The harness lives in
-[`experiments/external_benchmarks_20261004/`](../experiments/external_benchmarks_20261004/README.md).
+[`benchmarks/`](../benchmarks/README.md).
 That README records the current results. This guide covers the process.
 
 ## Rules
@@ -48,7 +45,9 @@ These rules hold for every benchmark and every system.
 
 | Benchmark | Content | Licence | Commercial use | Status |
 |---|---|---|---|---|
-| [ASQ-PHI](https://doi.org/10.17632/csz5dzp7nx.1) | 1,051 synthetic clinical search queries, 2,973 PHI values, 219 hard negatives | MIT | Yes | Scored; development evidence since 2026-10-04 (guided a hybrid fix) |
+| [ASQ-PHI](https://doi.org/10.17632/csz5dzp7nx.1) | 1,051 synthetic clinical search queries, 2,973 PHI values, 219 hard negatives | MIT | Yes | Scored; development evidence (its failures were inspected) |
+| [MedDeID English](https://huggingface.co/datasets/stighellemans/meddeid-english-synthetic-benchmark) synthetic benchmark | 300 synthetic notes | CC BY 4.0; final evaluation only | Yes, with attribution | Scored; development evidence |
+| [Technetium-I](https://huggingface.co/datasets/temlm-foundation/Technetium-I) test split | 74,700 synthetic notes; a fixed 5,000-note sample is scored | EUPL-1.2 | Yes | Scored; uninspected |
 | [SPY](https://huggingface.co/datasets/mks-logic/SPY) medical | 4,491 synthetic medical consultations, 7 PII types | CC BY 4.0 | Yes, with attribution | Planned |
 | [n2c2 2014](https://portal.dbmi.hms.harvard.edu/projects/n2c2-2014/) de-identification | Real clinical notes with surrogate PHI | Harvard DBMI data use agreement | Evaluation only, under the commercial agreement | Planned; access required |
 | [SHIELD](https://stanford.redivis.com/datasets/ee4n-6gv2f84et) | 1,381 Stanford notes, 9 PHI categories | Stanford DRUA | Unconfirmed | Blocked on licence review |
@@ -62,10 +61,9 @@ agreement's publication clause before quoting results that name it.
 
 | Key | Model | Licence | Runtime |
 |---|---|---|---|
-| `project-mix5` | default ModernBERT mix5 checkpoint, model-only | Apache-2.0 | project `.venv` |
-| `project`, `project-model` | removed Privacy-Filter adapter (hybrid, model-only); history | Apache-2.0 | project `.venv` |
-| `meddeid` | `stighellemans/meddeid-english-synth` | AGPL-3.0 with a private fine-tuning exception | `.venv-meddeid` |
-| `gliner-trained`, `gliner-facility` | `nvidia/gliner-PII` | NVIDIA Open Model License | `.venv-gliner` |
+| `project` | this project's default model (`models/deid-deberta-v3-base`) | Apache-2.0 | project environment (`uv run`) |
+| `meddeid` | `stighellemans/meddeid-english-synth` | AGPL-3.0 with a private fine-tuning exception | `uv run --with meddeid==0.4.2` |
+| `gliner-trained`, `gliner-facility` | `nvidia/gliner-PII` | NVIDIA Open Model License | `uv run --with gliner==0.2.29` |
 
 External models run only locally, for evaluation. Their weights and code are
 never vendored, modified or served. MedDeID's AGPL licence makes this
@@ -80,16 +78,18 @@ download ──▶ converter ──▶ corpora/<benchmark>.jsonl + manifest
         ┌──────────────────────────┼───────────────────────────┐
         ▼                          ▼                           ▼
  predict_project.py        predict_meddeid.py           predict_gliner.py
-   (project .venv)          (.venv-meddeid)              (.venv-gliner)
+   (project env)         (uv --with meddeid)          (uv --with gliner)
         │                          │                           │
         └──────▶ predictions/<benchmark>.<system>.jsonl + receipt ◀──┘
                                    │
                                    ▼
-                    score.py ──▶ results/<benchmark>.<system>.json
-                                 results/<benchmark>.summary.md
+        score.py, score_aligned.py ──▶ results/<benchmark>.<system>.json
+                                        results/<benchmark>.aligned3.json
+                                               │
+                                   compare.py ──▶ results/COMPARISON.md
 ```
 
-Each external model has its own virtual environment so its dependencies can
+Each external model runs in its own uv environment so its dependencies can
 never change the project runtime. Prediction and scoring are separate steps,
 so a system is run once and can be rescored without inference.
 
@@ -99,7 +99,9 @@ so a system is run once and can be rescored without inference.
 | `labels.py` | Every gold and prediction label mapping, and the coarse comparison groups. |
 | `<benchmark>.py` | Download, verify and convert one benchmark. |
 | `predict_<system>.py` | Run one system and write native-label predictions. |
-| `score.py` | Map labels, compute metrics, write results and the summary table. |
+| `score.py` | Map labels and compute the as-published metrics. |
+| `score_aligned.py` | Score every system under this project's annotation policy (view 3). |
+| `compare.py` | Write `results/COMPARISON.md` from the result files. |
 | `test_external.py` | Tests for conversion, windowing, merging, age rules and label mapping. |
 
 ### Corpus format
@@ -133,7 +135,7 @@ Prediction files are JSONL with one record per document, in corpus order, with
 
 The receipt beside each file records the corpus hash, predictions hash, model
 repository and revision, every configuration value, runtime, platform and the
-runner's hash. For the project detector it also records adapter artefact and
+runner's hash. For the project detector it also records model artefact and
 detector source hashes, and the run fails if either changes during inference.
 
 ## Metrics
@@ -186,42 +188,34 @@ in a declared configuration arm.
 
 ## Running
 
-Commands run from the experiment directory. The external environments are
-created once:
+Commands run from the `benchmarks/` directory. Project steps use the project
+environment (`uv run`). Each external model runs with `uv run --no-project
+--with <package>==<version>`, which gives it its own cached environment that
+never touches the project's dependencies.
 
 ```sh
-cd experiments/external_benchmarks_20261004
-uv venv --python 3.13 .venv-gliner
-uv pip install --python .venv-gliner/bin/python gliner==0.2.29
-uv venv --python 3.13 .venv-meddeid
-uv pip install --python .venv-meddeid/bin/python meddeid==0.4.2
+cd benchmarks
+uv run asq_phi.py
+uv run predict_project.py --benchmark asq_phi
+uv run --no-project --python 3.13 --with meddeid==0.4.2 predict_meddeid.py --benchmark asq_phi
+uv run --no-project --python 3.13 --with gliner==0.2.29 predict_gliner.py --benchmark asq_phi --arm trained
+uv run --no-project --python 3.13 --with gliner==0.2.29 predict_gliner.py --benchmark asq_phi --arm facility
+uv run score.py --benchmark asq_phi --systems project meddeid gliner-trained gliner-facility
+uv run score_aligned.py --benchmark asq_phi --systems project meddeid gliner-trained gliner-facility
+uv run compare.py
 ```
 
-Then convert, predict and score:
-
-```sh
-../../.venv/bin/python asq_phi.py
-../../.venv/bin/python predict_project.py --benchmark asq_phi
-.venv-meddeid/bin/python predict_meddeid.py --benchmark asq_phi
-.venv-gliner/bin/python predict_gliner.py --benchmark asq_phi --arm trained
-.venv-gliner/bin/python predict_gliner.py --benchmark asq_phi --arm facility
-../../.venv/bin/python score.py --benchmark asq_phi --systems project-mix5 meddeid gliner-trained gliner-facility
-```
-
-`predict_project.py` runs the default model-only checkpoint and writes the
-`project-mix5` system. The `project`, `project-model` and
-`project-facility-fix` prediction files came from the removed adapter detector
-and are kept as history. Model weights are not in git; in a worktree, pass
-`--model-dir` pointing at the main checkout's copy.
+`synthetic_benchmarks.py --benchmark meddeid_en` and
+`--benchmark technetium_test5k` convert the other two benchmarks.
+`predict_project.py` runs the default model; pass `--model-dir` for another
+checkpoint and `--system` to give it its own key.
 
 Set `HF_HOME` to a shared cache to avoid downloading external weights again.
-On ASQ-PHI on Apple silicon CPU, MedDeID takes about 17 seconds, the project
-detector about 3 minutes and each GLiNER arm about 5 minutes.
 
 Run the tests after any change to the harness:
 
 ```sh
-../../.venv/bin/python -m pytest -q test_external.py
+uv run pytest -q test_external.py
 ```
 
 ## Adding a benchmark
@@ -250,7 +244,8 @@ Run the tests after any change to the harness:
 
 1. Confirm the model licence allows local evaluation. Record it in the systems
    table.
-2. Create a dedicated `.venv-<system>` and pin the package version.
+2. Run it with `uv run --no-project --with <package>==<version>`, pinning the
+   version, so it never shares the project's environment.
 3. Write `predict_<system>.py`. Pin the model revision as a constant, emit
    native labels and offsets, and pass every configuration value to
    `common.write_predictions` so it lands in the receipt.
@@ -259,173 +254,21 @@ Run the tests after any change to the harness:
 5. If the model card prescribes a configuration (a threshold, a label list),
    that is the primary arm. Additional arms get distinct system keys.
 
-## Results: ASQ-PHI, 2026-10-04
+## Results
 
-ASQ-PHI v1 (MIT), 1,051 synthetic clinical search queries, 2,973 gold spans.
-One run per system. The project and MedDeID have both now been looked at on
-this set, so treat it as development evidence for both. The full tables are in
-`experiments/external_benchmarks_20261004/results/asq_phi.summary.md`.
-
-| System | Char recall | Non-PII redaction | Exact-span F1 | Leak-free PHI docs | Clean hard negatives |
-|---|---:|---:|---:|---:|---:|
-| `project-mix5` (default, model-only) | 97.49% | 0.33% | 92.13% | 79.57% | 73.06% |
-| `project-model` (removed adapter, model-only) | 94.70% | 1.05% | 88.20% | 69.35% | 84.02% |
-| `project` (removed adapter, hybrid) | 95.25% | 1.03% | 83.19% | 58.89% | 84.47% |
-| `meddeid` | 99.14% | 6.33% | 79.79% | 93.27% | 14.61% |
-| `gliner-facility` | 96.81% | 8.27% | 70.65% | 74.88% | 27.40% |
-
-Any-label masking from the evaluator's `privacy` block, as scored, against
-ASQ-PHI's own gold boundaries:
-
-| System | Direct masked | NAME | Indirect masked | LOCATION | DATE | Any-label precision |
-|---|---:|---:|---:|---:|---:|---:|
-| `project-mix5` | 91.57% | 88.82% | 95.34% | 92.13% | 98.64% | 97.83% |
-| `project-model` | 92.02% | 93.73% | 88.73% | 82.20% | 95.41% | 97.04% |
-| `meddeid` | 97.24% | 97.30% | 98.59% | 98.55% | 98.64% | 74.66% |
-
-Most of the mix5 shortfall is convention, not exposure:
-
-- **NAME.** 90 of the 91 unmasked names miss only the honorific ("Dr.",
-  "Mr."), which ASQ-PHI includes in gold and the project policy excludes.
-  Counting those as masked, mix5 masks 99.88% of names, the adapter 98.40% and
-  MedDeID 97.67%. The one real miss is a name glued to the next word.
-- **ID and MRN.** Every alphanumeric character of every MRN is masked. The
-  unmasked characters are "#" and field labels such as "Patient ID:", which
-  ASQ-PHI puts inside the span.
-- **DATE.** The misses are relative dates ("last week", "last month"), which
-  the project policy does not annotate.
-- **LOCATION is the real gap.** 17 of 826 locations get no prediction at all,
-  almost all a city used as a modifier: "our Chicago clinic", "the NYC clinic",
-  "Seattle clinic". A further 33 are partly covered, usually because gold
-  joins a facility and city ("Mayo Clinic in Rochester, MN") and the connecting
-  words are left.
-
-Against the removed adapter, mix5 cuts non-PHI redaction by two thirds and
-raises leak-free documents by ten points. It leaves more PHI-free hard
-negatives with a span (73% clean against 84%).
-
-### Policy-aligned view
-
-`score_aligned.py` rescores the same predictions with the differences in
-requirements neutralised. Where ASQ-PHI and the
-[annotation policy](annotation-policy-v2.md) disagree about whether text must
-be masked, those characters count neither as PHI nor as over-redaction, for
-every system:
-
-| Neutral text | Why |
-|---|---|
-| Spaces and punctuation | A leaked comma or "#" reveals nothing |
-| Honorifics and credentials in NAME | The policy excludes them |
-| Field labels before an identifier ("Patient ID:") | Not part of the value |
-| Relative dates ("last week"), and "last" in "last December" | The policy does not annotate relative expressions |
-| Lowercase and generic unit words in LOCATION ("clinic", "in", "ER") | The policy keeps prepositions and generic care-site words outside place spans |
-| Ages up to 89 and bare years outside gold | Safe Harbor permits both; ASQ-PHI never annotates them, and the project masks a patient-specific year |
-
-The rules read only the text and gold, never predictions, and are tested in
-`test_external.py`. The output is `results/asq_phi.aligned.md`.
-
-| System | Value-char recall | Non-PHI redaction | Direct masked | NAME (doc 95% lb) | Indirect masked | LOCATION | Leak-free PHI docs | Clean hard negatives |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `project-mix5` | 99.50% | 0.19% | 99.85% | 99.88% (99.63%) | 98.64% | 97.33% | 97.12% | 94.06% |
-| `project-model` (removed adapter) | 95.73% | 1.18% | 98.58% | 99.51% (98.90%) | 90.07% | 83.76% | 79.33% | 87.21% |
-| `project` (removed adapter, hybrid) | 97.15% | 1.20% | 99.63% | 99.63% (99.14%) | 92.54% | 86.06% | 85.22% | 86.30% |
-| `meddeid` | 99.66% | 0.91% | 99.55% | 99.51% (99.01%) | 99.08% | 98.55% | 97.60% | 88.13% |
-| `gliner-facility` | 98.57% | 2.43% | 97.02% | 99.88% (99.51%) | 99.57% | 99.15% | 94.47% | 54.79% |
-
-Under the project's requirements, mix5 and MedDeID mask about the same
-(99.50% against 99.66% of value characters). Mix5 masks more direct identifiers
-and leaves a fifth as much non-PHI text masked. MedDeID is ahead on LOCATION,
-which is mix5's remaining gap. The one email miss shared by every system is a
-gold error: ASQ-PHI tags the word "email". The neutral rules are the project's
-own judgement, so quote this view next to the as-published one, never instead
-of it.
-
-## Results: public synthetic benchmarks, 2026-10-06
-
-Both benchmarks are kept uninspected: scoring writes no failure examples, and
-neither is used to choose experiments. Models: mix5 epoch 1 (the default) and
-`roberta_mix6_001` epoch 2.
-
-**MedDeID English synthetic benchmark** (`meddeid_en`, 300 notes, CC BY 4.0,
-evaluation only). It is a held-out partition of MedDeID's own synthetic corpus,
-so it favours MedDeID the way our generator banks favour us.
-
-| System | Char recall (published) | Non-PII redaction | Leak-free docs (published) | Value-char recall (aligned) | Direct (aligned) | NAME (aligned) | Indirect (aligned) | Leak-free docs (aligned) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| RoBERTa mix6 | 94.43% | 0.02% | 49.67% | 98.79% | 97.45% | 95.50% | 97.07% | 88.67% |
-| mix5 | 95.04% | 0.03% | 51.00% | 98.66% | 97.02% | 95.65% | 97.07% | 86.67% |
-| MedDeID | 99.16% | 0.14% | 92.33% | 99.19% | 99.74% | 99.84% | 95.20% | 93.00% |
-| GLiNER (facility arm) | 89.54% | 0.61% | 29.33% | 94.69% | 91.66% | 93.63% | 98.40% | 69.33% |
-
-MedDeID leads on names even under the project policy; the project models lead
-on dates and indirect identifiers.
-
-**Technetium-I** (`technetium_test5k`: a fixed random 5,000-note sample of the
-74,700-note test split, EUPL-1.2). Gold resolution: overlapping NAME spans
-(name parts annotated with the full name) merged; AGE spans overlapping another
-type dropped as spurious. The notes are heavily templated: under the project
-policy all three systems mask every direct identifier, and the two project
-models produce identical spans. As published, MedDeID leads (99.70% character
-recall and 84.6% leak-free documents against 96.89% and 6.8%) because the gold
-annotates every age and the project policy masks only ages over 89; MedDeID
-redacts twice as much non-PHI text (1.61% against 0.74%). The benchmark is
-saturated and does not separate strong systems.
-
-### Aligned view 2 (2026-10-06)
-
-`score_aligned.py` now writes `results/<benchmark>.aligned2.*`; the earlier
-`.aligned.*` files are kept as view 1. View 2 applies the all-ages policy and
-the conventions in MedDeID's published annotation guidelines (read without
-inspecting any benchmark note or failure). Every rule comes from our policy:
-
-| Change | Policy basis |
-|---|---|
-| Ages of every value are required; units and suffixes in an AGE span are neutral (`23 years`, `65-year-old`) | AGE row: every age, value only |
-| Spelled-out titles in NAME are neutral (`Doctor Geraert`, `Jan Aerschot, Doctor`) | NAME excludes honorifics |
-| Lowercase words in FACILITY are neutral (`burn centre at Middelheim`) | Department and generic care-site words stay outside |
-| A LOCATION span that is only a country or a province is neutral | Places addendum N4 |
-
-On ASQ-PHI nothing changes. On `meddeid_en` the name and place gaps are
-unchanged (NAME 95.50% for RoBERTa mix6 against 99.84%; LOCATION 26 of 30
-against 29 of 30): none of the gold names carried a spelled-out title, and no
-place span was a country or province alone. These are model misses under our
-own policy, not convention differences. FACILITY gains one span (135 of 141).
-AGE is now scored: 0 of 100 for both project models, which were trained before
-the all-ages change, against 100 for MedDeID. On Technetium-I, AGE is 7.14%
-against 91.02%, and indirect recall 75.11% against 97.59%.
-
-MedDeID's healthcare organisation label also covers ward, room and route
-codes, hospital software, file names and health-insurance funds. The policy
-does not decide these, so view 2 still counts them as required.
-
-## Aligned view 3 and DeBERTa, 2026-10-07
-
-View 2's credential list lacked British and Commonwealth degrees, so a name
-written "Dr Elys Tate, MBBS" counted "MBBS" as a missed name. On `meddeid_en`
-27 of `deberta_mix7_001`'s 28 NAME misses were that word. View 3 adds those
-credentials (MBBS, MBChB, MRCP, FRCP, FRCS and others) and further US
-credentials; ASQ-PHI and Technetium are unchanged. The scorer now also reports
-miss shapes and convention-gap flags; under view 2's rules they flag NAME
-`trailing:caps_abbreviation` on `meddeid_en` without printing any text.
-
-**`meddeid_en` is development evidence from 2026-10-07.** Finding the MBBS gap
-involved printing missed NAME contexts from it, which the uninspected rule
-forbids. It still writes no failure examples, but results on it are no longer
-independent of the project's choices. Technetium remains uninspected.
-
-Under view 3, `deberta_mix7_001` epoch 2 is level with MedDeID on its own
-benchmark: value-character recall 99.13% against 99.19%, NAME 99.84% each,
-indirect 96.84% against 96.21%, leak-free notes 94.33% against 93.00%, and
-non-PHI redaction 0.01% against 0.15%. MedDeID misses fewer locations and
-facilities; DeBERTa misses fewer dates and emails. Full tables:
-`results/COMPARISON.md`.
+Current results are in [`benchmarks/results/COMPARISON.md`](../benchmarks/results/COMPARISON.md),
+one table per benchmark, with the policy-aligned view first and the
+as-published numbers beside it. On the aligned view the default model masks
+99.94% of PHI value characters on ASQ-PHI (MedDeID 99.66%), 99.27% on MedDeID
+English (MedDeID 99.19%) and 99.65% on the Technetium-I sample (MedDeID
+99.65%), with less non-PHI redaction than MedDeID on all three.
 
 ## Restricted benchmark: n2c2 2014
 
 The n2c2 (i2b2/UTHealth) 2014 de-identification dataset is real clinical text
 with surrogate PHI, distributed under a data use agreement through the
 [DBMI Data Portal](https://portal.dbmi.hms.harvard.edu/projects/n2c2-nlp/).
-The owner approved its use for evaluation only on 2026-10-06 (AGENTS.md).
+It is used for evaluation only.
 
 - Each person obtains it under their own agreement. Keep the raw files outside
   every git repository.
@@ -450,7 +293,7 @@ The owner approved its use for evaluation only on 2026-10-06 (AGENTS.md).
   columns: they score every system under this project's policy. Quote the
   as-published columns beside them, never instead.
 - **Rule out a convention gap before blaming a model.** Each
-  `<benchmark>.<view>.md` describes every partly covered span by the position
+  `<benchmark>.<view>.json` describes every partly covered span by the position
   and shape of what was left uncovered (for example
   `trailing:caps_abbreviation`), without any text, and flags shapes that recur
   for most systems. A flagged shape usually means the neutral rules miss a

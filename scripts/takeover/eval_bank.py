@@ -141,7 +141,8 @@ class Precomputed:
 
 def summarize(result):
     keep = {k: result[k] for k in ("typed_span", "privacy", "character", "recall_wilson_lower_95", "goal", "documents",
-                                    "document_leak_free", "phi_bearing_documents", "negative_documents") if k in result}
+                                    "document_leak_free", "phi_bearing_documents", "phi_bearing_documents_excluding_ages_89_and_under",
+                                    "negative_documents") if k in result}
     keep["per_label"] = {label: {m: result["per_label"][label][m] for m in
                                  ("true_positives", "false_positives", "false_negatives", "precision", "recall", "support")}
                          for label in ENTITY_TYPES}

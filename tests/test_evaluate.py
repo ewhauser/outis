@@ -183,6 +183,26 @@ def test_phi_bearing_document_metric_excludes_automatically_safe_negatives():
     assert result["per_label_character_exposure"]["NAME"]["exposed_characters"] == 3
 
 
+def test_release_leak_free_metric_leaves_out_ages_89_and_under():
+    rows = [
+        {"id": "young-age-only", "text": "Age 45, stable", "spans": [{"start": 4, "end": 6, "label": "AGE"}]},
+        {
+            "id": "name-and-young-age",
+            "text": "Zoë, 45, stable",
+            "spans": [{"start": 0, "end": 3, "label": "NAME"}, {"start": 5, "end": 7, "label": "AGE"}],
+        },
+        {"id": "old-age", "text": "Age 93, stable", "spans": [{"start": 4, "end": 6, "label": "AGE"}]},
+    ]
+    result = evaluate(rows, lambda text: [Span(0, 3, "NAME")] if text.startswith("Zoë") else [])
+    assert result["phi_bearing_documents"]["leak_free_count"] == 0
+    assert result["phi_bearing_documents_excluding_ages_89_and_under"] == {
+        "count": 2,
+        "leak_free_count": 1,
+        "leak_free_rate": 0.5,
+        "wilson_lower_95": wilson_lower(1, 2),
+    }
+
+
 def test_character_exposure_tracks_gold_label_even_with_wrong_prediction_type():
     result = evaluate([row()], lambda text: [Span(0, 2, "LOCATION")])
     name = result["per_label_character_exposure"]["NAME"]

@@ -427,10 +427,10 @@ the storage or forwarding of returned data.
 Run the reusable check against the local trained checkpoint:
 
 ```sh
-PYTHONPATH=src .venv/bin/python scripts/smoke_extended_api.py --device cpu
+uv run scripts/smoke_extended_api.py --device cpu
 ```
 
-It writes [reports/extended_api_smoke.json](../reports/extended_api_smoke.json)
+It writes `reports/extended_api_smoke.json`
 by default; use `--model-dir` or `--output` to select another checkpoint or
 report path. The recorded run passed its 12 exercised HTTP/WebSocket routes
 against checkpoint version `7350eb40e25b1a2b`. It checks invented-input detection,

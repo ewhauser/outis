@@ -16,7 +16,7 @@ from typing import Any, Iterable, Iterator
 
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
+ROOT = HERE.parent
 CORPORA = HERE / "corpora"
 PREDICTIONS = HERE / "predictions"
 RESULTS = HERE / "results"

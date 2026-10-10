@@ -68,16 +68,13 @@ pythonpath = ["src"]
 
 [tool.ruff]
 target-version = "py311"
-# Experiment records and frozen one-off generators are kept byte-for-byte as
-# evidence; their hashes are pinned by manifests, so they are neither linted
-# nor formatted.
+# Bank generators and the benchmark harness are kept byte-for-byte so that
+# their recorded hashes still match; they are neither linted nor formatted.
 extend-exclude = [
     "data",
     "reports",
-    "experiments",
+    "benchmarks",
     "scripts/takeover",
-    "scripts/generate_blind_qualification_*.py",
-    "scripts/v*_qualification_author_qa.py",
 ]
 
 [tool.ruff.lint]

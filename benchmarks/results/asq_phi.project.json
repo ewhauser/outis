@@ -1,0 +1,35 @@
+{
+ "benchmark": "asq_phi",
+ "corpus_manifest_sha256": "0031bd8711020e99dcdda029e2f4cc720ee91cf1b412938c57cd240fd1f97fd4",
+ "scorer_sha256": "ff668cdeb525338e65d37dd03589fb6feed249a7ee254feeedf58145e7313d39",
+ "published_reference": null,
+ "label_agnostic": {
+  "character_recall": 0.9775986120324539,
+  "character_recall_wilson_lower_95": 0.9760860686382989,
+  "exact_span": {
+   "f1": 0.8023289665211063,
+   "fn": 217,
+   "fp": 1141,
+   "precision": 0.7072106748781114,
+   "recall": 0.9270097544567777,
+   "tp": 2756
+  },
+  "explicit_age_characters_redacted": 1665,
+  "gold_characters": 39194,
+  "hard_negatives_clean": {
+   "count": 53,
+   "documents": 219,
+   "rate": 0.2420091324200913
+  },
+  "non_pii_characters": 119651,
+  "non_pii_redacted_characters": 2016,
+  "non_pii_redaction": 0.01684900251564968,
+  "non_pii_redaction_age_adjusted": 0.0029335316879925783,
+  "phi_documents_leak_free": {
+   "count": 646,
+   "documents": 832,
+   "rate": 0.7764423076923077
+  }
+ },
+ "system": "project"
+}

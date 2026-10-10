@@ -40,7 +40,5 @@ jobs:
         with:
           path: .cache/tiktoken
           key: tiktoken-${{ runner.os }}
-      - name: Check committed data
-        run: python scripts/check_data_tracking.py --verify-hashes
       - name: Run tests
         run: python -m pytest -q

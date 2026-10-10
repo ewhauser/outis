@@ -82,13 +82,7 @@ SOURCE_PINS = {
         "url": "https://data.cms.gov/provider-data/dataset/xubh-q36u",
     },
 }
-SOURCE_DIR_CANDIDATES = (
-    ROOT / ".cache" / "place_sources",
-    Path(".cache/place_sources"),
-    Path(
-        ".cache/place_sources"
-    ),
-)
+SOURCE_DIR_CANDIDATES = (ROOT / ".cache" / "place_sources",)
 
 FAMILY_ROWS_V4 = {
     "city_modifier": 500,
