@@ -125,23 +125,28 @@ clinical notes.
 
 ### Public benchmarks
 
-Share of PHI characters masked, and share of non-PHI text removed
-unnecessarily, scored the same way for every model
-([details](docs/external-verification.md)):
+Every model is scored the same way, under this project's annotation policy
+([details](docs/external-verification.md)). ↑ means higher is better, ↓ lower
+is better; the best result in each row is in bold.
 
-| Benchmark | This model | [MedDeID](https://huggingface.co/stighellemans/meddeid-english-synth) | [GLiNER-PII](https://huggingface.co/nvidia/gliner-PII)* |
-|---|---:|---:|---:|
-| [ASQ-PHI](https://doi.org/10.17632/csz5dzp7nx.1), 1,051 search queries | **99.94%** masked, 0.18% over | 99.66% masked, 0.91% over | 98.57% masked, 2.43% over |
-| [MedDeID English](https://huggingface.co/datasets/stighellemans/meddeid-english-synthetic-benchmark), 300 notes | **99.27%** masked, 0.01% over | 99.19% masked, 0.15% over | 94.87% masked, 0.64% over |
-| [Technetium-I](https://huggingface.co/datasets/temlm-foundation/Technetium-I), 5,000-note sample | 99.65% masked, **0.57%** over | 99.65% masked, 1.14% over | not run |
+| Benchmark | Measure | Outis | [MedDeID](https://huggingface.co/stighellemans/meddeid-english-synth) | [GLiNER-PII](https://huggingface.co/nvidia/gliner-PII)\* |
+|---|---|---:|---:|---:|
+| [ASQ-PHI](https://doi.org/10.17632/csz5dzp7nx.1)<br>1,051 search queries | PHI characters masked ↑ | **99.94%** | 99.66% | 98.57% |
+|  | Non-PHI text removed ↓ | **0.18%** | 0.91% | 2.43% |
+|  | Notes fully masked ↑ | **99.52%** | 97.60% | 94.47% |
+| [MedDeID English](https://huggingface.co/datasets/stighellemans/meddeid-english-synthetic-benchmark)<br>300 notes | PHI characters masked ↑ | **99.27%** | 99.19% | 94.87% |
+|  | Non-PHI text removed ↓ | **0.01%** | 0.15% | 0.64% |
+|  | Notes fully masked ↑ | **95.00%** | 93.00% | 69.67% |
+| [Technetium-I](https://huggingface.co/datasets/temlm-foundation/Technetium-I)<br>5,000-note sample | PHI characters masked ↑ | 99.65% | 99.65% | not run |
+|  | Non-PHI text removed ↓ | **0.57%** | 1.14% | not run |
+|  | Notes fully masked ↑ | 84.60% | 84.60% | not run |
 
 \* `nvidia/gliner-PII` with one added zero-shot label for hospitals.
 
-We have looked at this model's failures on ASQ-PHI and MedDeID English while
+We have looked at Outis's failures on ASQ-PHI and MedDeID English while
 developing it, so those two are not fully independent tests; Technetium-I has
-not been inspected.
-
-Per-identifier results are in the [full comparison](benchmarks/results/COMPARISON.md).
+not been inspected. Per-identifier results are in the
+[full comparison](benchmarks/results/COMPARISON.md).
 
 ### Held-out synthetic notes
 
