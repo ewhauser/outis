@@ -12,7 +12,7 @@ The default model is `models/deid-deberta-v3-base`
 ## Environment
 
 ```sh
-uv sync --extra dev
+uv sync --group dev
 export TIKTOKEN_CACHE_DIR="$PWD/.cache/tiktoken"
 export HF_HOME="$PWD/.cache/huggingface"
 ```

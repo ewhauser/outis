@@ -43,12 +43,6 @@ dependencies = [
 [project.optional-dependencies]
 # Native PDF input and output for /v1/files.
 pdf = ["pypdf>=6.19.0", "reportlab>=4"]
-# Token character offsets used by the legacy remediation and generalization
-# corpus generators to reproduce their recorded statistics. Detection does not use it.
-generators = [
-    "opf @ https://github.com/openai/privacy-filter/archive/f7f00ca7fb869683eb732c010299d901457f19c3.tar.gz",
-]
-dev = ["outis[pdf,generators]", "pytest>=8", "httpx>=0.28", "ruff>=0.11", "psutil>=6"]
 
 [project.urls]
 Homepage = "https://github.com/ewhauser/outis"
@@ -58,6 +52,28 @@ Issues = "https://github.com/ewhauser/outis/issues"
 
 [project.scripts]
 outis = "outis.cli:main"
+
+# Development-only dependencies are groups, not extras: they are not published
+# with the package, and PyPI rejects direct URL references in published metadata.
+[dependency-groups]
+# Token character offsets used by the legacy remediation and generalization
+# corpus generators to reproduce their recorded statistics. Detection does not use it.
+generators = [
+    "opf @ https://github.com/openai/privacy-filter/archive/f7f00ca7fb869683eb732c010299d901457f19c3.tar.gz",
+]
+dev = [
+    { include-group = "generators" },
+    "pypdf>=6.19.0",
+    "reportlab>=4",
+    "pytest>=8",
+    "httpx>=0.28",
+    "ruff>=0.11",
+    "psutil>=6",
+]
+
+[tool.uv]
+# A plain `uv sync` installs only the runtime; contributors add `--group dev`.
+default-groups = []
 
 [tool.setuptools.packages.find]
 where = ["src"]

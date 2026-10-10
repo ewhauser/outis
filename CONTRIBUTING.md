@@ -17,7 +17,7 @@ Thanks for your interest in improving Outis.
 ## Development setup
 
 ```sh
-uv sync --extra dev
+uv sync --group dev
 ```
 
 ## Checks
