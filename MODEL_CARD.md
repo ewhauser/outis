@@ -104,9 +104,9 @@ is better; the best result in each row is in bold.
 | [MedDeID English](https://huggingface.co/datasets/stighellemans/meddeid-english-synthetic-benchmark)<br>300 notes | PHI characters masked ↑ | **99.27%** | 99.19% | 94.87% |
 |  | Non-PHI text removed ↓ | **0.01%** | 0.15% | 0.64% |
 |  | Notes fully masked ↑ | **95.00%** | 93.00% | 69.67% |
-| [Technetium-I](https://huggingface.co/datasets/temlm-foundation/Technetium-I)<br>5,000-note sample | PHI characters masked ↑ | 99.65% | 99.65% | not run |
-|  | Non-PHI text removed ↓ | **0.57%** | 1.14% | not run |
-|  | Notes fully masked ↑ | 84.60% | 84.60% | not run |
+| [Technetium-I](https://huggingface.co/datasets/temlm-foundation/Technetium-I)<br>5,000-note sample | PHI characters masked ↑ | 99.65% | 99.65% | 98.83% |
+|  | Non-PHI text removed ↓ | **0.57%** | 1.14% | 0.78% |
+|  | Notes fully masked ↑ | 84.60% | 84.60% | 43.32% |
 
 \* `nvidia/gliner-PII` with one added zero-shot label for hospitals.
 

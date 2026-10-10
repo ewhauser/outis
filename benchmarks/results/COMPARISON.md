@@ -27,7 +27,8 @@ Convention flags: none.
 
 | System | Value-char recall | Non-PHI redaction | Direct | NAME (doc 95% lb) | Indirect | Leak-free PHI docs | Char recall (published) | Non-PII redaction (published) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| meddeid | 99.65% | 1.14% | 100.00% | 100.00% (100.00%) | 97.59% | 84.60% | 99.70% | 1.61% |
 | project | 99.65% | 0.57% | 100.00% | 100.00% (100.00%) | 97.59% | 84.60% | 99.70% | 0.74% |
+| meddeid | 99.65% | 1.14% | 100.00% | 100.00% (100.00%) | 97.59% | 84.60% | 99.70% | 1.61% |
+| gliner-facility | 98.83% | 0.78% | 100.00% | 100.00% (100.00%) | 91.84% | 43.32% | 97.46% | 0.75% |
 
 Convention flags: none.

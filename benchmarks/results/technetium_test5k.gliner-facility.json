@@ -1,0 +1,35 @@
+{
+ "benchmark": "technetium_test5k",
+ "corpus_manifest_sha256": "4e0484ed56947f3e3356f8fd2f0d8b81a73228cc506ea529d204bdb0a6263a04",
+ "scorer_sha256": "4e651237676e12423e0abf186dfe2ad551325300165e7a6e10d801de649002f7",
+ "published_reference": null,
+ "label_agnostic": {
+  "character_recall": 0.974585758215916,
+  "character_recall_wilson_lower_95": 0.9742022932655008,
+  "exact_span": {
+   "f1": 0.6768774074990281,
+   "fn": 18413,
+   "fp": 27304,
+   "precision": 0.6368569452572219,
+   "recall": 0.7222649591987571,
+   "tp": 47884
+  },
+  "explicit_age_characters_redacted": 0,
+  "gold_characters": 656561,
+  "hard_negatives_clean": {
+   "count": 0,
+   "documents": 0,
+   "rate": null
+  },
+  "non_pii_characters": 9180582,
+  "non_pii_redacted_characters": 68404,
+  "non_pii_redaction": 0.007450943741910916,
+  "non_pii_redaction_age_adjusted": 0.007450943741910916,
+  "phi_documents_leak_free": {
+   "count": 0,
+   "documents": 5000,
+   "rate": 0.0
+  }
+ },
+ "system": "gliner-facility"
+}

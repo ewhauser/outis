@@ -1,7 +1,7 @@
 {
  "benchmark": "technetium_test5k",
  "corpus_manifest_sha256": "4e0484ed56947f3e3356f8fd2f0d8b81a73228cc506ea529d204bdb0a6263a04",
- "scorer_sha256": "ff668cdeb525338e65d37dd03589fb6feed249a7ee254feeedf58145e7313d39",
+ "scorer_sha256": "4e651237676e12423e0abf186dfe2ad551325300165e7a6e10d801de649002f7",
  "published_reference": null,
  "label_agnostic": {
   "character_recall": 0.9969964710057405,
