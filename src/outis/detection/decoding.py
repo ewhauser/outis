@@ -20,6 +20,32 @@ _NAME_JOINERS = "'’-\u2010\u2011"
 TAGS = ["O"] + [f"{boundary}-{label}" for label in ENTITY_TYPES for boundary in "BIES"]
 
 
+def _transition_constraints():
+    """Fixed BIOES legality: 0 for an allowed transition, -inf otherwise."""
+    c = len(TAGS)
+    legal = torch.full((c, c), float("-inf"))
+    for prev in range(c):
+        for nxt in range(c):
+            p, q = TAGS[prev], TAGS[nxt]
+            if p == "O" or p[0] in "ES":
+                valid = q == "O" or q[0] in "BS"
+            else:
+                valid = q != "O" and q[0] in "IE" and p[2:] == q[2:]
+            if valid:
+                legal[prev, nxt] = 0
+    initial = torch.tensor(
+        [0 if t == "O" or t[0] in "BS" else float("-inf") for t in TAGS]
+    )
+    final = torch.tensor(
+        [0 if t == "O" or t[0] in "ES" else float("-inf") for t in TAGS]
+    )
+    return legal, initial, final
+
+
+# Built once per process. The decoder only reads these; never mutate them.
+_LEGAL, _INITIAL, _FINAL = _transition_constraints()
+
+
 def choose_device(requested="auto"):
     if requested != "auto":
         return torch.device(requested)
@@ -38,29 +64,16 @@ def decode_bioes(logits, offsets, text):
         return []
     if not torch.isfinite(scores).all():
         raise RuntimeError("Invalid model logits; no deidentified output released")
-    legal = torch.full((c, c), float("-inf"))
-    for prev in range(c):
-        for nxt in range(c):
-            p, q = TAGS[prev], TAGS[nxt]
-            if p == "O" or p[0] in "ES":
-                valid = q == "O" or q[0] in "BS"
-            else:
-                valid = q != "O" and q[0] in "IE" and p[2:] == q[2:]
-            if valid:
-                legal[prev, nxt] = 0
-    initial = torch.tensor(
-        [0 if t == "O" or t[0] in "BS" else float("-inf") for t in TAGS]
-    )
-    final = torch.tensor(
-        [0 if t == "O" or t[0] in "ES" else float("-inf") for t in TAGS]
-    )
-    dp = scores[0] + initial
+    if c != len(TAGS):
+        raise RuntimeError(f"Expected {len(TAGS)} tag logits, got {c}")
+    legal = _LEGAL
+    dp = scores[0] + _INITIAL
     back = []
     for i in range(1, n):
         best, bp = (dp[:, None] + legal).max(0)
         dp = best + scores[i]
         back.append(bp)
-    last = int((dp + final).argmax())
+    last = int((dp + _FINAL).argmax())
     labels = [last]
     for bp in reversed(back):
         last = int(bp[last])
