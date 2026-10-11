@@ -267,11 +267,11 @@ def build_windows(rows, tokenizer, max_length, stats):
         stats["spans"] += len(spans)
         stats["documents"] += 1
         stats["tokens"] += len(ids)
-        for start, stop, left, right in window_jobs(len(ids), content):
-            labels = [-100] * (stop - start)
-            for i in range(left, right):
-                labels[i - start] = tags[i]
-            windows.append((prefix + ids[start:stop] + suffix,
+        for window in window_jobs(len(ids), content):
+            labels = [-100] * (window.stop - window.start)
+            for i in range(window.owned_start, window.owned_stop):
+                labels[i - window.start] = tags[i]
+            windows.append((prefix + ids[window.start : window.stop] + suffix,
                             [-100] * len(prefix) + labels + [-100] * len(suffix)))
     stats["windows"] = len(windows)
     return windows

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import NamedTuple
 
 import torch
 
@@ -68,8 +69,28 @@ def refine_boundaries(spans, text):
     return refined
 
 
+class TokenWindow(NamedTuple):
+    """One encoder window over a document's content tokens.
+
+    All four fields are document token offsets. ``start:stop`` is the slice of
+    tokens sent to the model; ``owned_start:owned_stop`` is the part of it whose
+    emissions this window supplies. Neighbouring windows overlap, but their owned
+    ranges tile the document exactly once.
+    """
+
+    start: int
+    stop: int
+    owned_start: int
+    owned_stop: int
+
+    @property
+    def owned_in_window(self):
+        """The owned range as a slice of window offsets (0 is ``start``)."""
+        return slice(self.owned_start - self.start, self.owned_stop - self.start)
+
+
 def window_jobs(n_tokens: int, content_window: int):
-    """Yield (start, stop, owned_left, owned_right) windows covering n tokens."""
+    """Yield the TokenWindows covering n tokens."""
     if content_window < 1 or n_tokens < 0:
         raise ValueError("window size must be positive and token count nonnegative")
     overlap = min(128, content_window // 4)
@@ -79,10 +100,18 @@ def window_jobs(n_tokens: int, content_window: int):
         stop = min(n_tokens, start + content_window)
         left = 0 if start == 0 else start + overlap
         right = n_tokens if stop == n_tokens else stop - overlap
-        yield start, stop, left, right
+        yield TokenWindow(start, stop, left, right)
         if stop >= n_tokens:
             break
         start += stride
+
+
+class _WindowJob(NamedTuple):
+    """One model row: a window of one document in a batched forward pass."""
+
+    doc: int
+    window: TokenWindow
+    ids: list  # content token ids, ids[0] is document token window.start
 
 
 def special_layout(tokenizer):
@@ -163,13 +192,15 @@ class HFTokenDetector:
             ids, offsets = encode_text(self.tokenizer, text)
             offsets_all.append(offsets)
             logits_all.append(torch.empty((len(ids), len(TAGS)), dtype=torch.float32))
-            for start, stop, left, right in window_jobs(len(ids), self.content_window):
-                if stop > start:
-                    jobs.append((doc, ids[start:stop], left, right, start))
+            for window in window_jobs(len(ids), self.content_window):
+                if window.stop > window.start:
+                    jobs.append(
+                        _WindowJob(doc, window, ids[window.start : window.stop])
+                    )
         with torch.inference_mode():
             for a in range(0, len(jobs), self.batch_size):
                 batch = jobs[a : a + self.batch_size]
-                rows = [self.prefix + j[1] + self.suffix for j in batch]
+                rows = [self.prefix + job.ids + self.suffix for job in batch]
                 size = max(len(r) for r in rows)
                 tokens = torch.full((len(rows), size), self.pad_id, dtype=torch.long)
                 mask = torch.zeros((len(rows), size), dtype=torch.long)
@@ -181,11 +212,13 @@ class HFTokenDetector:
                     attention_mask=mask.to(self.device),
                 ).logits
                 out = out.float().cpu()
+                # Row positions are window offsets shifted by the special prefix.
                 shift = len(self.prefix)
-                for i, (doc, _, left, right, start) in enumerate(batch):
-                    logits_all[doc][left:right] = out[
-                        i, shift + left - start : shift + right - start
-                    ]
+                for i, job in enumerate(batch):
+                    owned = job.window.owned_in_window
+                    logits_all[job.doc][
+                        job.window.owned_start : job.window.owned_stop
+                    ] = out[i, shift + owned.start : shift + owned.stop]
         return list(zip(logits_all, offsets_all))
 
     def raw_batch(self, texts):
