@@ -595,6 +595,10 @@ def _office(service, raw, kind, options, link_records):
             setters.append(set_text)
 
     date_styles = _date_styles(roots) if kind == "xlsx" else set()
+    shared_root = roots.get("xl/sharedStrings.xml")
+    shared_string_count = (
+        sum(1 for _ in shared_root.iter(f"{{{S}}}si")) if shared_root is not None else 0
+    )
     workbook = roots.get("xl/workbook.xml")
     is_1904 = workbook is not None and any(
         x.get("date1904") in {"1", "true"} for x in workbook.iter(f"{{{S}}}workbookPr")
@@ -753,16 +757,10 @@ def _office(service, raw, kind, options, link_records):
                 if kind_attr == "s":
                     shared_index_nodes = list(cell.iter(f"{{{S}}}v"))
                     claimed_text.update(id(node) for node in shared_index_nodes)
-                    shared_root = roots.get("xl/sharedStrings.xml")
-                    string_count = (
-                        len(list(shared_root.iter(f"{{{S}}}si")))
-                        if shared_root is not None
-                        else 0
-                    )
                     if (
                         len(shared_index_nodes) != 1
                         or not re.fullmatch(r"[0-9]+", shared_index_nodes[0].text or "")
-                        or int(shared_index_nodes[0].text) >= string_count
+                        or int(shared_index_nodes[0].text) >= shared_string_count
                     ):
                         raise ValueError(
                             "Spreadsheet contains an invalid shared string reference"
