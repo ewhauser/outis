@@ -69,6 +69,74 @@ def test_default_model_is_the_promoted_encoder(tmp_path, monkeypatch):
     assert len(service.version) == 16 and service.version != "injected-detector"
 
 
+def fake_snapshot_download(bundle, calls):
+    def download(repo_id, **options):
+        calls.append({"repo_id": repo_id, **options})
+        return str(bundle)
+
+    return download
+
+
+def test_default_downloads_the_pinned_published_model(hf_bundle, tmp_path, monkeypatch):
+    import huggingface_hub
+
+    from outis import paths
+
+    calls = []
+    monkeypatch.chdir(tmp_path / "hf")
+    monkeypatch.setattr(hf_encoder, "HFTokenDetector", FakeDetector)
+    monkeypatch.setattr(
+        huggingface_hub, "snapshot_download", fake_snapshot_download(hf_bundle, calls)
+    )
+    service = Deidentifier(device="cpu")
+    assert calls == [
+        {
+            "repo_id": paths.DEFAULT_MODEL_REPO,
+            "revision": paths.DEFAULT_MODEL_REVISION,
+            "allow_patterns": ["config.json", "hf/*"],
+        }
+    ]
+    assert service.detector.model_dir == hf_bundle
+    assert service.version == Deidentifier(hf_bundle, device="cpu").version
+
+
+def test_checkout_without_weights_downloads_the_published_model(
+    hf_bundle, tmp_path, monkeypatch
+):
+    import huggingface_hub
+
+    from outis.paths import DEFAULT_MODEL_DIR
+
+    calls = []
+    checkout = tmp_path / "checkout"
+    root = checkout / DEFAULT_MODEL_DIR
+    (root / "hf").mkdir(parents=True)
+    (root / "config.json").write_text(json.dumps({"encoder": hf_encoder.ENCODER_KIND}))
+    monkeypatch.chdir(checkout)
+    monkeypatch.setattr(hf_encoder, "HFTokenDetector", FakeDetector)
+    monkeypatch.setattr(
+        huggingface_hub, "snapshot_download", fake_snapshot_download(hf_bundle, calls)
+    )
+    assert Deidentifier(device="cpu").detector.model_dir == hf_bundle
+    assert len(calls) == 1
+
+
+def test_explicit_model_dir_never_downloads(hf_bundle, monkeypatch):
+    import huggingface_hub
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("an explicit model directory must not download")
+
+    monkeypatch.setattr(hf_encoder, "HFTokenDetector", FakeDetector)
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", refuse)
+    assert Deidentifier(hf_bundle, device="cpu").detector.model_dir == hf_bundle
+    monkeypatch.setenv("OUTIS_MODEL_DIR", str(hf_bundle))
+    monkeypatch.setenv("OUTIS_DEVICE", "cpu")
+    monkeypatch.delenv("OUTIS_API_KEY", raising=False)
+    with TestClient(create_app()) as client:
+        assert client.get("/ready").status_code == 200
+
+
 def test_unsupported_checkpoints_are_rejected(tmp_path):
     (tmp_path / "config.json").write_text('{"adapter": {}}')
     with pytest.raises(ValueError, match="only fine-tuned hf_token_classifier"):

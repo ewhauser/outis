@@ -165,7 +165,7 @@ overstates certainty.
 ```python
 from outis import Deidentifier
 
-deid = Deidentifier()  # loads the default checkpoint
+deid = Deidentifier()  # downloads this model once, pinned to a tested revision
 print(deid.deidentify("Mara Calder was seen on 2024-02-28.", mode="redact")["text"])
 ```
 

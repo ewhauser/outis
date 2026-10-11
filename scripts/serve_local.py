@@ -16,7 +16,11 @@ def main():
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
     project = Path(__file__).resolve().parents[1]
-    os.environ.setdefault("OUTIS_MODEL_DIR", str(project / DEFAULT_MODEL_DIR))
+    # Use the checkout's weights when they have been downloaded; otherwise the
+    # service fetches the pinned published model.
+    local_model = project / DEFAULT_MODEL_DIR
+    if (local_model / "hf" / "model.safetensors").is_file():
+        os.environ.setdefault("OUTIS_MODEL_DIR", str(local_model))
     os.environ.setdefault("OUTIS_DEVICE", args.device)
     if not os.environ.get("OUTIS_SECRET"):
         key_file = project / ".cache/local-api-secret"
