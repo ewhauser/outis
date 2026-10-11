@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The project uses
 from the Conventional Commit messages merged since the previous release; see
 [RELEASING.md](RELEASING.md).
 
+## [0.2.1](https://github.com/ewhauser/outis/compare/v0.2.0...v0.2.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* close identifier leaks in policy overlaps and Office extraction ([#8](https://github.com/ewhauser/outis/issues/8)) ([0b04467](https://github.com/ewhauser/outis/commit/0b0446724ebeee656628f6b49370818f5aeafab9))
+
 ## [0.2.0](https://github.com/ewhauser/outis/compare/v0.1.0...v0.2.0) (2026-10-11)
 
 
