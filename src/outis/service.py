@@ -11,7 +11,7 @@ from threading import Lock
 from outis.entities import checked_entities
 from outis.operations import Usage
 from outis.paths import resolve_model_dir
-from outis.replacement.surrogates import _validated_secret, replace
+from outis.replacement.surrogates import _validated_secret
 
 
 def _model_version(model_dir, detector):
@@ -59,7 +59,7 @@ class Deidentifier:
 
     def _requests(self, requests, *, detect=False, limit=16):
         from outis.policy import KNOWN_LABELS, validate_policy
-        from outis.replacement.transform import ReplacementOptions
+        from outis.replacement.transform import ReplacementOptions, legacy_options
 
         if not isinstance(requests, (list, tuple)) or not 1 <= len(requests) <= limit:
             raise ValueError("Invalid batch size")
@@ -104,13 +104,10 @@ class Deidentifier:
                     replacement = req.get("replacement")
                     if isinstance(replacement, ReplacementOptions):
                         replacement = replacement.model_dump()
-                    options = ReplacementOptions.model_validate(
-                        replacement
+                    options = (
+                        ReplacementOptions.model_validate(replacement)
                         if replacement is not None
-                        else {
-                            "type": "synthetic" if mode == "synthetic" else "marker",
-                            "pattern": "[{label}]",
-                        }
+                        else legacy_options(mode)
                     )
                 except (ValueError, TypeError):
                     raise ValueError("Invalid replacement options") from None
@@ -332,6 +329,7 @@ class Deidentifier:
     def _process(self, requests, *, link_batch, shared_entities, limit):
         from outis.policy import policy_metadata
         from outis.replacement.transform import (
+            legacy_response,
             prepare_context,
             reidentify,
             render,
@@ -360,30 +358,22 @@ class Deidentifier:
             mention_offset = 0
             context_offset = 0
             for req, spans in zip(requests, predictions):
-                extended = req["_extended"] or link_batch or shared_entities
-                if extended:
-                    result = render(
-                        req["text"],
-                        spans,
-                        options=req["replacement"],
-                        mode=req["mode"],
-                        patient_id=req["patient_id"],
-                        secret=self.secret,
-                        date_shift_days=req["date_shift_days"],
-                        prepared_context=prepared,
-                        index_offset=mention_offset if context is not None else 0,
-                        context_offset=context_offset if context is not None else None,
-                    )
+                result = render(
+                    req["text"],
+                    spans,
+                    options=req["replacement"],
+                    mode=req["mode"],
+                    patient_id=req["patient_id"],
+                    secret=self.secret,
+                    date_shift_days=req["date_shift_days"],
+                    prepared_context=prepared,
+                    index_offset=mention_offset if context is not None else 0,
+                    context_offset=context_offset if context is not None else None,
+                )
+                if req["_extended"] or link_batch or shared_entities:
                     result["policy"] = policy_metadata(req["policy"])
                 else:
-                    result = replace(
-                        req["text"],
-                        spans,
-                        mode=req["mode"],
-                        patient_id=req["patient_id"],
-                        secret=self.secret,
-                        date_shift_days=req["date_shift_days"],
-                    )
+                    result = legacy_response(result)
                 result.update(
                     model_version=self.version,
                     mode=req["mode"],

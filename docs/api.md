@@ -283,7 +283,8 @@ Selected fields share identity/replacement context by default. Set
 This option can change detections and should only join related records. A
 document supports at most 4,096 selected text fields and 100,000 selected text
 characters including shared-context newline separators, with a 10 MiB input
-bound, 64 nesting levels, and 50,000 nodes/cells.
+bound, 64 nesting levels, and 50,000 nodes/cells (each CSV row, including a
+blank one, counts as at least one cell).
 
 ## Native text files
 
@@ -316,7 +317,12 @@ strings, sheet names, and supported numeric/date cells; numeric/date output is
 text and sheet names are sanitized and made unique. Existing formatting can
 change. Document properties, thumbnails, custom XML parts, printer settings,
 and nonessential extension trees are removed. Style IDs and bookmark references
-are remapped. Office locations use numeric `part` indexes with paragraph/cell
+are remapped. Package relationship IDs are renumbered (with their references
+updated), relationship targets and content-type entries are rebuilt from the
+validated part names, and nonstandard relationship or content types are
+screened like other attributes. Word tabs and breaks and PowerPoint soft
+breaks are analyzed as part of the paragraph text and written back as break
+elements. Office locations use numeric `part` indexes with paragraph/cell
 coordinates, not original package filenames.
 
 Unsupported Office parts or features fail the request, including images,

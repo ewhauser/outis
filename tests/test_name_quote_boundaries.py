@@ -148,3 +148,16 @@ def test_abutting_detected_entity_is_not_reinterpreted_as_quote_punctuation():
         (0, 7, "NAME"),
         (7, 9, "MRN"),
     ]
+
+
+@pytest.mark.parametrize("hyphen", ["-", "‐", "‑"])
+@pytest.mark.parametrize("apostrophe", ["'", "’"])
+def test_partial_name_completes_across_supported_joiners(hyphen, apostrophe):
+    text = f"Seen by Anne{hyphen}Marie and O{apostrophe}Neil."
+    anne, neil = text.index("Anne"), text.index("Neil")
+    # Only one side of each compound is predicted; both directions must expand.
+    expected = [
+        (anne, anne + len("Anne-Marie"), "NAME"),
+        (neil - 2, neil + 4, "NAME"),
+    ]
+    assert _decode(text, [(anne, anne + 4), (neil, neil + 4)]) == expected

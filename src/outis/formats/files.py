@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import copy
 import io
 import json
 import posixpath
@@ -50,6 +51,82 @@ P = "http://schemas.openxmlformats.org/presentationml/2006/main"
 R = "http://schemas.openxmlformats.org/package/2006/relationships"
 C = "http://schemas.openxmlformats.org/package/2006/content-types"
 XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
+# Namespace of the r:id, r:embed, ... attributes that reference relationships.
+RELATIONSHIP_REFERENCE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+)
+# Standard relationship and content types for the allowed parts. These are
+# schema vocabulary; any other value is screened like an unsupported attribute.
+_RELATIONSHIP_TYPES = {
+    f"{RELATIONSHIP_REFERENCE}/{name}"
+    for name in (
+        "officeDocument",
+        "extended-properties",
+        "custom-properties",
+        "styles",
+        "settings",
+        "webSettings",
+        "fontTable",
+        "numbering",
+        "footnotes",
+        "endnotes",
+        "header",
+        "footer",
+        "theme",
+        "worksheet",
+        "sharedStrings",
+        "slide",
+        "slideLayout",
+        "slideMaster",
+        "presProps",
+        "viewProps",
+        "tableStyles",
+    )
+} | {
+    "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties",
+    "http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail",
+    "http://schemas.microsoft.com/office/2007/relationships/stylesWithEffects",
+}
+_CONTENT_TYPES = {
+    f"application/vnd.openxmlformats-officedocument.{name}+xml"
+    for name in (
+        "extended-properties",
+        "custom-properties",
+        "theme",
+        "wordprocessingml.document.main",
+        "wordprocessingml.template.main",
+        "wordprocessingml.styles",
+        "wordprocessingml.settings",
+        "wordprocessingml.webSettings",
+        "wordprocessingml.fontTable",
+        "wordprocessingml.numbering",
+        "wordprocessingml.footnotes",
+        "wordprocessingml.endnotes",
+        "wordprocessingml.header",
+        "wordprocessingml.footer",
+        "spreadsheetml.sheet.main",
+        "spreadsheetml.template.main",
+        "spreadsheetml.styles",
+        "spreadsheetml.sharedStrings",
+        "spreadsheetml.worksheet",
+        "presentationml.presentation.main",
+        "presentationml.slideshow.main",
+        "presentationml.template.main",
+        "presentationml.presProps",
+        "presentationml.viewProps",
+        "presentationml.tableStyles",
+        "presentationml.slide",
+        "presentationml.slideLayout",
+        "presentationml.slideMaster",
+    )
+} | {
+    "application/xml",
+    "application/vnd.openxmlformats-package.relationships+xml",
+    "application/vnd.openxmlformats-package.core-properties+xml",
+    "application/vnd.ms-word.stylesWithEffects+xml",
+    "image/jpeg",
+    "image/png",
+}
 # Word run children that render visible characters. They are folded into the
 # extracted paragraph text so collapsing runs cannot displace or drop them.
 _WORD_INLINE = {
@@ -60,6 +137,9 @@ _WORD_INLINE = {
     f"{{{W}}}noBreakHyphen": "\u2011",
     f"{{{W}}}softHyphen": "",
 }
+# Characters Word renders only as run elements, with the element built for each
+# when deidentification adds one the source did not have.
+_WORD_SEPARATORS = {"\t": f"{{{W}}}tab", "\n": f"{{{W}}}br"}
 # Run children whose rendered text Word computes; it cannot be reviewed.
 _WORD_DYNAMIC = {
     f"{{{W}}}{name}"
@@ -344,6 +424,7 @@ def _sanitize_package(files, kind):
                 and "name" in item.attrib
             ):
                 item.set("name", "Deidentified")
+    _rebuild_package_links(roots)
     expected = {
         "docx": f"{{{W}}}document",
         "xlsx": f"{{{S}}}workbook",
@@ -354,6 +435,105 @@ def _sanitize_package(files, kind):
             "Office document root does not match the requested content type"
         )
     return roots
+
+
+def _rebuild_package_links(roots):
+    """Rebuild relationship and content-type parts from validated part names.
+
+    Their IDs, targets, and extensions are free text that no detector reviews,
+    so each relationship ID becomes ``rIdN`` (with every r:* reference in its
+    source part updated), targets become canonical paths to allowed parts, and
+    content-type entries survive only for parts that remain in the package.
+    """
+    parts = {name.lower(): name for name in roots}
+    extensions = {posixpath.basename(name).rsplit(".", 1)[-1].lower() for name in roots}
+    links = {}
+    for name, root in roots.items():
+        if not (name.endswith(".rels") or name == "[Content_Types].xml"):
+            continue
+        root.attrib.clear()
+        for item in root.iter():
+            item.text = item.tail = None
+        if name == "[Content_Types].xml":
+            for item in list(root):
+                kind = item.get("ContentType", "")
+                if item.tag == f"{{{C}}}Default":
+                    extension = item.get("Extension", "").lower()
+                    if extension not in extensions:
+                        root.remove(item)
+                        continue
+                    item.attrib = {"Extension": extension, "ContentType": kind}
+                elif item.tag == f"{{{C}}}Override":
+                    part = parts.get(item.get("PartName", "").lstrip("/").lower())
+                    if part is None:
+                        root.remove(item)
+                        continue
+                    item.attrib = {"PartName": f"/{part}", "ContentType": kind}
+                else:
+                    raise ValueError("Invalid Office content types")
+            continue
+        base = posixpath.dirname(posixpath.dirname(name))
+        source = posixpath.join(base, posixpath.basename(name)[: -len(".rels")])
+        ids = links.setdefault(source, {})
+        for index, rel in enumerate(root, 1):
+            old = rel.get("Id", "")
+            if rel.tag != f"{{{R}}}Relationship" or not old or old in ids:
+                raise ValueError("Invalid Office relationships")
+            ids[old] = f"rId{index}"
+            target = _relationship_target(name, rel.get("Target", ""))
+            rel.attrib = {
+                "Id": ids[old],
+                "Type": rel.get("Type", ""),
+                "Target": posixpath.relpath(target, base or "."),
+            }
+    for name, root in roots.items():
+        ids = links.get(name, {})
+        for item in root.iter():
+            for attr, value in list(item.attrib.items()):
+                if attr.startswith(f"{{{RELATIONSHIP_REFERENCE}}}"):
+                    if value not in ids:
+                        raise ValueError(
+                            "Office file contains an unresolved relationship"
+                        )
+                    item.set(attr, ids[value])
+
+
+def _set_with_breaks(nodes, new, parent, anchor, separators, spares, make_text):
+    """Write collapsed text back with its breaks as elements again.
+
+    Word and PowerPoint do not render a tab or line feed inside a text node.
+    Each separator in ``new`` becomes an element inserted into ``parent`` after
+    ``anchor``, reusing the original (char, element) ``spares`` in order and
+    building a fresh one only when deidentification changed the count.
+    """
+    pieces = re.split(f"([{''.join(separators)}])", new)
+    nodes[0].text = pieces[0]
+    nodes[0].set(XML_SPACE, "preserve")
+    for node in nodes[1:]:
+        node.text = ""
+    spares = list(spares)
+    position = list(parent).index(anchor) + 1
+    for separator, text in zip(pieces[1::2], pieces[2::2]):
+        reuse = next(
+            (i for i, (char, _) in enumerate(spares) if char == separator), None
+        )
+        if reuse is None:
+            element = ET.Element(separators[separator])
+        else:
+            element = spares.pop(reuse)[1]
+        element.tail = None
+        parent.insert(position, element)
+        position += 1
+        if text:
+            parent.insert(position, make_text(text))
+            position += 1
+
+
+def _text_element(tag, text):
+    element = ET.Element(tag)
+    element.text = text
+    element.set(XML_SPACE, "preserve")
+    return element
 
 
 def _date_styles(roots):
@@ -464,11 +644,14 @@ def _office(service, raw, kind, options, link_records):
                         raise ValueError("Nested Word paragraphs are unsupported")
                     used.update(id(node) for node in nodes)
                     pieces, inline, in_runs = [], [], set()
+                    first_run = None
                     for run in paragraph.iter(f"{{{W}}}r"):
                         for child in run:
                             if child.tag == f"{{{W}}}t":
                                 pieces.append(child.text or "")
                                 in_runs.add(id(child))
+                                if first_run is None:
+                                    first_run = run
                             elif child.tag in _WORD_INLINE:
                                 pieces.append(_WORD_INLINE[child.tag])
                                 inline.append((run, child))
@@ -482,9 +665,25 @@ def _office(service, raw, kind, options, link_records):
                         )
                     if nodes:
                         # Visible inline characters join the collapsed text
-                        # rather than being displaced after it.
+                        # rather than being displaced after it; tabs and breaks
+                        # are written back as elements in their new positions.
+                        def set_paragraph(new, ns=nodes, run=first_run, inline=inline):
+                            spares = [(_WORD_INLINE[c.tag], c) for _, c in inline]
+                            _set_with_breaks(
+                                ns,
+                                new,
+                                run,
+                                ns[0],
+                                _WORD_SEPARATORS,
+                                spares,
+                                lambda text: _text_element(f"{{{W}}}t", text),
+                            )
+
                         add(
-                            nodes, {"part": part_index, "paragraph": i}, "".join(pieces)
+                            nodes,
+                            {"part": part_index, "paragraph": i},
+                            "".join(pieces),
+                            set_paragraph,
                         )
                         for run, child in inline:
                             run.remove(child)
@@ -511,8 +710,36 @@ def _office(service, raw, kind, options, link_records):
                     for child in paragraph
                 )
                 if nodes:
-                    # Soft breaks separate words; keep them in the collapsed text.
-                    add(nodes, {"part": part_index, "paragraph": i}, value)
+                    # Soft breaks separate words; keep them in the collapsed
+                    # text and write each back as a:br before a continuation run.
+                    run = next(child for child in paragraph if nodes[0] in child.iter())
+
+                    def continuation(text, run=run):
+                        new_run = ET.Element(f"{{{A}}}r")
+                        properties = run.find(f"{{{A}}}rPr")
+                        if properties is not None:
+                            new_run.append(copy.deepcopy(properties))
+                        new_run.append(_text_element(f"{{{A}}}t", text))
+                        return new_run
+
+                    def set_paragraph(
+                        new,
+                        ns=nodes,
+                        p=paragraph,
+                        run=run,
+                        bs=breaks,
+                        make=continuation,
+                    ):
+                        spares = [("\n", b) for b in bs]
+                        separators = {"\n": f"{{{A}}}br"}
+                        _set_with_breaks(ns, new, p, run, separators, spares, make)
+
+                    add(
+                        nodes,
+                        {"part": part_index, "paragraph": i},
+                        value,
+                        set_paragraph,
+                    )
                     for child in breaks:
                         paragraph.remove(child)
         else:
@@ -625,9 +852,19 @@ def _office(service, raw, kind, options, link_records):
     # in unsupported attributes fail closed. Text-bearing content is transformed.
     for part_index, (part, root) in enumerate(roots.items()):
         if part.endswith(".rels") or part == "[Content_Types].xml":
-            continue
-        attributes = []
-        for item_index, item in enumerate(root.iter()):
+            # Rebuilt from validated part names; only unrecognized relationship
+            # and content types remain free text.
+            items = ()
+            attributes = [
+                value
+                for item in root
+                for attr, value in item.attrib.items()
+                if (attr == "Type" and value not in _RELATIONSHIP_TYPES)
+                or (attr == "ContentType" and value not in _CONTENT_TYPES)
+            ]
+        else:
+            items, attributes = root.iter(), []
+        for item_index, item in enumerate(items):
             if id(item) not in claimed_text and item.text and item.text.strip():
                 add([item], {"part": part_index, "element": item_index})
             if item.tail and item.tail.strip():
