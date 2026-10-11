@@ -200,6 +200,17 @@ def test_windows_own_every_token_exactly_once(n_tokens, window):
     assert owned == list(range(n_tokens))
 
 
+def test_window_owned_range_in_window_offsets():
+    first, second = window_jobs(9, 8)
+    assert (second.start, second.stop) == (4, 9)
+    assert (second.owned_start, second.owned_stop) == (6, 9)
+    assert second.owned_in_window == slice(2, 5)
+    assert first.owned_in_window == slice(0, 6)
+    tokens = list(range(100, 109))
+    window_tokens = tokens[second.start : second.stop]
+    assert window_tokens[second.owned_in_window] == tokens[6:9]
+
+
 def test_special_layout_finds_cls_and_sep():
     tokenizer = tiny_tokenizer()
     prefix, suffix = special_layout(tokenizer)
