@@ -502,34 +502,63 @@ def test_prepared_context_builds_global_indexes_once_for_many_fields(monkeypatch
     values = ["Jane Smith"] * 512
     context = "\n".join(values)
     spans = spans_for(context, values)
-    indexed_context_sizes = []
     context_alias_calls = []
-    original_keys = module._identity_keys
+    context_binding_calls = []
     original_aliases = module._name_aliases
-
-    def counted_keys(text, spans):
-        if text == context:
-            indexed_context_sizes.append(len(spans))
-        return original_keys(text, spans)
+    original_bindings = module.nickname_bindings
 
     def counted_aliases(text, spans):
         if text == context:
             context_alias_calls.append(len(spans))
         return original_aliases(text, spans)
 
-    monkeypatch.setattr(module, "_identity_keys", counted_keys)
+    def counted_bindings(text, spans):
+        if text == context:
+            context_binding_calls.append(len(spans))
+        return original_bindings(text, spans)
+
     monkeypatch.setattr(module, "_name_aliases", counted_aliases)
+    monkeypatch.setattr(module, "nickname_bindings", counted_bindings)
     prepared = module.prepare_context(context, spans)
-    setup_key_calls = indexed_context_sizes.copy()
-    setup_alias_calls = context_alias_calls.copy()
+    # Aliases do not depend on IDs. Bindings are rechecked once after linking
+    # because ownership proofs consult the newly assigned IDs.
+    assert context_alias_calls == [512]
+    assert context_binding_calls == [512, 512]
     for index, (value, span) in enumerate(zip(values, prepared.spans)):
         local = Entity(0, len(value), "NAME", entity_id=span.entity_id)
         result = render(
             value, [local], options={}, prepared_context=prepared, index_offset=index
         )
         assert result["text"] == "[NAME_e1]"
-    assert indexed_context_sizes == setup_key_calls == [512, 512]
-    assert context_alias_calls == setup_alias_calls == [512, 512, 512]
+    assert context_alias_calls == [512]
+    assert context_binding_calls == [512, 512]
+    context_alias_calls.clear()
+    context_binding_calls.clear()
+    module.prepare_context(context, prepared.spans)
+    assert context_alias_calls == context_binding_calls == [512]
+
+
+def test_render_analyzes_identities_once_without_shared_context(monkeypatch):
+    import outis.replacement.transform as module
+
+    text = "Jane Smith saw Jane"
+    spans = [Entity(0, 10, "NAME", entity_id="e1"), Entity(15, 19, "NAME")]
+    calls = []
+    original_aliases = module._name_aliases
+    original_bindings = module.nickname_bindings
+    monkeypatch.setattr(
+        module,
+        "_name_aliases",
+        lambda *args: calls.append("aliases") or original_aliases(*args),
+    )
+    monkeypatch.setattr(
+        module,
+        "nickname_bindings",
+        lambda *args: calls.append("bindings") or original_bindings(*args),
+    )
+    result = render(text, spans, options={})
+    assert result["text"] == "[NAME_e1] saw [NAME_e1]"
+    assert calls == ["aliases", "bindings", "bindings"]
 
 
 def test_prepared_context_is_immutable_and_keeps_identifiers_out_of_repr():

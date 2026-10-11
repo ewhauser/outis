@@ -178,13 +178,12 @@ class Deidentifier:
 
     def _detect(self, requests, *, link_batch=False, shared_entities=False):
         from outis.policy import apply_policy
-        from outis.replacement.transform import link_entities
+        from outis.replacement import transform
 
         if type(link_batch) is not bool or type(shared_entities) is not bool:
             raise ValueError("Invalid context options")
         texts = [req["text"] for req in requests]
         context = None
-        context_spans = None
         if link_batch or shared_entities:
             self._shared_options(requests)
             context = "\n".join(texts)
@@ -214,12 +213,14 @@ class Deidentifier:
         if context is not None:
             req = requests[0]
             keyed = getattr(req.get("replacement"), "entity_ids", None) == "keyed"
-            context_spans = link_entities(
+            shared = transform.prepare_context(
                 context,
                 spans,
                 secret=self.secret if keyed else None,
                 patient_id=req.get("patient_id") if keyed else None,
             )
+            prepared = [shared] * len(requests)
+            context_spans = shared.spans
             predictions = []
             start = 0
             first_span = 0
@@ -248,19 +249,21 @@ class Deidentifier:
                 predictions.append(local)
                 start = end + 1
         else:
-            linked = []
+            # Each request's identity analysis is computed here once and
+            # reused by rendering instead of linking the same spans again.
+            prepared = []
             for text, spans, req in zip(texts, predictions, requests):
                 keyed = getattr(req.get("replacement"), "entity_ids", None) == "keyed"
-                linked.append(
-                    link_entities(
+                prepared.append(
+                    transform.prepare_context(
                         text,
                         spans,
                         secret=self.secret if keyed else None,
                         patient_id=req.get("patient_id") if keyed else None,
                     )
                 )
-            predictions = linked
-        return predictions, context, context_spans
+            predictions = [list(item.spans) for item in prepared]
+        return predictions, context, prepared
 
     def detect(self, text, *, policy=None, project_id="main"):
         return self.detect_batch(
@@ -329,11 +332,7 @@ class Deidentifier:
 
     def _process(self, requests, *, link_batch, shared_entities, limit):
         from outis.policy import policy_metadata
-        from outis.replacement.transform import (
-            prepare_context,
-            reidentify,
-            render,
-        )
+        from outis.replacement.transform import reidentify, render
 
         requests = self._requests(requests, limit=limit)
         with self.usage.track(
@@ -341,23 +340,13 @@ class Deidentifier:
             [len(r["text"]) for r in requests],
             "deidentify",
         ):
-            predictions, context, context_spans = self._detect(
+            predictions, context, prepared = self._detect(
                 requests, link_batch=link_batch, shared_entities=shared_entities
             )
-            prepared = None
-            if context is not None:
-                first = requests[0]
-                keyed = first["replacement"].entity_ids == "keyed"
-                prepared = prepare_context(
-                    context,
-                    context_spans,
-                    secret=self.secret if keyed else None,
-                    patient_id=first["patient_id"] if keyed else None,
-                )
             results = []
             mention_offset = 0
             context_offset = 0
-            for req, spans in zip(requests, predictions):
+            for req, spans, context_index in zip(requests, predictions, prepared):
                 extended = req["_extended"] or link_batch or shared_entities
                 if extended:
                     result = render(
@@ -368,9 +357,9 @@ class Deidentifier:
                         patient_id=req["patient_id"],
                         secret=self.secret,
                         date_shift_days=req["date_shift_days"],
-                        prepared_context=prepared,
+                        prepared_context=context_index,
                         index_offset=mention_offset if context is not None else 0,
-                        context_offset=context_offset if context is not None else None,
+                        context_offset=context_offset if context is not None else 0,
                     )
                     result["policy"] = policy_metadata(req["policy"])
                 else:

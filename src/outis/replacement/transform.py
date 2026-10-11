@@ -140,9 +140,9 @@ def _patient_key(secret, patient_id):
     return key, patient_id
 
 
-def _identity_keys(text, spans):
+def _name_index(text, spans):
+    """Index the ID-independent name evidence: literal aliases and owners."""
     aliases = _name_aliases(text, spans)
-    bindings = nickname_bindings(text, spans)
     owners: dict[str, set[str]] = {}
     for span in spans:
         if span.label == "NAME":
@@ -151,6 +151,11 @@ def _identity_keys(text, spans):
             if len(parts) == 2:
                 for part in parts:
                     owners.setdefault(_canonical(part), set()).add(identity)
+    return aliases, owners
+
+
+def _identity_keys(text, spans, names, bindings):
+    aliases, owners = names
     keys = []
     for span in spans:
         value = text[span.start : span.end]
@@ -169,11 +174,11 @@ def _identity_keys(text, spans):
     return keys
 
 
-def link_entities(text, spans, *, secret=None, patient_id=None) -> list[Entity]:
-    """Assign identities using exact values and unambiguous literal name aliases.
+def _link(text, spans, *, secret=None, patient_id=None):
+    """Link entities and return the request-scoped identity analysis.
 
-    Pass both secret and patient_id for patient-scoped keyed identities. Existing
-    IDs are retained; numbered IDs skip identifiers already in use.
+    Returns the linked spans with the aliases, nickname bindings and identity
+    keys of those linked spans, so callers never repeat the analysis.
     """
     if not isinstance(text, str) or len(text) > _MAX_OUTPUT:
         raise ValueError("Invalid identity context")
@@ -183,7 +188,9 @@ def link_entities(text, spans, *, secret=None, patient_id=None) -> list[Entity]:
         if secret is not None or patient_id is not None
         else (None, None)
     )
-    keys = _identity_keys(text, ordered)
+    names = _name_index(text, ordered)
+    bindings = nickname_bindings(text, ordered)
+    keys = _identity_keys(text, ordered, names, bindings)
     reserved = {span.entity_id for span in ordered if span.entity_id is not None}
     provided: dict[tuple[str, str], set[str]] = {}
     for span, identity in zip(ordered, keys):
@@ -219,7 +226,23 @@ def link_entities(text, spans, *, secret=None, patient_id=None) -> list[Entity]:
             reserved.add(entity_id)
             assigned[identity] = entity_id
         result.append(replace_entity(span, entity_id=entity_id))
-    return result
+    if any(span.entity_id is None for span in ordered):
+        # Nickname proofs consult entity IDs, so newly assigned IDs can veto a
+        # binding. Aliases and reduced-name owners do not depend on IDs.
+        linked_bindings = nickname_bindings(text, result)
+        if linked_bindings != bindings:
+            keys = _identity_keys(text, result, names, linked_bindings)
+        bindings = linked_bindings
+    return result, names[0], bindings, keys
+
+
+def link_entities(text, spans, *, secret=None, patient_id=None) -> list[Entity]:
+    """Assign identities using exact values and unambiguous literal name aliases.
+
+    Pass both secret and patient_id for patient-scoped keyed identities. Existing
+    IDs are retained; numbered IDs skip identifiers already in use.
+    """
+    return _link(text, spans, secret=secret, patient_id=patient_id)[0]
 
 
 @dataclass(frozen=True)
@@ -239,10 +262,12 @@ class PreparedContext:
 
 
 def prepare_context(text, spans, *, secret=None, patient_id=None) -> PreparedContext:
-    """Validate and index all linked entities once, preserving assigned IDs."""
-    linked = link_entities(text, spans, secret=secret, patient_id=patient_id)
+    """Validate, link and index all entities once, preserving assigned IDs."""
+    linked, aliases, bindings, keys = _link(
+        text, spans, secret=secret, patient_id=patient_id
+    )
     identities: dict[tuple[str, str], set[str]] = {}
-    for span, identity in zip(linked, _identity_keys(text, linked)):
+    for span, identity in zip(linked, keys):
         identities.setdefault(identity, set()).add(span.entity_id)
     return PreparedContext(
         text=text,
@@ -250,8 +275,8 @@ def prepare_context(text, spans, *, secret=None, patient_id=None) -> PreparedCon
         identities=MappingProxyType(
             {key: frozenset(ids) for key, ids in identities.items()}
         ),
-        aliases=MappingProxyType(_name_aliases(text, linked)),
-        bindings=nickname_bindings(text, linked),
+        aliases=MappingProxyType(aliases),
+        bindings=bindings,
         occurrence_ids=MappingProxyType(
             {(s.start, s.end, s.label): s.entity_id for s in linked}
         ),
@@ -480,8 +505,11 @@ def render(
                     )
                 span = replace_entity(span, entity_id=next(iter(ids)))
             enriched.append(span)
+        # Every span now carries an ID, so linking again would only copy it.
         ordered = enriched
-    ordered = link_entities(text, ordered, **link_kwargs)
+    else:
+        # The context was built from this text and these spans: already linked.
+        ordered = list(prepared_context.spans)
     parts, entities, warnings, mappings = [], [], [], []
     by_marker = {}
     cursor, output_length, shifted_dates, redacted_dates = 0, 0, 0, 0

@@ -459,3 +459,25 @@ def test_shared_segments_prepare_full_context_only_once(service, monkeypatch):
     )
     assert len(calls) == 1
     assert {result["text"] for result in results} == {"[NAME_e1]"}
+
+
+def test_explicit_request_analyzes_identities_once(service, monkeypatch):
+    import outis.replacement.transform as transform
+
+    calls = []
+    aliases = transform._name_aliases
+    bindings = transform.nickname_bindings
+    monkeypatch.setattr(
+        transform,
+        "_name_aliases",
+        lambda *args: calls.append("aliases") or aliases(*args),
+    )
+    monkeypatch.setattr(
+        transform,
+        "nickname_bindings",
+        lambda *args: calls.append("bindings") or bindings(*args),
+    )
+    result = service.deidentify("Mara Calder", replacement={"type": "marker"})
+    assert result["text"] == "[NAME_e1]"
+    # One analysis; bindings are rechecked once against the assigned IDs.
+    assert calls == ["aliases", "bindings", "bindings"]
