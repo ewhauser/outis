@@ -162,18 +162,20 @@ class Deidentifier:
 
     def _infer(self, texts):
         predictions = []
-        with self.lock:
-            for offset in range(0, len(texts), 16):
-                batch = texts[offset : offset + 16]
+        for offset in range(0, len(texts), 16):
+            batch = texts[offset : offset + 16]
+            # Hold the detector only per model batch so a large structured
+            # request cannot monopolize it; other requests interleave between.
+            with self.lock:
                 if hasattr(self.detector, "detect_batch"):
                     found = self.detector.detect_batch(batch)
                 else:
                     found = [self.detector.detect(text) for text in batch]
-                if not isinstance(found, (list, tuple)) or len(found) != len(batch):
-                    raise RuntimeError("Detector returned invalid batch output")
-                predictions.extend(
-                    checked_entities(text, spans) for text, spans in zip(batch, found)
-                )
+            if not isinstance(found, (list, tuple)) or len(found) != len(batch):
+                raise RuntimeError("Detector returned invalid batch output")
+            predictions.extend(
+                checked_entities(text, spans) for text, spans in zip(batch, found)
+            )
         return predictions
 
     def _detect(self, requests, *, link_batch=False, shared_entities=False):
