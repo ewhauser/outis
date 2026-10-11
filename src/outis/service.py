@@ -170,9 +170,14 @@ class Deidentifier:
                     found = [self.detector.detect(text) for text in batch]
             if not isinstance(found, (list, tuple)) or len(found) != len(batch):
                 raise RuntimeError("Detector returned invalid batch output")
-            predictions.extend(
-                checked_entities(text, spans) for text, spans in zip(batch, found)
-            )
+            # Malformed detector output is a server defect, not a client
+            # error; keep it out of the ValueError (HTTP 422) contract.
+            try:
+                predictions.extend(
+                    checked_entities(text, spans) for text, spans in zip(batch, found)
+                )
+            except ValueError:
+                raise RuntimeError("Detector returned invalid output") from None
         return predictions
 
     def _detect(self, requests, *, link_batch=False, shared_entities=False):
