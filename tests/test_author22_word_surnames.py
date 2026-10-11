@@ -81,11 +81,13 @@ def _remark(item) -> str:
 # --- determinism ----------------------------------------------------------------
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_deterministic_for_seed(rows):
     again, _ = author.generate(author.SEED)
     assert json.dumps(rows, sort_keys=True) == json.dumps(again, sort_keys=True)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_other_seed_differs(rows):
     other, _ = author.generate(author.SEED + 1)
     assert [r["text"] for r in other] != [r["text"] for r in rows]
@@ -94,6 +96,7 @@ def test_other_seed_differs(rows):
 # --- structure and offsets -----------------------------------------------------------
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_offsets_and_structure(rows):
     ids = Counter(r["id"] for r in rows)
     assert max(ids.values()) == 1
@@ -108,6 +111,7 @@ def test_offsets_and_structure(rows):
         assert row["family"] == row["template_family"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_plan_counts_layouts_and_case(rows):
     assert len(rows) == 1500
     family = Counter((r["family"], r["role"]) for r in rows)
@@ -128,6 +132,7 @@ def test_plan_counts_layouts_and_case(rows):
             assert row["text"] == row["text"].upper()
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_cohorts_follow_word_names(rows):
     for row in rows:
         expected = "unusual_name" if row["role"] == "positive" else "realistic"
@@ -166,6 +171,7 @@ def _transcript_rows(rows):
     ]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_speaker_label_boundaries(rows):
     """T1: NAME on the name only; honorific, role words and punctuation outside."""
     checked = 0
@@ -200,6 +206,7 @@ def test_speaker_label_boundaries(rows):
     assert checked > 1000
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_role_only_labels_not_annotated(rows):
     roles = set(author.ROLE_ONLY_LABELS) | {"porter"}
     count = 0
@@ -215,12 +222,14 @@ def test_role_only_labels_not_annotated(rows):
     assert count > 1500
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_time_only_stamps_not_annotated(rows):
     for row in rows:
         for span in row["spans"]:
             assert not re.fullmatch(r"\d\d:\d\d(:\d\d)?", span["text"])
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_matched_negatives_keep_the_word_unannotated(rows):
     by_pair = {}
     for row in rows:
@@ -250,6 +259,7 @@ def test_matched_negatives_keep_the_word_unannotated(rows):
     assert negatives == sum(n for _, n in author.PLAN.values())
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_positive_rows_annotate_the_word_name(rows):
     for row in (r for r in rows if r["role"] == "positive"):
         tokens = {
@@ -261,6 +271,7 @@ def test_positive_rows_annotate_the_word_name(rows):
         assert row["word_name"].casefold() in tokens, row["id"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_ordinary_uses_are_not_annotated(rows):
     """A phrase from the ordinary-use tables is never inside a gold span."""
     phrases = {
@@ -283,6 +294,7 @@ def test_ordinary_uses_are_not_annotated(rows):
     assert found > 500
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_repetition_cap(rows):
     counts = Counter(
         t
@@ -297,6 +309,7 @@ def test_repetition_cap(rows):
     assert max(counts.values()) <= 0.01 * len(rows)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_identity_groups_in_train_partition(rows):
     for row in rows:
         assert row["identity_group"] in row["identity_groups"]
@@ -310,6 +323,7 @@ AGE_PATTERNS = re.compile(
 )
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_every_age_annotated(rows):
     for row in rows:
         for match in AGE_PATTERNS.finditer(row["text"]):
@@ -319,6 +333,7 @@ def test_every_age_annotated(rows):
             ), (row["id"], match.group(0))
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_exclusion_filter_applied(generated):
     rows, stats = generated
     assert stats["final_rows_with_exclusion_hits"] == 0

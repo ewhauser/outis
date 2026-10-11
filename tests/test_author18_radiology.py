@@ -43,12 +43,14 @@ def spans_of(row, label=None):
 
 
 # ---- determinism and file identity ----------------------------------------
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_build_is_deterministic():
     a, ra = gen.build(300)
     b, rb = gen.build(300)
     assert a == b and ra == rb
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_written_corpus_matches_generator(rows):
     path = ROOT / "data" / "tk18_train_radiology.jsonl"
     if not path.exists():
@@ -64,6 +66,7 @@ def test_written_corpus_matches_generator(rows):
 
 
 # ---- offsets and structure -------------------------------------------------
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_offsets_and_structure(rows):
     seen_ids, seen_texts = set(), set()
     for row in rows:
@@ -78,6 +81,7 @@ def test_offsets_and_structure(rows):
         seen_texts.add(row["text"])
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_composition(rows):
     n = len(rows)
     assert n == 1500
@@ -102,12 +106,14 @@ def test_composition(rows):
     assert abs(case["lower"] / n - 0.15) < 0.02
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_every_row_carries_decoys(rows):
     without = [r["id"] for r in rows if not gen.decoy_flags(r["text"])]
     # a handful of very short PHI-free texts may carry none; the vast majority do
     assert len(without) / len(rows) < 0.01
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_value_cap(rows):
     n = len(rows)
     count = Counter()
@@ -128,6 +134,7 @@ def test_value_cap(rows):
     assert max(tokens.values()) <= gen.VALUE_CAP
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_identity_partition(rows):
     for r in rows:
         if r["phi_free"]:
@@ -141,6 +148,7 @@ def test_identity_partition(rows):
 
 
 # ---- exclusion filter -------------------------------------------------------
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_zero_exclusion_matches(rows, built):
     assert sum(excluded_sequences(r["text"]) for r in rows) == 0
     assert not any(excluded_value(s["text"]) for r in rows for s in r["spans"])
@@ -162,6 +170,7 @@ def overlaps(span, start, end):
     return span["start"] < end and start < span["end"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_names_exclude_honorifics_and_credentials(rows):
     for r in rows:
         for s in spans_of(r, "NAME"):
@@ -172,6 +181,7 @@ def test_names_exclude_honorifics_and_credentials(rows):
             ].lower().endswith("’s")
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_captions_outside_identifier_spans(rows):
     for r in rows:
         for s in spans_of(r, "MRN") + spans_of(r, "ID") + spans_of(r, "ACCOUNT"):
@@ -179,6 +189,7 @@ def test_captions_outside_identifier_spans(rows):
             assert not s["text"].lower().startswith(("npi", "mrn"))
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_dates_have_no_clock_time_inside(rows):
     for r in rows:
         for s in spans_of(r, "DATE"):
@@ -186,6 +197,7 @@ def test_dates_have_no_clock_time_inside(rows):
             assert not re.search(r"\b(?:am|pm)\b", s["text"], re.I), s
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_ages_only_over_89_and_only_the_number(rows):
     ages = [s for r in rows for s in spans_of(r, "AGE")]
     assert ages
@@ -193,6 +205,7 @@ def test_ages_only_over_89_and_only_the_number(rows):
         assert s["text"].isdigit() and int(s["text"]) >= 90, s
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_non_phi_codes_never_annotated(rows):
     for r in rows:
         for m in NON_PHI.finditer(r["text"]):
@@ -216,6 +229,7 @@ def test_non_phi_codes_never_annotated(rows):
                 ), (r["id"], ep)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_reserved_identifier_schemes(rows):
     for r in rows:
         for s in spans_of(r, "PHONE"):
@@ -234,6 +248,7 @@ def test_reserved_identifier_schemes(rows):
             assert s["text"].startswith(("192.0.2.", "198.51.100.", "203.0.113.")), s
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_initials_only_person_is_name(rows):
     hits = 0
     for r in rows:
@@ -251,6 +266,7 @@ def test_initials_only_person_is_name(rows):
     )
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_datetime_pattern_in_corpus(rows):
     pat = re.compile(
         r"(?:\d{2}[/-]\d{2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|[A-Za-z]{3,9} \d{1,2}, \d{4}|\d{1,2} [A-Za-z]{3} \d{4}) (?:at )?\d{1,2}:?\d{2}",
@@ -272,6 +288,7 @@ def test_datetime_pattern_in_corpus(rows):
     assert found > 500
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_weekday_inside_date_span(rows):
     days = re.compile(r"^(?:mon|tue|wed|thu|fri|sat|sun)", re.I)
     assert any(days.match(s["text"]) for r in rows for s in spans_of(r, "DATE"))

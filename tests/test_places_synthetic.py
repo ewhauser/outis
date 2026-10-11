@@ -463,6 +463,7 @@ def _blind_hash(value):
     ).hexdigest()
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_exclusion_list_is_pinned_and_hash_only():
     from outis.data.generators.places import (
         EXCLUSIONS,

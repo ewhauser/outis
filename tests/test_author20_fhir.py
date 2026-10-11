@@ -42,6 +42,7 @@ def rows(built):
     return built[0]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_determinism(built):
     rows_a = built[0]
     rows_b, stats_b, _ = gen.build_rows()
@@ -49,6 +50,7 @@ def test_determinism(built):
     assert dict(built[1]) == dict(stats_b)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_committed_bank_matches_generator(rows):
     if not DATA.exists():
         pytest.skip("bank file not present in this checkout")
@@ -58,6 +60,7 @@ def test_committed_bank_matches_generator(rows):
     assert manifest["sha256"] == hashlib.sha256(payload).hexdigest()
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_row_schema_and_offsets(rows):
     assert len(rows) == gen.TARGET_ROWS
     assert len({r["id"] for r in rows}) == len(rows)
@@ -75,6 +78,7 @@ def test_row_schema_and_offsets(rows):
         assert bool(r["spans"]) == r["has_phi"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_every_row_parses_in_its_format(rows):
     for r in rows:
         text = r["text"]
@@ -112,6 +116,7 @@ def json_string_ranges(text: str):
     return ranges
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_json_spans_are_whole_string_values_never_keys(rows):
     for r in rows:
         if r["format"] not in ("json", "ndjson"):
@@ -123,6 +128,7 @@ def test_json_spans_are_whole_string_values_never_keys(rows):
             assert '"' not in s["text"] and "\\" not in s["text"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_xhtml_tags_stay_outside_spans(rows):
     for r in rows:
         if r["layout"].startswith("narrative") or r["format"] == "xhtml":
@@ -137,6 +143,7 @@ def covered(r, start: int, end: int) -> bool:
     return any(s["start"] < end and start < s["end"] for s in r["spans"])
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_unannotated_fhir_values_stay_unannotated(rows):
     string_value = r'"{key}"\s*:\s*"([^"\\]*)"'
     for r in rows:
@@ -147,6 +154,7 @@ def test_unannotated_fhir_values_stay_unannotated(rows):
                 assert not covered(r, m.start(1), m.end(1)), (r["id"], key)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_ids_references_urls_and_dates(rows):
     seen = Counter()
     for r in rows:
@@ -167,6 +175,7 @@ def test_ids_references_urls_and_dates(rows):
     assert seen["url"] > 100 and seen["reference_id"] > 200 and seen["date"] > 500
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_name_conventions(rows):
     for r in rows:
         for s in r["spans"]:
@@ -180,6 +189,7 @@ def test_name_conventions(rows):
     assert any(re.search(r"\b(Jr\.|Sr\.|II|III)$", s["text"]) for r in rows for s in r["spans"] if s["label"] == "NAME" and " " in s["text"])
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_reserved_schemes(rows):
     for r in rows:
         for s in r["spans"]:
@@ -199,6 +209,7 @@ def test_reserved_schemes(rows):
                 assert (t.isdigit() and int(t) > 89) or t.lower().startswith("ninety"), t
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_no_explanation_wording(rows):
     pattern = re.compile(r"\b(?:gold spans?|PHI|annotation policy|hard negative|training data|tokenizer|this is not phi)\b", re.I)
     for r in rows:
@@ -206,6 +217,7 @@ def test_no_explanation_wording(rows):
         assert "[[" not in r["text"] and "]]" not in r["text"], r["id"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_composition_layouts_and_negatives(rows):
     n = len(rows)
     share = {fam: sum(1 for r in rows if r["composition"] == fam) / n for fam in ("single", "bundle", "narrative", "kv", "decoy")}
@@ -229,6 +241,7 @@ def test_composition_layouts_and_negatives(rows):
     assert 0.10 <= share_cased <= 0.20
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_label_support_and_value_cap(rows, built):
     support = Counter(s["label"] for r in rows for s in r["spans"])
     for label in ENTITY_TYPES:
@@ -241,6 +254,7 @@ def test_label_support_and_value_cap(rows, built):
     assert gen.FINAL_CAP / len(rows) <= 0.005 + 1e-9 + 0.5 / len(rows)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_identities_are_in_the_training_partition(rows):
     for r in rows:
         for g in r["identity_groups"]:
@@ -251,12 +265,14 @@ def test_identities_are_in_the_training_partition(rows):
             assert r["identity_group"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_zero_exclusion_matches(rows):
     for r in rows:
         assert excluded_sequences(r["text"]) == 0, r["id"]
         assert excluded_sequences(gen.DEPUNCT.sub(" ", r["text"])) == 0, r["id"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_no_fixture_value_is_reused(rows):
     fixture_values = gen.FIXTURE_TEXTS
     assert fixture_values
@@ -264,6 +280,7 @@ def test_no_fixture_value_is_reused(rows):
         assert not any(s["text"] in fixture_values for s in r["spans"]), r["id"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_metadata_avoids_banned_words_and_keys(rows):
     for r in rows:
         blob = json.dumps({k: v for k, v in r.items() if k not in ("text", "spans")}).lower()

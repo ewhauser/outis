@@ -55,6 +55,7 @@ def gold(example):
     ]
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_generator_is_deterministic_for_its_seed(bank):
     again, _ = author13.generate(author13.SEED)
     assert [(r["id"], r["text"], r["spans"], r["pool"]) for r in bank] == [
@@ -64,6 +65,7 @@ def test_generator_is_deterministic_for_its_seed(bank):
     assert [r["text"] for r in other] != [r["text"] for r in bank]
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_rows_have_valid_offsets_and_metadata(bank):
     assert len(bank) == 2400
     ids = set()
@@ -85,6 +87,7 @@ def test_rows_have_valid_offsets_and_metadata(bank):
     assert max(counts.values()) <= 0.08 * len(bank)
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_conventions_in_a_sample_of_rows(bank):
     p7 = the_name = service = article = 0
     for row in bank[::3]:
@@ -129,6 +132,7 @@ def test_conventions_in_a_sample_of_rows(bank):
     assert p7 and the_name and service and article
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_negative_rows_have_no_place_or_facility_spans(bank):
     negatives = [r for r in bank if r["polarity"] == "negative"]
     assert 0.3 <= len(negatives) / len(bank) <= 0.37
@@ -211,6 +215,7 @@ def test_helpers_compose_the_place_fixtures():
         assert gold({"text": text, "spans": spans}) == gold(by_id[key]), key
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_no_reused_example_names_or_heldout_values(bank):
     low = "\n".join(r["text"].casefold() for r in bank)
     for fragment in author13.BANNED_FRAGMENTS:
@@ -241,6 +246,7 @@ def tagged(rows, tag):
         ("v4", author13.SEED_V4, "tk13_train_care_sites_localities__v4.jsonl"),
     ],
 )
+@pytest.mark.requires_data("places_exclusions.sha256.json", place_sources=True)
 def test_every_version_reproduces_byte_for_byte(version, seed, name):
     import hashlib
     import json
@@ -256,6 +262,7 @@ def test_every_version_reproduces_byte_for_byte(version, seed, name):
     assert (ROOT / "data" / name).read_bytes() == payload
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_v2_is_deterministic_and_sized(bank2):
     again, _ = author13.generate(author13.SEED_V2, "v2")
     assert [(r["id"], r["text"], r["spans"]) for r in bank2] == [
@@ -279,6 +286,7 @@ def test_v2_is_deterministic_and_sized(bank2):
     assert 0.58 <= case.count("normal") / len(case) <= 0.62
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_v2_repetition_and_banned_names(bank2):
     shares = author13.value_shares(bank2)
     assert max(shares.values()) <= 0.005 * len(bank2)
@@ -287,6 +295,7 @@ def test_v2_repetition_and_banned_names(bank2):
         assert fragment not in low
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_v2_counties_are_location_including_county(bank2):
     rows = tagged(bank2, "county_name")
     assert rows
@@ -299,6 +308,7 @@ def test_v2_counties_are_location_including_county(bank2):
         assert not any(s["label"] == "LOCATION" for s in row["spans"])
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_v2_named_sites_and_p7_in_all_cases(bank2):
     cap = tagged(bank2, "named_site_capitalised")
     assert cap
@@ -318,6 +328,7 @@ def test_v2_named_sites_and_p7_in_all_cases(bank2):
     assert all(r["case_mode"] != "normal" for r in tagged(bank2, "p7_case_hidden"))
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_v2_care_team_pharmacy_the_and_employer_roles(bank2):
     assert tagged(bank2, "p7_care_team")
     for row in tagged(bank2, "p7_care_team"):
@@ -406,6 +417,7 @@ def bank3():
     return rows
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_v3_size_ids_pools_and_caps(bank3):
     assert 2700 <= len(bank3) <= 2900
     assert all(r["id"].startswith("tk13_care_sites_localities_v3-") for r in bank3)
@@ -423,6 +435,7 @@ def test_v3_size_ids_pools_and_caps(bank3):
     assert 0.58 <= case.count("normal") / len(case) <= 0.62
 
 
+@pytest.mark.requires_data(place_sources=True)
 def test_v3_county_modifier_and_bare_county(bank3):
     mod = tagged(bank3, "county_modifier_p7")
     bare = tagged(bank3, "bare_county_locality")
@@ -454,6 +467,7 @@ def bank4():
     return rows, world
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", place_sources=True)
 def test_v4_size_ids_pools_and_caps(bank4):
     bank, _world = bank4
     assert 2700 <= len(bank) <= 2900
@@ -475,6 +489,7 @@ def test_v4_size_ids_pools_and_caps(bank4):
     assert 0.3 <= len(negatives) / len(bank) <= 0.37
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", place_sources=True)
 def test_v4_has_zero_exclusion_matches(bank4):
     from outis.data.generators.places import excluded_sequences, excluded_value
 
@@ -506,6 +521,7 @@ def test_v4_has_zero_exclusion_matches(bank4):
     assert world.rejected  # the filter drew and rejected candidates
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", place_sources=True)
 def test_v4_aged_and_snf_names_in_all_cases(bank4):
     bank, _ = bank4
     for tag, ending in (

@@ -56,6 +56,7 @@ def _payload(rows):
     ).encode("utf-8")
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", "places_exclusions_v2.sha256.json")
 def test_deterministic_for_seed(rows):
     again = author24.Author().generate()
     assert _payload(again) == _payload(rows)
@@ -63,6 +64,7 @@ def test_deterministic_for_seed(rows):
     assert _payload(other) != _payload(rows)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", "places_exclusions_v2.sha256.json")
 def test_written_bank_matches_generator(rows):
     if not BANK.exists():
         pytest.skip("bank not written")
@@ -75,6 +77,7 @@ def test_written_bank_matches_generator(rows):
     assert manifest["author_provenance"]["generator_sha256"] == recorded_sha256(SCRIPT)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", "places_exclusions_v2.sha256.json")
 def test_offsets_and_structure(rows):
     assert len(rows) == author24.ROWS
     for row in rows:
@@ -144,6 +147,7 @@ def test_e1_fixtures_rebuilt():
             )
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", "places_exclusions_v2.sha256.json")
 def test_instruments_never_annotated(rows, author):
     for row in rows:
         assert row["instrument_mentions"], row["id"]
@@ -160,6 +164,7 @@ def test_instruments_never_annotated(rows, author):
     )
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", "places_exclusions_v2.sha256.json")
 def test_same_surname_contrast(rows, author):
     ss = [r for r in rows if r["family"] == "tk24_same_surname"]
     assert len(ss) == 200
@@ -178,6 +183,7 @@ def test_same_surname_contrast(rows, author):
         assert found, row["id"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", "places_exclusions_v2.sha256.json")
 def test_place_instruments_train_pool_only(rows, author):
     used = {m["key"] for r in rows for m in r["instrument_mentions"]}
     for key in used:
@@ -186,6 +192,7 @@ def test_place_instruments_train_pool_only(rows, author):
             assert place_value_pool(inst.eponym) == "train"
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", "places_exclusions_v2.sha256.json")
 def test_composition(rows):
     from collections import Counter
 
@@ -200,6 +207,7 @@ def test_composition(rows):
     assert all(r["text"] for r in rows)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", "places_exclusions_v2.sha256.json")
 def test_exclusion_filter_rejects_values_and_sequences():
     lists = author24.exclusion_lists()
     probe = "ddimer neg"
@@ -213,6 +221,7 @@ def test_exclusion_filter_rejects_values_and_sequences():
     assert a.rejected.get("rows_hitting_v2", 0) > 0
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", "places_exclusions_v2.sha256.json")
 def test_bank_clear_of_both_lists(rows):
     lists = author24.exclusion_lists()
     for row in rows:
@@ -222,6 +231,7 @@ def test_bank_clear_of_both_lists(rows):
         assert author24.exclusion_hits(values, row["text"], lists) == set()
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json", "places_exclusions_v2.sha256.json")
 def test_people_invented_in_train_partition(rows):
     for row in rows:
         if row["spans"]:

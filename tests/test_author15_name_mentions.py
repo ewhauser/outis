@@ -38,6 +38,7 @@ def names(row):
     return [s for s in row["spans"] if s["label"] == "NAME"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_determinism(bank):
     rows, _ = bank
     again, _, _ = author15.build_bank()
@@ -46,6 +47,7 @@ def test_determinism(bank):
     ]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_committed_corpus_matches_generator(bank):
     rows, _ = bank
     path = ROOT / "data/tk15_train_name_mentions.jsonl"
@@ -55,6 +57,7 @@ def test_committed_corpus_matches_generator(bank):
     assert written == rows
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_shape_and_composition(bank):
     rows, _ = bank
     assert len(rows) == 1800
@@ -83,6 +86,7 @@ def test_shape_and_composition(bank):
     assert all(not names(r) for r in rows if r["family"] == "tk15_name_like_words")
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_offsets_and_structure(bank):
     rows, _ = bank
     for r in rows:
@@ -92,6 +96,7 @@ def test_offsets_and_structure(bank):
         assert "[[" not in r["text"] and "]]" not in r["text"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_identity_metadata(bank):
     rows, _ = bank
     for r in rows:
@@ -102,6 +107,7 @@ def test_identity_metadata(bank):
     assert sum(1 for c in pairs.values() if c == 2) == 360
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_conventions(bank):
     rows, _ = bank
     honorific_rows = suffix_rows = initial_rows = alias_rows = credential_rows = 0
@@ -145,6 +151,7 @@ def test_conventions(bank):
     )
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_last_first_forms(bank):
     rows, _ = bank
     lf = [
@@ -158,12 +165,14 @@ def test_last_first_forms(bank):
     assert any(re.search(r", \S+ [A-Z]$", t) for t in lf)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_name_value_repetition_cap(bank):
     rows, _ = bank
     counts = author15.name_value_rows(rows)
     assert max(counts.values()) <= 9  # 0.5% of 1,800 rows
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_zero_exclusion_matches(bank):
     rows, counters = bank
     for r in rows:

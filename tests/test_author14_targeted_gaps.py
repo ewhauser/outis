@@ -416,6 +416,7 @@ def test_generator_still_reproduces_v2_byte_for_byte(bank_v2):
     assert gen.serialise(rows) == V2_DATA.read_bytes()
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_v3_is_deterministic_and_differs_from_v2(bank_v2, bank_v3):
     rows, _ = bank_v3
     again, _ = gen.generate("v3")
@@ -428,6 +429,7 @@ def test_v3_file_matches_the_generator(bank_v3):
     assert gen.serialise(bank_v3[0]) == V3_DATA.read_bytes()
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_v3_composition_and_limits(bank_v3):
     rows, metas = bank_v3
     assert len(rows) == 2950
@@ -459,6 +461,7 @@ def test_v3_composition_and_limits(bank_v3):
         assert all(int(g[:8], 16) % 10 < 8 for g in row["identity_groups"])
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_v3_additions_have_counts_cases_and_matched_negatives(bank_v3):
     rows, _ = bank_v3
     expected = {"hist_v3": 300, "sig_weekday": 150, "rare_id": 150}
@@ -481,6 +484,7 @@ def test_v3_additions_have_counts_cases_and_matched_negatives(bank_v3):
         assert any(r["new_case"] == case for r in rows)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_v3_weekday_signature_lines(bank_v3):
     rows, metas = bank_v3
     time_pattern = re.compile(r"\d{1,2}:\d{2}|\b\d{4}\b")
@@ -510,6 +514,7 @@ def test_v3_weekday_signature_lines(bank_v3):
     assert modes == {"normal", "upper", "lower"}
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_v3_rare_identifier_rows(bank_v3):
     rows, metas = bank_v3
     version = re.compile(
@@ -543,6 +548,7 @@ def test_v3_rare_identifier_rows(bank_v3):
     assert seen_kinds == set(gen.RARE_TAGS)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_v3_history_additions_have_years_only_in_positives(bank_v3):
     rows, metas = bank_v3
     for row, meta in zip(rows, metas):
@@ -551,6 +557,7 @@ def test_v3_history_additions_have_years_only_in_positives(bank_v3):
         assert bool(meta["years"]) == (row["polarity"] == "positive")
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_v3_has_zero_exclusion_matches(bank_v3):
     """Counts only: never print which strings matched."""
     rows, _ = bank_v3
