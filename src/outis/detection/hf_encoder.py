@@ -85,6 +85,26 @@ def window_jobs(n_tokens: int, content_window: int):
         start += stride
 
 
+def length_batches(jobs, batch_size):
+    """Group window jobs into batches of similar length, longest first.
+
+    Arrival order pads a short document's window to the longest window in its
+    batch. Jobs are sorted by length and a batch closes when it is full or when
+    the next window would be padded to more than twice its own length, so each
+    row's padding stays below its real length. Logits are scattered back by
+    document, so batch order does not change the output.
+    """
+    ordered = sorted(jobs, key=lambda job: len(job[1]), reverse=True)
+    batch = []
+    for job in ordered:
+        if batch and (len(batch) == batch_size or 2 * len(job[1]) < len(batch[0][1])):
+            yield batch
+            batch = []
+        batch.append(job)
+    if batch:
+        yield batch
+
+
 def special_layout(tokenizer):
     """Return (prefix_ids, suffix_ids) the model expects around content tokens."""
     probe = "clinical note"
@@ -167,8 +187,7 @@ class HFTokenDetector:
                 if stop > start:
                     jobs.append((doc, ids[start:stop], left, right, start))
         with torch.inference_mode():
-            for a in range(0, len(jobs), self.batch_size):
-                batch = jobs[a : a + self.batch_size]
+            for batch in length_batches(jobs, self.batch_size):
                 rows = [self.prefix + j[1] + self.suffix for j in batch]
                 size = max(len(r) for r in rows)
                 tokens = torch.full((len(rows), size), self.pad_id, dtype=torch.long)
