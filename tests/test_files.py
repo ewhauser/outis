@@ -283,6 +283,16 @@ def test_xlsx_shared_strings_dates_and_names():
     assert b"45568" not in members["xl/worksheets/sheet1.xml"]
 
 
+@pytest.mark.parametrize("index", ["1", "-1", "x", ""])
+def test_xlsx_invalid_shared_string_reference_rejected(index):
+    parts = {
+        "xl/sharedStrings.xml": f'<sst xmlns="{S}"><si><t>Jane Doe</t></si></sst>',
+        "xl/worksheets/sheet1.xml": f'<worksheet xmlns="{S}"><sheetData><row><c r="A1" t="s"><v>0</v></c><c r="A2" t="s"><v>{index}</v></c></row></sheetData></worksheet>',
+    }
+    with pytest.raises(ValueError, match="invalid shared string reference"):
+        invoke(make_office("xlsx", parts), "xlsx")
+
+
 @pytest.mark.parametrize(
     "path", ["../secret.xml", "/secret.xml", "a/../secret.xml", "a\\secret.xml"]
 )
