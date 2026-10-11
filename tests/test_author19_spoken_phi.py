@@ -69,6 +69,7 @@ def rows():
     return load_bank()
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_generation_is_deterministic():
     first, stats_first = gen.generate(limit=150)
     second, stats_second = gen.generate(limit=150)

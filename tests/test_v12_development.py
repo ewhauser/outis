@@ -39,6 +39,7 @@ def rows(encoding):
     return build_rows(encoding)
 
 
+@pytest.mark.requires_data("v12_validation.predeclaration.json")
 def test_predeclared_counts_and_per_label_support(rows):
     declaration = json.loads(
         (ROOT / "data/v12_validation.predeclaration.json").read_text()

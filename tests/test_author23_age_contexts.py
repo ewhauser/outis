@@ -48,6 +48,7 @@ def _same_as_fixture(key, marked):
     assert _plain(spans) == _plain(fixture["spans"])
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_deterministic_for_seed(built):
     rows, _, _ = built
     again, _, _ = author.build(author.SEED)
@@ -56,6 +57,7 @@ def test_deterministic_for_seed(built):
     assert [r["text"] for r in other] != [r["text"] for r in rows]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_written_bank_matches_generator(built, tmp_path):
     rows, pools, stats = built
     manifest = author.write_bank(
@@ -70,6 +72,7 @@ def test_written_bank_matches_generator(built, tmp_path):
     assert recorded["author_provenance"]["seed"] == author.SEED
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_offsets_and_structure(built):
     rows, _, _ = built
     assert len(rows) == 1500
@@ -83,6 +86,7 @@ def test_offsets_and_structure(built):
         assert "[[" not in row["text"] and "]]" not in row["text"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_composition(built):
     rows, _, _ = built
     decoys = sum(r["contrast"] == "decoy" for r in rows)
@@ -103,6 +107,7 @@ def test_composition(built):
     )
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_decoys_carry_no_age_and_positives_do(built):
     rows, _, _ = built
     for row in rows:
@@ -118,6 +123,7 @@ def test_decoys_carry_no_age_and_positives_do(built):
     )
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_matched_decoys_share_pair_layout_and_identity(built):
     rows, _, _ = built
     positives = {r["pair_id"]: r for r in rows if r["contrast"] == "positive"}
@@ -131,6 +137,7 @@ def test_matched_decoys_share_pair_layout_and_identity(built):
             )
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_identities_in_train_partition(built):
     rows, _, _ = built
     for row in rows:
@@ -139,6 +146,7 @@ def test_identities_in_train_partition(built):
             assert identity_split(group) == "train"
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_d1_hypothetical_fixture_rebuilt_and_honoured(built):
     _same_as_fixture(
         "hypothetical_ages",
@@ -169,6 +177,7 @@ def test_d1_hypothetical_fixture_rebuilt_and_honoured(built):
     assert seen > 250
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_d2_decade_fixture_rebuilt_and_honoured(built):
     _same_as_fixture(
         "decades",
@@ -203,6 +212,7 @@ def test_all_ages_fixtures_rebuilt():
     )
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_age_values_parse_and_cover_range(built):
     rows, _, _ = built
     values = []
@@ -217,6 +227,7 @@ def test_age_values_parse_and_cover_range(built):
     assert sum(v > 89 for v in values) >= 50
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_exclusion_filter_applied(built):
     rows, pools, stats = built
     assert all(excluded_sequences(row["text"]) == 0 for row in rows)

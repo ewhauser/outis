@@ -42,6 +42,7 @@ def rows(built):
     return built[0]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_deterministic(built, rows):
     again, rejects = gen.build_rows()
     assert again == rows
@@ -53,6 +54,7 @@ def test_deterministic(built, rows):
         assert stored == json.loads(json.dumps(rows, ensure_ascii=False))
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_shape_and_shares(rows):
     assert len(rows) == 1800
     fam = collections.Counter(r["family"] for r in rows)
@@ -78,6 +80,7 @@ def test_shape_and_shares(rows):
     assert len({r["text"] for r in rows}) == len(rows)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_offsets_and_metadata(rows):
     for r in rows:
         assert annotation_errors(r["text"], r["spans"]) == []
@@ -93,6 +96,7 @@ def test_offsets_and_metadata(rows):
         assert "[[" not in r["text"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_pairs_share_identity(rows):
     by_pair = collections.defaultdict(list)
     for r in rows:
@@ -107,6 +111,7 @@ def _spans_of(row, label):
     return [s["text"] for s in row["spans"] if s["label"] == label]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_lab_identifiers_are_id(rows):
     seen = 0
     for r in rows:
@@ -121,6 +126,7 @@ def test_lab_identifiers_are_id(rows):
     assert seen > 500
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_initials_only_people_are_names(rows):
     seen = 0
     for r in rows:
@@ -135,6 +141,7 @@ def test_initials_only_people_are_names(rows):
     assert seen > 300
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_names_exclude_honorifics_and_credentials(rows):
     cred = re.compile(r"\b(MD|DO|NP|PA-C|DNP|FACP|MBBS|PHD)\b", re.I)
     for r in rows:
@@ -143,6 +150,7 @@ def test_names_exclude_honorifics_and_credentials(rows):
             assert not cred.search(t) and "," not in t
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_mrn_caption_outside_and_age_rules(rows):
     for r in rows:
         for s in r["spans"]:
@@ -162,6 +170,7 @@ def test_mrn_caption_outside_and_age_rules(rows):
                 )
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_datetime_time_outside_and_date_only_in_date(rows):
     for r in rows:
         for s in r["spans"]:
@@ -172,6 +181,7 @@ def test_datetime_time_outside_and_date_only_in_date(rows):
                 assert not re.search(r"\b(am|pm)\b", s["text"], re.I)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_codes_and_units_not_annotated(rows):
     pats = [
         r"LOINC \d+-\d",
@@ -189,6 +199,7 @@ def test_codes_and_units_not_annotated(rows):
                 ), (r["id"], m[0])
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_reserved_identifier_families(rows):
     for r in rows:
         for s in r["spans"]:
@@ -206,6 +217,7 @@ def test_reserved_identifier_families(rows):
                 assert t.startswith("9"), t
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_no_value_above_half_percent(rows):
     usage = collections.Counter()
     for r in rows:
@@ -213,10 +225,12 @@ def test_no_value_above_half_percent(rows):
     assert max(usage.values()) <= 9
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_zero_exclusion_matches(rows):
     assert sum(excluded_sequences(r["text"]) for r in rows) == 0
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_label_support_floor(rows):
     support = collections.Counter(s["label"] for r in rows for s in r["spans"])
     for label in (

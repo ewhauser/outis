@@ -60,6 +60,7 @@ def committed_bank():
     ]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_generator_is_deterministic():
     a, _ = gen.build(40, 16, cap=7)
     b, _ = gen.build(40, 16, cap=7)
@@ -76,6 +77,7 @@ def test_committed_bank_matches_its_manifest(committed_bank):
     assert manifest["annotation_policy"] == "clinical-phi-v2"
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_rows_offsets_and_metadata(small_bank):
     rows, _ = small_bank
     assert len({r["id"] for r in rows}) == len(rows)
@@ -98,6 +100,7 @@ def test_rows_offsets_and_metadata(small_bank):
             assert r["identity_group"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_phi_free_rows_have_a_positive_twin(small_bank):
     rows, _ = small_bank
     by_pair = {}
@@ -206,6 +209,7 @@ def _check_conventions(rows):
                 ), (r["id"], tok)
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_conventions_on_fresh_build(small_bank):
     rows, _ = small_bank
     _check_conventions(rows)
@@ -251,6 +255,7 @@ def test_speech_to_text_rows_have_no_punctuation_but_keep_values(committed_bank)
                 assert "," not in sp["text"]
 
 
+@pytest.mark.requires_data("places_exclusions.sha256.json")
 def test_exclusion_filter_leaves_no_matches(small_bank, committed_bank):
     for rows in (small_bank[0], committed_bank):
         for r in rows:
