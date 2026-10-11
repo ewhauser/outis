@@ -10,7 +10,7 @@ from threading import Lock
 
 from outis.entities import checked_entities
 from outis.operations import Usage
-from outis.paths import DEFAULT_MODEL_DIR
+from outis.paths import resolve_model_dir
 from outis.replacement.surrogates import _validated_secret, replace
 
 
@@ -40,7 +40,7 @@ def _model_version(model_dir, detector):
 class Deidentifier:
     def __init__(
         self,
-        model_dir=DEFAULT_MODEL_DIR,
+        model_dir=None,
         *,
         secret=None,
         device="auto",
@@ -49,6 +49,7 @@ class Deidentifier:
         if detector is None:
             from outis.detection.hf_encoder import load_detector
 
+            model_dir = resolve_model_dir(model_dir)
             detector = load_detector(model_dir, device=device)
         self.detector = detector
         self.secret = secret

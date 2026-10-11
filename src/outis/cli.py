@@ -4,8 +4,6 @@ import os
 import sys
 from pathlib import Path
 
-from outis.paths import DEFAULT_MODEL_DIR
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -19,7 +17,11 @@ def main():
     redact.add_argument("--input", type=Path)
     redact.add_argument("--mode", choices=["redact", "synthetic"], default="redact")
     redact.add_argument("--patient-id")
-    redact.add_argument("--model-dir", default=DEFAULT_MODEL_DIR)
+    redact.add_argument(
+        "--model-dir",
+        help="Detector checkpoint directory (default: the published model, "
+        "downloaded once into the Hugging Face cache)",
+    )
     redact.add_argument("--device", default="auto")
     args = parser.parse_args()
     if args.command == "serve":

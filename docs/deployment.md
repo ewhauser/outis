@@ -1,7 +1,10 @@
 # Deployment and operational controls
 
 The detector runs entirely on the host. No text is sent to OpenAI or any other
-hosted inference service; downloads happen only during setup.
+hosted inference service. The only download is the model itself: without a
+configured checkpoint, the first run fetches the pinned default from Hugging
+Face into the Hugging Face cache. Set `HF_HUB_OFFLINE=1` to forbid network
+access once it is cached, or point `OUTIS_MODEL_DIR` at a local checkpoint.
 
 ## Local launcher
 
@@ -14,14 +17,15 @@ key once in the ignored `.cache/local-api-secret` file. It reuses that key acros
 restarts. A configured `OUTIS_SECRET` takes precedence. Preserve the key to keep
 patient mappings stable; do not commit it or share it with API clients.
 
-`outis serve` is the packaged equivalent. It reads `OUTIS_MODEL_DIR`
-(default `models/deid-deberta-v3-base`) and refuses to start
-without a fine-tuned encoder checkpoint there. On Apple silicon, set
+`outis serve` is the packaged equivalent. It loads the checkpoint in
+`OUTIS_MODEL_DIR` when set, and otherwise `models/deid-deberta-v3-base` if
+its weights are present, or the pinned model from Hugging Face. It refuses to
+start without a fine-tuned encoder checkpoint. On Apple silicon, set
 `OUTIS_DEVICE=mps`; CPU is supported.
 
 ## Detector
 
-Detection is model-only: a fine-tuned ModernBERT token classifier reads the
+Detection is model-only: a fine-tuned DeBERTa-v3-base token classifier reads the
 original text in overlapping windows and a constrained BIOES decoder returns
 spans at exact original character offsets. There are no regex extractors or
 context guards; the rule layer was removed on 2026-10-04 because it cost

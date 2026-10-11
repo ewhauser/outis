@@ -10,6 +10,35 @@ PROJECT_ROOT = PACKAGE_ROOT.parents[1]
 # Default detector: fine-tuned DeBERTa-v3-base (see MODEL_CARD.md).
 # Relative to the working directory.
 DEFAULT_MODEL_DIR = "models/deid-deberta-v3-base"
+# The same checkpoint on Hugging Face, fetched when DEFAULT_MODEL_DIR has no
+# weights. Pinned so each release loads the weights it was tested with.
+DEFAULT_MODEL_REPO = "ewhauser/outis-deberta-v3-base"
+DEFAULT_MODEL_REVISION = "11019035c00e3354fffd9631d78ce8e8efadaa09"
+
+
+def resolve_model_dir(model_dir=None):
+    """Directory of the detector checkpoint to load.
+
+    An explicit ``model_dir`` is used as given. Otherwise the checkout's
+    DEFAULT_MODEL_DIR is used when it holds weights, and the pinned Hugging Face
+    snapshot is downloaded into the Hugging Face cache when it does not. Only
+    the model is downloaded; set ``HF_HUB_OFFLINE=1`` to load from the cache
+    without network access.
+    """
+    if model_dir is not None:
+        return Path(model_dir)
+    local = Path(DEFAULT_MODEL_DIR)
+    if (local / "hf" / "model.safetensors").is_file():
+        return local
+    from huggingface_hub import snapshot_download
+
+    return Path(
+        snapshot_download(
+            DEFAULT_MODEL_REPO,
+            revision=DEFAULT_MODEL_REVISION,
+            allow_patterns=["config.json", "hf/*"],
+        )
+    )
 
 
 def source_manifest(*entry_points: str) -> dict[str, str]:

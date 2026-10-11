@@ -42,7 +42,24 @@ server.
 
 ## Quickstart
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.11+.
+
+```sh
+pip install outis
+```
+
+The first run downloads the model (736 MB) from
+[Hugging Face](https://huggingface.co/ewhauser/outis-deberta-v3-base) into the
+Hugging Face cache, and later runs load it from there. Each release pins the
+model revision it was tested with. Only the model is downloaded; your text
+never leaves the machine. Once the model is cached, `HF_HUB_OFFLINE=1` forbids
+network access. To use a checkpoint directory instead, pass it as
+`Deidentifier(model_dir)`, `--model-dir` or `OUTIS_MODEL_DIR`.
+
+Add the `pdf` extra (`pip install 'outis[pdf]'`) for PDF file input.
+
+To work from source, use [uv](https://docs.astral.sh/uv/) and prefix the
+commands below with `uv run`:
 
 ```sh
 git clone https://github.com/ewhauser/outis.git
@@ -50,19 +67,14 @@ cd outis
 uv sync
 ```
 
-The default model's configuration and tokenizer are in
-`models/deid-deberta-v3-base`. Download its 736 MB weight file from
-[Hugging Face](https://huggingface.co/ewhauser/outis-deberta-v3-base):
+A checkout uses `models/deid-deberta-v3-base` when its weight file is present,
+and otherwise downloads the model as above. To keep the weights in the checkout:
 
 ```sh
 uv run hf download ewhauser/outis-deberta-v3-base hf/model.safetensors --local-dir models/deid-deberta-v3-base
 ```
 
-Add the `pdf` extra (`uv sync --extra pdf`) for PDF file input.
-
 ### Python
-
-Run it with `uv run python`.
 
 ```python
 from outis import Deidentifier
@@ -87,7 +99,7 @@ and the model version.
 ### HTTP API
 
 ```sh
-uv run scripts/serve_local.py --port 8000
+outis serve --port 8000
 ```
 
 ```sh
@@ -97,14 +109,15 @@ curl http://127.0.0.1:8000/v1/deidentify \
 ```
 
 Interactive docs are served at `http://127.0.0.1:8000/docs`, and the OpenAPI
-schema at `/openapi.json`. The local launcher creates and reuses a replacement
-secret in `.cache/local-api-secret`. For other deployments, see
+schema at `/openapi.json`. Synthetic mode needs a replacement secret in
+`OUTIS_SECRET`; in a checkout, `uv run scripts/serve_local.py --port 8000`
+creates and reuses one in `.cache/local-api-secret`. For other deployments, see
 [deployment](docs/deployment.md).
 
 ### CLI
 
 ```sh
-uv run outis text --input note.txt --mode redact
+outis text --input note.txt --mode redact
 ```
 
 ## How it works

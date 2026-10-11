@@ -23,7 +23,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from outis.paths import DEFAULT_MODEL_DIR
 from outis.policy import DetectionPolicy
 from outis.replacement.transform import ReidentifyRequest, ReplacementOptions
 from outis.service import Deidentifier
@@ -390,7 +389,7 @@ def create_app(service=None, *, api_key=None):
     @asynccontextmanager
     async def lifespan(app):
         app.state.service = service_arg or Deidentifier(
-            os.environ.get("OUTIS_MODEL_DIR", DEFAULT_MODEL_DIR),
+            os.environ.get("OUTIS_MODEL_DIR") or None,
             secret=os.environ.get("OUTIS_SECRET"),
             device=os.environ.get("OUTIS_DEVICE", "auto"),
         )
