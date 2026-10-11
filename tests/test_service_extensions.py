@@ -459,3 +459,26 @@ def test_shared_segments_prepare_full_context_only_once(service, monkeypatch):
     )
     assert len(calls) == 1
     assert {result["text"] for result in results} == {"[NAME_e1]"}
+
+
+@pytest.mark.parametrize(
+    "extension",
+    [{}, {"policy": {}}, {"replacement": {"pattern": "[{label}]"}}],
+)
+def test_legacy_and_extended_requests_render_identical_replacements(extension):
+    text = "Patient age 95. Seen by Mara Calder."
+
+    def find(value):
+        age = value.index("95")
+        return [Span(age, age + 2, "AGE"), *RecordingDetector().find(value)]
+
+    service = Deidentifier(detector=RecordingDetector(find), secret=SECRET)
+    result = service.deidentify(text, **extension)
+    assert result["text"] == "Patient age [AGE_90_PLUS]. Seen by [NAME]."
+    assert [entity["replacement"] for entity in result["entities"]] == [
+        "[AGE_90_PLUS]",
+        "[NAME]",
+    ]
+    # Only the response shape is legacy: no IDs, output offsets, or policy.
+    assert ("entity_id" in result["entities"][0]) == bool(extension)
+    assert ("policy" in result) == bool(extension)
