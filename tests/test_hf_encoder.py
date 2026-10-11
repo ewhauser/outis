@@ -11,6 +11,9 @@ from outis.detection.decoding import TAGS  # noqa: E402
 from outis.detection.hf_encoder import (  # noqa: E402
     ENCODER_KIND,
     HFTokenDetector,
+    TokenWindow,
+    _WindowJob,
+    length_batches,
     refine_boundaries,
     special_layout,
     window_jobs,
@@ -368,3 +371,40 @@ def test_detect_batch_releases_exactly_the_model_spans():
         [],
         spans_of(texts[1], ("Harrow Clinic", "FACILITY")),
     ]
+
+
+def test_windows_are_batched_by_length_not_arrival_order():
+    # One full window among seven short inputs fits one arrival-order batch of
+    # eight, which pads every short row to the full window.
+    detector = scripted_detector(max_length=12, batch_size=8)
+    batches = []
+    forward = detector.model.forward
+
+    def recording_forward(input_ids, attention_mask):
+        batches.append((tuple(input_ids.shape), attention_mask.sum(dim=1).tolist()))
+        return forward(input_ids, attention_mask)
+
+    detector.model.forward = recording_forward
+    full = "patient seen at Harrow Clinic on March 4 , 2025"
+    texts = ["seen ."] * 3 + [full] + ["seen ."] * 4
+    emitted = detector.emissions(texts)
+    for text, (logits, _) in zip(texts, emitted):
+        assert torch.equal(logits, expected_logits(detector, text))
+    assert [shape for shape, _ in batches] == [(1, 12), (7, 4)]
+    for (_, width), lengths in batches:
+        assert all(width - length < length for length in lengths)
+
+
+def test_length_batches_respect_size_and_padding_bound():
+    jobs = [
+        _WindowJob(doc, TokenWindow(0, n, 0, n), [0] * n)
+        for doc, n in enumerate([3, 10, 6, 5, 9, 1, 2])
+    ]
+    batches = list(length_batches(jobs, batch_size=2))
+    assert [[len(job.ids) for job in batch] for batch in batches] == [
+        [10, 9],
+        [6, 5],
+        [3, 2],
+        [1],
+    ]
+    assert sorted(job.doc for batch in batches for job in batch) == list(range(7))
