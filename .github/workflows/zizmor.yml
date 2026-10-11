@@ -1,0 +1,39 @@
+name: zizmor
+
+# Static analysis of the GitHub Actions workflows: unpinned or impostor
+# action commits, excessive permissions, template injection and similar.
+on:
+  push:
+    branches: [main]
+    paths: &sources
+      - .github/workflows/**
+      - .github/actions/**
+      - .github/dependabot.yml
+      - .github/zizmor.yml
+  pull_request:
+    paths: *sources
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: zizmor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          # Report in the job log and annotations rather than code scanning,
+          # which would need security-events: write.
+          advanced-security: false
+          persona: pedantic
