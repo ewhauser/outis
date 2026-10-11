@@ -248,23 +248,124 @@ def test_nested_validation_locations_never_echo_submitted_keys(service, path, pa
     assert not service.detector.calls
 
 
-@pytest.mark.parametrize("content_length", [True, False])
-def test_http_body_byte_limit_includes_chunked_requests(
-    service, monkeypatch, content_length
+def test_http_body_byte_limit_applies_to_requests_without_content_length(
+    service, monkeypatch
 ):
     import outis.api as api
 
     monkeypatch.setattr(api, "MAX_REQUEST_BYTES", 512)
     body = json.dumps({"text": "PRIVATE-TEXT" * 100}).encode()
-    content = body if content_length else iter([body[:200], body[200:]])
-    with TestClient(create_app(service)) as client:
-        response = client.post(
-            "/v1/detect", content=content, headers={"Content-Type": "application/json"}
-        )
-    assert response.status_code == 413
-    assert response.json() == {"detail": "Request body too large"}
-    assert response.headers["cache-control"] == "no-store"
+    for content in [body, iter([body])]:
+        with TestClient(create_app(service)) as client:
+            response = client.post(
+                "/v1/detect",
+                content=content,
+                headers={"Content-Type": "application/json"},
+            )
+        assert response.status_code == 413
+        assert response.json() == {"detail": "Request body too large"}
+        assert response.headers["cache-control"] == "no-store"
     assert not service.detector.calls
+
+
+def asgi_post(app, path, frames):
+    """POST ``frames`` as separate http.request messages, without Content-Length.
+
+    The test client joins an iterator body into one frame, so this drives the
+    ASGI app directly. Returns (status, headers, body, frames_read).
+    """
+    import asyncio
+
+    async def run():
+        messages = [
+            {
+                "type": "http.request",
+                "body": frame,
+                "more_body": index < len(frames) - 1,
+            }
+            for index, frame in enumerate(frames)
+        ]
+        read = 0
+        sent = []
+
+        async def receive():
+            nonlocal read
+            if read < len(messages):
+                read += 1
+                return messages[read - 1]
+            await asyncio.Event().wait()  # a client that never disconnects
+            raise AssertionError("unreachable")
+
+        async def send(message):
+            sent.append(message)
+
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode(),
+            "root_path": "",
+            "query_string": b"",
+            "headers": [
+                (b"host", b"testserver"),
+                (b"content-type", b"application/json"),
+                (b"transfer-encoding", b"chunked"),
+            ],
+            "client": ("testclient", 50000),
+            "server": ("testserver", 80),
+        }
+        async with app.router.lifespan_context(app):
+            await app(scope, receive, send)
+        start = next(m for m in sent if m["type"] == "http.response.start")
+        body = b"".join(
+            m.get("body", b"") for m in sent if m["type"] == "http.response.body"
+        )
+        return start["status"], dict(start["headers"]), body, read
+
+    return asyncio.run(run())
+
+
+def test_http_body_byte_limit_counts_every_chunk_frame(service, monkeypatch):
+    import outis.api as api
+
+    monkeypatch.setattr(api, "MAX_REQUEST_BYTES", 512)
+    body = json.dumps({"text": "PRIVATE-TEXT" * 100}).encode()
+    frames = [body[i : i + 200] for i in range(0, len(body), 200)]
+    assert len(frames) > 3 and all(len(frame) <= 512 for frame in frames)
+    status, headers, payload, read = asgi_post(
+        create_app(service), "/v1/detect", frames
+    )
+    assert status == 413
+    assert json.loads(payload) == {"detail": "Request body too large"}
+    assert headers[b"cache-control"] == b"no-store"
+    assert b"PRIVATE-TEXT" not in payload
+    # Reading stops at the first frame that crosses the limit (200 * 3 > 512).
+    assert read == 3
+    assert not service.detector.calls
+
+
+def test_chunked_body_at_the_limit_is_reassembled_in_order(service, monkeypatch):
+    import outis.api as api
+
+    body = json.dumps({"text": TEXT}).encode()
+    frames = [body[i : i + 7] for i in range(0, len(body), 7)] + [b""]
+    monkeypatch.setattr(api, "MAX_REQUEST_BYTES", len(body))
+    status, _, payload, read = asgi_post(create_app(service), "/v1/detect", frames)
+    assert status == 200
+    assert read == len(frames)
+    assert service.detector.calls == [[TEXT]]
+    assert [entity["label"] for entity in json.loads(payload)["entities"]] == [
+        "NAME",
+        "DATE",
+    ]
+    monkeypatch.setattr(api, "MAX_REQUEST_BYTES", len(body) - 1)
+    status, _, _, read = asgi_post(create_app(service), "/v1/detect", frames)
+    assert status == 413
+    assert read == len(frames) - 1
+    assert service.detector.calls == [[TEXT]]
 
 
 @pytest.mark.parametrize("value", [object(), float("nan"), float("inf")])

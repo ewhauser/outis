@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+import posixpath
 import re
 import zipfile
 from xml.etree import ElementTree as ET
@@ -633,3 +634,135 @@ def test_unresolved_relationship_reference_rejected():
     part = f'<w:document xmlns:w="{W}" xmlns:r="{RELATIONSHIPS}"><w:body><w:sectPr><w:headerReference r:id="JaneDoe"/></w:sectPr></w:body></w:document>'
     with pytest.raises(ValueError, match="unresolved relationship"):
         invoke(make_office("docx", {"word/document.xml": part}), "docx")
+
+
+# The fixtures above are deliberately skeletal parser inputs. The tests below
+# start from complete documents written by python-docx, openpyxl and
+# python-pptx, and reopen the returned bytes with the same independent readers.
+
+
+def assert_complete_package(raw):
+    """Every internal relationship and content-type override names a real part."""
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        names = set(archive.namelist())
+        missing = []
+        for name in names:
+            if not name.endswith(".rels"):
+                continue
+            source_dir = posixpath.dirname(posixpath.dirname(name))
+            for relationship in ET.fromstring(archive.read(name)):
+                if relationship.get("TargetMode") == "External":
+                    continue
+                target = relationship.get("Target")
+                part = (
+                    target.lstrip("/")
+                    if target.startswith("/")
+                    else posixpath.normpath(posixpath.join(source_dir, target))
+                )
+                if part not in names:
+                    missing.append((name, target))
+        for override in ET.fromstring(archive.read("[Content_Types].xml")):
+            part = override.get("PartName")
+            if part and part.lstrip("/") not in names:
+                missing.append(("[Content_Types].xml", part))
+    assert missing == []
+
+
+def saved(document):
+    buf = io.BytesIO()
+    document.save(buf)
+    return buf.getvalue()
+
+
+def redacted(raw, kind):
+    result = invoke(raw, kind)
+    output = base64.b64decode(result["data"])
+    assert_complete_package(output)
+    with zipfile.ZipFile(io.BytesIO(output)) as archive:
+        assert all(
+            b"Jane" not in archive.read(name) and b"Doe" not in archive.read(name)
+            for name in archive.namelist()
+        )
+    return result, io.BytesIO(output)
+
+
+def test_valid_docx_round_trips_through_an_independent_reader():
+    docx = pytest.importorskip("docx")
+
+    document = docx.Document()
+    document.core_properties.author = "Jane Doe"
+    paragraph = document.add_paragraph("Seen today: ")
+    paragraph.add_run("Jane ")
+    paragraph.add_run("Doe").bold = True
+    paragraph.add_run(" takes metformin.")
+    table = document.add_table(rows=1, cols=2)
+    table.cell(0, 0).text = "Patient"
+    table.cell(0, 1).text = "Jane Doe"
+    document.sections[0].header.paragraphs[0].text = "Chart for Jane Doe"
+    document.sections[0].footer.paragraphs[0].text = "Page footer"
+    result, output = redacted(saved(document), "docx")
+
+    reopened = docx.Document(output)
+    assert [p.text for p in reopened.paragraphs] == [
+        "Seen today: [NAME] takes metformin."
+    ]
+    table = reopened.tables[0]
+    assert [cell.text for cell in table.rows[0].cells] == ["Patient", "[NAME]"]
+    section = reopened.sections[0]
+    assert section.header.paragraphs[0].text == "Chart for [NAME]"
+    assert section.footer.paragraphs[0].text == "Page footer"
+    assert reopened.core_properties.author == ""
+    assert result["entity_count"] == 3
+
+
+def test_valid_xlsx_round_trips_through_an_independent_reader():
+    from datetime import date
+
+    openpyxl = pytest.importorskip("openpyxl")
+
+    workbook = openpyxl.Workbook()
+    workbook.properties.creator = "Jane Doe"
+    sheet = workbook.active
+    sheet.title = "Jane Doe"
+    sheet.append(["Patient", "Visit", "Glucose"])
+    sheet.append(["Jane Doe", date(2023, 3, 15), 109])
+    second = workbook.create_sheet("Labs")
+    second["A1"] = "Reviewed with Jane Doe"
+    result, output = redacted(saved(workbook), "xlsx")
+
+    reopened = openpyxl.load_workbook(output)
+    assert len(reopened.sheetnames) == 2
+    assert all("Jane" not in name for name in reopened.sheetnames)
+    first, labs = (reopened[name] for name in reopened.sheetnames)
+    assert [[cell.value for cell in row] for row in first.iter_rows()] == [
+        ["Patient", "Visit", "Glucose"],
+        ["[NAME]", "2023-03-15", "109"],
+    ]
+    assert labs["A1"].value == "Reviewed with [NAME]"
+    assert reopened.properties.creator != "Jane Doe"
+    assert result["entity_count"] == 3
+
+
+def test_valid_pptx_round_trips_through_an_independent_reader():
+    pptx = pytest.importorskip("pptx")
+    from pptx.util import Inches
+
+    presentation = pptx.Presentation()
+    presentation.core_properties.author = "Jane Doe"
+    slide = presentation.slides.add_slide(presentation.slide_layouts[5])
+    slide.shapes.title.text = "Jane Doe follow-up"
+    box = slide.shapes.add_textbox(Inches(1), Inches(2), Inches(6), Inches(1))
+    paragraph = box.text_frame.paragraphs[0]
+    for text in ["Seen by ", "Jane ", "Doe", " today."]:
+        paragraph.add_run().text = text
+    second = presentation.slides.add_slide(presentation.slide_layouts[5])
+    second.shapes.title.text = "Plan"
+    result, output = redacted(saved(presentation), "pptx")
+
+    reopened = pptx.Presentation(output)
+    assert [
+        [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
+        for slide in reopened.slides
+    ] == [["[NAME] follow-up", "Seen by [NAME] today."], ["Plan"]]
+    assert reopened.core_properties.author == ""
+    assert result["entity_count"] == 2

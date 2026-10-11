@@ -528,8 +528,12 @@ def test_prepared_context_builds_global_indexes_once_for_many_fields(monkeypatch
             value, [local], options={}, prepared_context=prepared, index_offset=index
         )
         assert result["text"] == "[NAME_e1]"
-    assert indexed_context_sizes == setup_key_calls == [512, 512]
-    assert context_alias_calls == setup_alias_calls == [512, 512, 512]
+    # Preparation indexes the whole context; rendering fields adds no index
+    # builds over it, however many preparation itself needed.
+    assert setup_key_calls and set(setup_key_calls) == {512}
+    assert setup_alias_calls and set(setup_alias_calls) == {512}
+    assert indexed_context_sizes == setup_key_calls
+    assert context_alias_calls == setup_alias_calls
 
 
 def test_prepared_context_is_immutable_and_keeps_identifiers_out_of_repr():

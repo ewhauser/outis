@@ -1,5 +1,6 @@
 """Service detector selection and versioning using local fake model bundles."""
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -55,7 +56,7 @@ def test_explicit_hf_service_uses_factory_and_preserves_options(hf_bundle, monke
     assert service.deidentify("Mara Calder arrived.")["text"] == "[NAME] arrived."
 
 
-def test_default_model_is_the_promoted_encoder(tmp_path, monkeypatch):
+def test_default_model_dir_is_loaded_when_it_holds_weights(tmp_path, monkeypatch):
     from outis.paths import DEFAULT_MODEL_DIR
 
     monkeypatch.chdir(tmp_path)
@@ -67,6 +68,64 @@ def test_default_model_is_the_promoted_encoder(tmp_path, monkeypatch):
     service = Deidentifier(device="cpu")
     assert service.detector.model_dir == Path(DEFAULT_MODEL_DIR)
     assert len(service.version) == 16 and service.version != "injected-detector"
+
+
+# The promoted checkpoint (takeover-deberta-mix9-001, step 9288) as published
+# at DEFAULT_MODEL_REVISION. Git blob ids of the committed bundle files equal
+# the Hugging Face file ids at that revision; the weights are pinned by SHA-256.
+# Promoting a different checkpoint must update these deliberately.
+SHIPPED_BUNDLE_BLOBS = {
+    "config.json": "9545692b3b36327e8a1a9da8bfcf6ff36c65ccc0",
+    "hf/config.json": "510655da490ecd0c3a551703bdd64dbe1ae2282f",
+    "hf/tokenizer.json": "6192ab6e0d74b9d02b121ab94c21f9c075bf6525",
+    "hf/tokenizer_config.json": "40488bf559d36702944b92078bb72bceb7c98a61",
+}
+SHIPPED_WEIGHTS_SHA256 = (
+    "2443b72d83eb95a9163fcea0895f474631aaa4a839d27a902a87473ead696ae4"
+)
+SHIPPED_REVISION = "11019035c00e3354fffd9631d78ce8e8efadaa09"
+
+
+def git_blob_id(path):
+    data = path.read_bytes()
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def test_default_model_is_the_promoted_shipped_bundle():
+    from outis.detection.decoding import TAGS
+    from outis.paths import (
+        DEFAULT_MODEL_DIR,
+        DEFAULT_MODEL_REPO,
+        DEFAULT_MODEL_REVISION,
+        PROJECT_ROOT,
+    )
+
+    assert DEFAULT_MODEL_REPO == "ewhauser/outis-deberta-v3-base"
+    assert DEFAULT_MODEL_REVISION == SHIPPED_REVISION
+    root = PROJECT_ROOT / DEFAULT_MODEL_DIR
+    assert {
+        name: git_blob_id(root / name) for name in SHIPPED_BUNDLE_BLOBS
+    } == SHIPPED_BUNDLE_BLOBS
+    config = json.loads((root / "config.json").read_text())
+    assert config["encoder"] == hf_encoder.ENCODER_KIND
+    assert config["base_model"] == "microsoft/deberta-v3-base"
+    assert config["tags"] == TAGS
+    hf_config = json.loads((root / "hf" / "config.json").read_text())
+    assert hf_config["architectures"] == ["DebertaV2ForTokenClassification"]
+    assert [hf_config["id2label"][str(i)] for i in range(len(TAGS))] == TAGS
+    summary = json.loads((root / "training_summary.json").read_text())
+    assert summary["checkpoint"] == {
+        "step": 9288,
+        "path": "models/takeover-deberta-mix9-001/step-009288",
+    }
+    weights = root / "hf" / "model.safetensors"
+    if not weights.is_file():
+        pytest.skip("shipped weights are not present in this checkout")
+    digest = hashlib.sha256()
+    with weights.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    assert digest.hexdigest() == SHIPPED_WEIGHTS_SHA256
 
 
 def fake_snapshot_download(bundle, calls):
