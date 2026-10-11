@@ -208,13 +208,59 @@ def test_detector_failure_is_safe_and_handled_without_reraising(caplog):
     assert marker not in caplog.text
 
 
-def test_invalid_detector_offsets_fail_closed(service):
-    service.detector.detect_batch = lambda texts: [
-        [Span(0, 999999, "NAME")] for text in texts
-    ]
+@pytest.mark.parametrize(
+    "spans",
+    [
+        [Span(0, 999999, "NAME")],
+        [Span(0, 5, "NAME"), Span(2, 8, "DATE")],
+        "not a span list",
+    ],
+    ids=["offset", "overlap", "shape"],
+)
+def test_invalid_detector_output_is_a_server_failure(service, spans):
+    # Detector defects are not client errors: report 500, never the 422 used
+    # for request and policy rejections, and never echo source text.
+    service.detector.detect_batch = lambda texts: [spans for text in texts]
     with TestClient(create_app(service)) as client:
-        response = client.post("/v1/deidentify", json={"text": TEXT})
+        for endpoint, body in (
+            ("/v1/deidentify", {"text": TEXT}),
+            ("/v1/detect", {"text": TEXT}),
+            ("/v1/analyze", {"text": TEXT}),
+            ("/v1/batch", {"items": [{"text": TEXT}]}),
+        ):
+            response = client.post(endpoint, json=body)
+            assert response.status_code == 500, endpoint
+            assert response.json() == {
+                "detail": "Deidentification failed; no output released"
+            }
+            assert TEXT not in response.text
+        with client.websocket_connect("/v1/ws") as socket:
+            socket.send_json({"operation": "deidentify", "payload": {"text": TEXT}})
+            assert socket.receive_json() == {
+                "error": {
+                    "status": 500,
+                    "detail": "Deidentification failed; no output released",
+                }
+            }
+
+
+def test_policy_rejections_remain_client_errors(service):
+    with TestClient(create_app(service)) as client:
+        response = client.post(
+            "/v1/deidentify",
+            json={
+                "text": TEXT,
+                "policy": {
+                    "custom_entities": [
+                        {"label": "EMPTY_MATCH", "pattern": "(?=[A-Z])"}
+                    ]
+                },
+            },
+        )
         assert response.status_code == 422
+        assert response.json() == {
+            "detail": "Replacement policy cannot process this request"
+        }
         assert TEXT not in response.text
 
 
