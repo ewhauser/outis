@@ -55,3 +55,36 @@ jobs:
           key: tiktoken-${{ runner.os }}
       - name: Run tests
         run: python -m pytest -q
+
+  # The package supports Python 3.11 and later. "test" above is the required
+  # check on 3.13; this job keeps the older supported versions passing.
+  test-python:
+    name: test (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    env:
+      TIKTOKEN_CACHE_DIR: ${{ github.workspace }}/.cache/tiktoken
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: ${{ matrix.python }}
+          activate-environment: true
+      - name: Install CPU PyTorch
+        run: uv pip install --no-config torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install package
+        run: uv pip install -e . --group dev
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .cache/tiktoken
+          key: tiktoken-${{ runner.os }}
+      - name: Run tests
+        run: python -m pytest -q
