@@ -51,3 +51,16 @@ when binding beyond loopback. Configure TLS and network access controls in
 your deployment; downstream proxies and caller logs must follow your data
 handling policy. `GET /health` checks process liveness; `/ready` verifies a
 loaded model and reports whether synthetic mode has a configured secret.
+
+## Capacity
+
+Model-backed routes (`/v1/deidentify`, `/v1/batch`, `/v1/detect`,
+`/v1/detect/batch`, `/v1/analyze`, `/v1/structured`, `/v1/files` and the
+WebSocket) run on a dedicated inference pool, separate from the server's request
+threads. `OUTIS_INFERENCE_WORKERS` (default 2) sets its threads and
+`OUTIS_INFERENCE_QUEUE` (default 32) how many further requests may wait. Beyond
+that, requests fail fast with `503` and `Retry-After: 1` instead of queueing
+without bound. Detector calls are serialized one model batch (16 texts) at a
+time, so a large structured request interleaves with other work rather than
+holding the model throughout. `/health` and `/ready` never wait on inference
+capacity, so liveness probes stay accurate under load.

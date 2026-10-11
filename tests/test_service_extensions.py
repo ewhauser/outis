@@ -483,6 +483,25 @@ def test_explicit_request_analyzes_identities_once(service, monkeypatch):
     assert calls == ["aliases", "bindings", "bindings"]
 
 
+def test_detector_lock_is_released_between_model_batches(monkeypatch):
+    import outis.service as service_module
+
+    service = Deidentifier(detector=RecordingDetector(), secret=SECRET)
+    held = []
+    checked = service_module.checked_entities
+
+    def recording(text, spans):
+        held.append(service.lock.locked())
+        return checked(text, spans)
+
+    monkeypatch.setattr(service_module, "checked_entities", recording)
+    service.process_segments(
+        [{"text": f"note {index}"} for index in range(40)], shared_entities=False
+    )
+    assert len(service.detector.calls) == 3
+    assert held and not any(held)
+
+
 @pytest.mark.parametrize(
     "extension",
     [{}, {"policy": {}}, {"replacement": {"pattern": "[{label}]"}}],

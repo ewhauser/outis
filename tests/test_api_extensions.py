@@ -3,7 +3,9 @@
 import base64
 import json
 import re
-from threading import current_thread
+import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event, current_thread
 
 import pytest
 from fastapi.testclient import TestClient
@@ -387,7 +389,7 @@ def test_invalid_extension_output_is_handled_without_serialization_phi(value, ca
     assert "PRIVATE-OUTPUT-MARKER" not in caplog.text
 
 
-def test_websocket_matches_http_and_runs_detector_in_threadpool(service):
+def test_websocket_matches_http_and_runs_detector_on_inference_workers(service):
     original = service.detector.detect_batch
     thread_names = []
 
@@ -407,7 +409,8 @@ def test_websocket_matches_http_and_runs_detector_in_threadpool(service):
             response = socket.receive_json()
     assert http.status_code == 200
     assert response == {"operation": "detect", "result": http.json()}
-    assert all("AnyIO worker thread" in name for name in thread_names)
+    assert thread_names
+    assert all(name.startswith("outis-inference") for name in thread_names)
 
 
 def test_websocket_rejects_missing_header_auth_query_secrets_and_foreign_origin(
@@ -715,3 +718,87 @@ def test_websocket_tls_rejects_origins_outside_exact_origin(service, origin):
         ) as socket:
             socket.send_json({"operation": "detect", "payload": {"text": "clean"}})
             assert socket.receive_json()["result"]["entity_count"] == 0
+
+
+def _wait_until(condition, timeout=5):
+    deadline = time.monotonic() + timeout
+    while not condition():
+        assert time.monotonic() < deadline, "condition not reached"
+        time.sleep(0.01)
+
+
+def test_health_stays_responsive_and_excess_inference_is_rejected(service):
+    original = service.detector.detect_batch
+    entered, release = Event(), Event()
+
+    def blocking(texts):
+        entered.set()
+        assert release.wait(10)
+        return original(texts)
+
+    service.detector.detect_batch = blocking
+    app = create_app(service, inference_workers=1, inference_queue=1)
+    with TestClient(app) as client, ThreadPoolExecutor(max_workers=2) as pool:
+        try:
+            running = pool.submit(client.post, "/v1/detect", json={"text": TEXT})
+            assert entered.wait(5)
+            queued = pool.submit(client.post, "/v1/detect", json={"text": TEXT})
+            _wait_until(lambda: app.state.inference._slots._value == 0)
+
+            # Worker and queue are full: health and readiness still answer,
+            # and further inference is refused rather than piling up.
+            assert client.get("/health").json() == {"status": "ok"}
+            assert client.get("/ready").status_code == 200
+            rejected = client.post("/v1/detect", json={"text": TEXT})
+            assert rejected.status_code == 503
+            assert rejected.headers["retry-after"] == "1"
+            assert rejected.headers["cache-control"] == "no-store"
+            with client.websocket_connect("/v1/ws") as socket:
+                socket.send_json({"operation": "detect", "payload": {"text": TEXT}})
+                assert socket.receive_json()["error"]["status"] == 503
+        finally:
+            release.set()
+        assert running.result(10).status_code == 200
+        assert queued.result(10).status_code == 200
+    # Admission slots are returned once the work itself completes.
+    assert app.state.inference._slots._value == 2
+
+
+def test_health_is_not_starved_by_many_concurrent_inference_requests(service):
+    original = service.detector.detect_batch
+    release = Event()
+
+    def blocking(texts):
+        assert release.wait(10)
+        return original(texts)
+
+    service.detector.detect_batch = blocking
+    app = create_app(service)
+    with TestClient(app) as client, ThreadPoolExecutor(max_workers=40) as pool:
+        try:
+            pending = [
+                pool.submit(client.post, "/v1/detect", json={"text": TEXT})
+                for _ in range(40)
+            ]
+            _wait_until(
+                lambda: (
+                    sum(1 for future in pending if future.done())
+                    + app.state.inference.capacity
+                    - app.state.inference._slots._value
+                    >= 40
+                )
+            )
+            started = time.monotonic()
+            assert client.get("/health").status_code == 200
+            assert time.monotonic() - started < 2
+        finally:
+            release.set()
+        statuses = sorted(future.result(10).status_code for future in pending)
+    assert set(statuses) <= {200, 503}
+    assert statuses.count(200) == app.state.inference.capacity
+
+
+@pytest.mark.parametrize("options", [{"inference_workers": 0}, {"inference_queue": -1}])
+def test_inference_capacity_settings_are_validated(service, options):
+    with pytest.raises(ValueError):
+        create_app(service, **options)
