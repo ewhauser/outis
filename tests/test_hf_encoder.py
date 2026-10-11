@@ -357,3 +357,26 @@ def test_detect_batch_releases_exactly_the_model_spans():
         [],
         spans_of(texts[1], ("Harrow Clinic", "FACILITY")),
     ]
+
+
+def test_invalid_precision_rejected():
+    with pytest.raises(ValueError, match="precision"):
+        HFTokenDetector(None, precision="fp16")
+
+
+def test_bf16_precision_autocasts_and_returns_float32_logits():
+    detector = tiny_detector()
+    text = "patient seen at Harrow Clinic on March 4 , 2025 ."
+    reference = detector.emissions([text])[0][0]
+    detector.precision = "bf16"
+    seen = []
+    hook = detector.model.register_forward_hook(
+        lambda module, args, output: seen.append(output.logits.dtype)
+    )
+    try:
+        logits = detector.emissions([text])[0][0]
+    finally:
+        hook.remove()
+    assert seen == [torch.bfloat16]
+    assert logits.dtype == torch.float32
+    assert torch.allclose(logits, reference, atol=0.1)

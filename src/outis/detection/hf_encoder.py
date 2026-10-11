@@ -20,6 +20,9 @@ from outis.detection.decoding import TAGS, choose_device, decode_bioes
 ENCODER_KIND = "hf_token_classifier"
 # Separators that subword tokenizers sometimes merge into a PHI token ("=(617)")
 # but that never begin or end an annotated value.
+# Inference precision -> autocast dtype. fp32 runs without autocast; bf16 matches
+# the training forward pass (train_hf.py autocasts to bfloat16).
+PRECISIONS = {"fp32": None, "bf16": torch.bfloat16}
 LEADING_SEPARATORS = '=:;,|>"\u201c\u201d*'
 TRAILING_SEPARATORS = '=:;,|<"\u201c\u201d*'
 
@@ -112,12 +115,15 @@ class HFTokenDetector:
         *,
         device="auto",
         batch_size=8,
+        precision="fp32",
         model=None,
         tokenizer=None,
         config=None,
     ):
         if type(batch_size) is not int or batch_size < 1:
             raise ValueError("batch_size must be a positive integer")
+        if precision not in PRECISIONS:
+            raise ValueError(f"precision must be one of {sorted(PRECISIONS)}")
         from transformers import AutoModelForTokenClassification, AutoTokenizer
 
         self.model_dir = Path(model_dir) if model_dir is not None else None
@@ -140,6 +146,7 @@ class HFTokenDetector:
         if self.model.config.num_labels != len(TAGS):
             raise ValueError("encoder head does not match the BIOES tag set")
         self.batch_size = batch_size
+        self.precision = precision
         self.max_length = int(self.config.get("max_length", 512))
         self.prefix, self.suffix = special_layout(self.tokenizer)
         self.content_window = self.max_length - len(self.prefix) - len(self.suffix)
@@ -176,10 +183,14 @@ class HFTokenDetector:
                 for i, row in enumerate(rows):
                     tokens[i, : len(row)] = torch.tensor(row)
                     mask[i, : len(row)] = 1
-                out = self.model(
-                    input_ids=tokens.to(self.device),
-                    attention_mask=mask.to(self.device),
-                ).logits
+                dtype = PRECISIONS[self.precision]
+                with torch.autocast(
+                    self.device.type, dtype=dtype or torch.float32, enabled=dtype is not None
+                ):
+                    out = self.model(
+                        input_ids=tokens.to(self.device),
+                        attention_mask=mask.to(self.device),
+                    ).logits
                 out = out.float().cpu()
                 shift = len(self.prefix)
                 for i, (doc, _, left, right, start) in enumerate(batch):
@@ -200,7 +211,7 @@ class HFTokenDetector:
         return self.raw_batch(texts)
 
 
-def load_detector(model_dir, *, device="auto", batch_size=8):
+def load_detector(model_dir, *, device="auto", batch_size=8, precision="fp32"):
     """Load the encoder detector stored in a checkpoint directory."""
     directory = Path(model_dir)
     if (directory / "publication_in_progress.json").exists():
@@ -214,4 +225,6 @@ def load_detector(model_dir, *, device="auto", batch_size=8):
         raise ValueError(
             "Unsupported detector: only fine-tuned hf_token_classifier checkpoints are supported"
         )
-    return HFTokenDetector(model_dir, device=device, batch_size=batch_size)
+    return HFTokenDetector(
+        model_dir, device=device, batch_size=batch_size, precision=precision
+    )
