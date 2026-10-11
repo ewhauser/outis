@@ -55,3 +55,20 @@ must hold exactly the rebuilt files, otherwise the run fails.
    optionally with required reviewers, and limit it to the `main` branch.
 3. Allow GitHub Actions to create pull requests (Settings → Actions → General →
    Workflow permissions).
+
+## Repository protections
+
+These follow [Astral's open source security
+practices](https://astral.sh/blog/open-source-security-at-astral) and are set
+in the repository settings, with no bypass for administrators:
+
+- Rulesets: `main` cannot be deleted or force-pushed and changes only through
+  squash or rebase pull requests; tags cannot be moved or deleted, and a tag
+  can only be created on a commit that deployed to the `pypi` environment;
+  `advisory-*`, `ghsa-*`, `cve-*` and `internal/**` branches cannot be pushed,
+  so embargoed fixes stay in private security advisories.
+- Immutable releases: once published, a release's assets cannot be replaced.
+  A recovery run therefore leaves an already-published release untouched.
+- Workflows pin every action to a commit SHA and grant permissions per job;
+  the release build never restores a cache. The zizmor workflow audits
+  workflow changes, and Dependabot proposes updates after a 7-day cooldown.

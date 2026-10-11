@@ -265,8 +265,10 @@ jobs:
           if [ -n "$tag_sha" ]; then test "$tag_sha" = "$RELEASE_SHA"; fi
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" dist/* --clobber
+            # Immutable releases freeze assets once published; a recovery run
+            # finds a published release complete and leaves it alone.
             if [ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true ]; then
+              gh release upload "$RELEASE_TAG" dist/* --clobber
               gh release edit "$RELEASE_TAG" --draft=false
             fi
           else
