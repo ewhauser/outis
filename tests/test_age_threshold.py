@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from outis.api import create_app
 from outis.policy import apply_policy
-from outis.replacement.surrogates import _age, _age_label
+from outis.replacement.ages import age_label, synthetic_age
 from outis.service import Deidentifier
 from outis.types import Span
 
@@ -58,14 +58,14 @@ def test_all_ages_policy_removes_both_sides(age):
 @pytest.mark.parametrize("age", KEPT)
 def test_replacement_of_age_89_is_not_aggregated(age):
     # An 89 only reaches replacement under ages="all"; it is not "90 or older".
-    assert _age_label(age) == "AGE"
-    assert _age(age) == "[AGE]"
+    assert age_label(age) == "AGE"
+    assert synthetic_age(age) == "[AGE]"
 
 
 @pytest.mark.parametrize("age", REMOVED)
 def test_replacement_of_age_90_is_aggregated(age):
-    assert _age_label(age) == "AGE_90_PLUS"
-    assert _age(age) == "90+"
+    assert age_label(age) == "AGE_90_PLUS"
+    assert synthetic_age(age) == "90+"
 
 
 @pytest.fixture

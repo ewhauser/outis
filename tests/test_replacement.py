@@ -558,10 +558,10 @@ def test_conventional_ascii_suffix_and_punctuation_hmac_outputs_stay_exact(
 def test_name_key_normalization_does_not_change_identifier_or_patient_anchor(
     monkeypatch,
 ):
-    import outis.replacement.surrogates as module
+    import outis.replacement.synthetic as module
 
     calls = []
-    original_digest = module._digest
+    original_digest = module.keyed_digest
     patient = "Åsa O’Neri‐Rios Jr"
     values = ["O’Neri‐Rios Jr", "O'Neri-Rios Jr."]
 
@@ -569,7 +569,7 @@ def test_name_key_normalization_does_not_change_identifier_or_patient_anchor(
         calls.append((patient, label, value))
         return original_digest(secret, patient, label, value, salt)
 
-    monkeypatch.setattr(module, "_digest", recording)
+    monkeypatch.setattr(module, "keyed_digest", recording)
     text = " | ".join(values)
     result = replace(
         text,
@@ -649,19 +649,19 @@ def test_existing_ascii_hmac_identity_title_order_case_and_alias_outputs_stay_ex
 def test_alias_component_cannot_remain_private_surname_unchanged_after_suffix(
     monkeypatch,
 ):
-    import outis.replacement.surrogates as module
+    import outis.replacement.synthetic as module
 
     monkeypatch.setattr(module, "_FIRST_NAMES", ("Fictional",))
     monkeypatch.setattr(module, "_LAST_NAMES", ("Vale", "FictionalSurname"))
     digest = bytes(32)
-    original = module._digest
+    original = module.keyed_digest
 
     def controlled(secret, patient, label, value, salt=0):
         if label == "NAME":
             return digest if salt == 0 else bytes(4) + b"\x00\x00\x00\x01" + bytes(24)
         return original(secret, patient, label, value, salt)
 
-    monkeypatch.setattr(module, "_digest", controlled)
+    monkeypatch.setattr(module, "keyed_digest", controlled)
     values = ["Elian Vale Jr.", "Vale"]
     text = " | ".join(values)
     result = synthetic(text, spans_for(text, [(value, "NAME") for value in values]))

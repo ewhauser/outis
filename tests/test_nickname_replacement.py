@@ -343,7 +343,7 @@ def test_nickname_equal_to_owner_synthetic_first_uses_safe_family_name(extended)
 def test_pathological_given_and_family_collision_redacts_with_warning(
     monkeypatch, extended, first, last
 ):
-    import outis.replacement.surrogates as replacement_module
+    import outis.replacement.synthetic as replacement_module
 
     monkeypatch.setattr(replacement_module, "_fictional_name", lambda *_: (first, last))
     text, spans = marked(DECLARATION.replace("Pip", "Reese"))
@@ -363,7 +363,7 @@ def test_pathological_given_and_family_collision_redacts_with_warning(
 def test_contained_normalized_nickname_token_uses_family_alias(
     monkeypatch, nickname, extended
 ):
-    import outis.replacement.surrogates as replacement_module
+    import outis.replacement.synthetic as replacement_module
 
     monkeypatch.setattr(
         replacement_module, "_fictional_name", lambda *_: ("Robin Reese", "Fern")
@@ -377,8 +377,8 @@ def test_contained_normalized_nickname_token_uses_family_alias(
     alias, owner = result["entities"]
     assert owner["replacement"] == "Robin Reese Fern"
     assert alias["replacement"] == "Fern"
-    assert "reese" not in replacement_module._name_words(
-        replacement_module._name_identity(alias["replacement"])[1]
+    assert "reese" not in replacement_module.name_words(
+        replacement_module.name_identity(alias["replacement"])[1]
     )
     if extended:
         assert alias["entity_id"] == owner["entity_id"]

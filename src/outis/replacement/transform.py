@@ -22,20 +22,19 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from outis.entities import Entity, checked_entities
+from outis.replacement.ages import age_label
+from outis.replacement.dates import shift_date
 from outis.replacement.names.aliases import full_identity_aliases
+from outis.replacement.names.keys import name_aliases, name_identity
 from outis.replacement.nicknames import NameBinding, nickname_bindings
-from outis.replacement.surrogates import (
-    _age_label,
-    _canonical,
-    _digest,
-    _name_aliases,
-    _name_identity,
-    _safe_label,
-    _shift_date,
-    _synthetic_value,
-    _validate_spans,
-    _validated_secret,
+from outis.replacement.primitives import (
+    canonical_form,
+    keyed_digest,
+    safe_label,
+    validate_spans,
+    validated_secret,
 )
+from outis.replacement.synthetic import synthetic_value
 from outis.types import ENTITY_TYPES
 
 _MAX_TEXT = 100_000
@@ -131,7 +130,7 @@ class ReidentifyRequest(BaseModel):
 
 
 def _patient_key(secret, patient_id):
-    key = _validated_secret(secret)
+    key = validated_secret(secret)
     if (
         not isinstance(patient_id, str)
         or not patient_id.strip()
@@ -145,15 +144,15 @@ def _patient_key(secret, patient_id):
 
 def _name_index(text, spans):
     """Index the ID-independent name evidence: literal aliases and owners."""
-    aliases = _name_aliases(text, spans)
+    aliases = name_aliases(text, spans)
     owners: dict[str, set[str]] = {}
     for span in spans:
         if span.label == "NAME":
-            _, identity = _name_identity(text[span.start : span.end])
+            _, identity = name_identity(text[span.start : span.end])
             parts = full_identity_aliases(identity)
             if len(parts) == 2:
                 for part in parts:
-                    owners.setdefault(_canonical(part), set()).add(identity)
+                    owners.setdefault(canonical_form(part), set()).add(identity)
     return aliases, owners
 
 
@@ -163,7 +162,7 @@ def _identity_keys(text, spans, names, bindings):
     for span in spans:
         value = text[span.start : span.end]
         if span.label == "NAME":
-            _, value = _name_identity(value)
+            _, value = name_identity(value)
             binding = bindings.get((span.start, span.end))
             if binding is not None:
                 value = binding.owner
@@ -458,7 +457,8 @@ def render(
             offset = date_shift_days
         else:
             shift_index = (
-                int.from_bytes(_digest(key, patient, "DATE_SHIFT", "")[:8], "big") % 730
+                int.from_bytes(keyed_digest(key, patient, "DATE_SHIFT", "")[:8], "big")
+                % 730
             )
             offset = shift_index - 365 if shift_index < 365 else shift_index - 364
     link_kwargs = (
@@ -489,7 +489,7 @@ def render(
         for span in ordered:
             value = text[span.start : span.end]
             if span.label == "NAME":
-                _, value = _name_identity(value)
+                _, value = name_identity(value)
                 value = aliases.get(value, (value, "full"))[0]
             if context_offset is not None:
                 global_key = (
@@ -522,7 +522,7 @@ def render(
         original = text[span.start : span.end]
         action = options.per_type.get(span.label, options.type)
         # An AGE marker names only its Safe Harbor bucket, never the value.
-        marker_label = _age_label(original) if span.label == "AGE" else span.label
+        marker_label = age_label(original) if span.label == "AGE" else span.label
         marker = options.pattern.format(
             label=marker_label, id=span.entity_id, index=index_offset + index + 1
         )
@@ -535,7 +535,7 @@ def render(
         elif action == "marker":
             replacement = marker
         elif span.label == "DATE":
-            replacement, warning, shifted = _shift_date(original, offset)
+            replacement, warning, shifted = shift_date(original, offset)
             shifted_dates += int(shifted)
             redacted_dates += int(not shifted)
             if warning:
@@ -555,7 +555,7 @@ def render(
             if binding is not None and span.entity_id != expected_id:
                 binding = None
             name_warnings = []
-            replacement = _synthetic_value(
+            replacement = synthetic_value(
                 original,
                 span.label,
                 key,
@@ -663,8 +663,8 @@ def legacy_replace(
     if mode not in {"redact", "synthetic"}:
         raise ValueError("mode must be 'redact' or 'synthetic'")
     entities = []
-    for span in _validate_spans(text, spans):
-        label = _safe_label(span.label)
+    for span in validate_spans(text, spans):
+        label = safe_label(span.label)
         entities.append(
             Entity(
                 span.start,

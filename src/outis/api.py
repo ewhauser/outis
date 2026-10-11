@@ -549,10 +549,10 @@ def create_app(
     @app.get("/ready", dependencies=[Depends(authorize)])
     async def ready(request: Request):
         instance = request.app.state.service
-        from outis.replacement.surrogates import _validated_secret
+        from outis.replacement.primitives import validated_secret
 
         try:
-            _validated_secret(instance.secret)
+            validated_secret(instance.secret)
             synthetic_enabled = True
         except ValueError:
             synthetic_enabled = False
