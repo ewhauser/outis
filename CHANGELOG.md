@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The project uses
 from the Conventional Commit messages merged since the previous release; see
 [RELEASING.md](RELEASING.md).
 
+## [Unreleased]
+
+### Changed
+
+- Require Python 3.13 or later; drop Python 3.11 and 3.12 support and test
+  Python 3.13, 3.14, and 3.15 in CI.
+
 ## [0.2.1](https://github.com/ewhauser/outis/compare/v0.2.0...v0.2.1) (2026-10-11)
 
 

@@ -23,7 +23,7 @@ uv sync --group dev
 ## Checks
 
 CI runs lint and the full test suite on every pull request. Tests run on Linux
-with CPU PyTorch across Python 3.11–3.15. Run the checks locally first:
+with CPU PyTorch across Python 3.13–3.15. Run the checks locally first:
 
 ```sh
 uv run ruff check .
