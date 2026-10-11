@@ -177,3 +177,31 @@ def test_http_releases_the_golden_redaction(service):
     ]
     assert first["model_version"] == service.version
     assert second["text"] == "Seen by [NAME]."
+
+
+def accelerators():
+    devices = []
+    if torch.cuda.is_available():
+        devices.append("cuda")
+    if torch.backends.mps.is_available():
+        devices.append("mps")
+    return devices or [
+        pytest.param("none", marks=pytest.mark.skip(reason="no CUDA or MPS device"))
+    ]
+
+
+@pytest.mark.parametrize("device", accelerators())
+def test_accelerator_inference_matches_cpu(bundle, service, device):
+    accelerated = Deidentifier(bundle, secret=SECRET, device=device)
+    assert accelerated.detector.device.type == device
+    texts = [NOTE, "Seen by Jane Doe.", NOTE + " " + NOTE]
+    expected = service.detector.detect_batch(texts)
+    actual = accelerated.detector.detect_batch(texts)
+    assert [[(s.start, s.end, s.label) for s in doc] for doc in actual] == [
+        [(s.start, s.end, s.label) for s in doc] for doc in expected
+    ]
+    for got, want in zip(actual, expected):
+        assert [s.score for s in got] == pytest.approx(
+            [s.score for s in want], abs=1e-4
+        )
+    assert accelerated.deidentify(NOTE) == service.deidentify(NOTE)
