@@ -11,7 +11,7 @@ from threading import Lock
 from outis.entities import checked_entities
 from outis.operations import Usage
 from outis.paths import resolve_model_dir
-from outis.replacement.surrogates import _validated_secret
+from outis.replacement.primitives import validated_secret
 
 
 def _model_version(model_dir, detector):
@@ -125,7 +125,7 @@ class Deidentifier:
                 ):
                     raise ValueError("Invalid date shift")
                 if synthetic or options.entity_ids == "keyed":
-                    _validated_secret(self.secret)
+                    validated_secret(self.secret)
                     if not isinstance(anchor, str) or not anchor.strip():
                         raise ValueError("Replacement requires a stable patient_id")
                 item.update(
