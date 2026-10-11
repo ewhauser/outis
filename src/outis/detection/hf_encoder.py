@@ -21,8 +21,20 @@ ENCODER_KIND = "hf_token_classifier"
 # Separators that subword tokenizers sometimes merge into a PHI token ("=(617)")
 # but that never begin or end an annotated value.
 # Inference precision -> autocast dtype. fp32 runs without autocast; bf16 matches
-# the training forward pass (train_hf.py autocasts to bfloat16).
+# the training forward pass (train_hf.py autocasts to bfloat16). "auto" picks bf16
+# on accelerators that support it; owner decision in bf16_inference_001.
 PRECISIONS = {"fp32": None, "bf16": torch.bfloat16}
+
+
+def resolve_precision(precision, device):
+    """Return "fp32" or "bf16"; "auto" uses bf16 on bf16-capable CUDA and on MPS."""
+    if precision != "auto":
+        if precision not in PRECISIONS:
+            raise ValueError(f"precision must be 'auto' or one of {sorted(PRECISIONS)}")
+        return precision
+    if device.type == "cuda" and torch.cuda.is_bf16_supported():
+        return "bf16"
+    return "bf16" if device.type == "mps" else "fp32"
 LEADING_SEPARATORS = '=:;,|>"\u201c\u201d*'
 TRAILING_SEPARATORS = '=:;,|<"\u201c\u201d*'
 
@@ -115,15 +127,15 @@ class HFTokenDetector:
         *,
         device="auto",
         batch_size=8,
-        precision="fp32",
+        precision="auto",
         model=None,
         tokenizer=None,
         config=None,
     ):
         if type(batch_size) is not int or batch_size < 1:
             raise ValueError("batch_size must be a positive integer")
-        if precision not in PRECISIONS:
-            raise ValueError(f"precision must be one of {sorted(PRECISIONS)}")
+        if precision != "auto" and precision not in PRECISIONS:
+            raise ValueError(f"precision must be 'auto' or one of {sorted(PRECISIONS)}")
         from transformers import AutoModelForTokenClassification, AutoTokenizer
 
         self.model_dir = Path(model_dir) if model_dir is not None else None
@@ -146,7 +158,7 @@ class HFTokenDetector:
         if self.model.config.num_labels != len(TAGS):
             raise ValueError("encoder head does not match the BIOES tag set")
         self.batch_size = batch_size
-        self.precision = precision
+        self.precision = resolve_precision(precision, self.device)
         self.max_length = int(self.config.get("max_length", 512))
         self.prefix, self.suffix = special_layout(self.tokenizer)
         self.content_window = self.max_length - len(self.prefix) - len(self.suffix)
@@ -211,7 +223,7 @@ class HFTokenDetector:
         return self.raw_batch(texts)
 
 
-def load_detector(model_dir, *, device="auto", batch_size=8, precision="fp32"):
+def load_detector(model_dir, *, device="auto", batch_size=8, precision="auto"):
     """Load the encoder detector stored in a checkpoint directory."""
     directory = Path(model_dir)
     if (directory / "publication_in_progress.json").exists():

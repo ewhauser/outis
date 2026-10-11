@@ -51,6 +51,7 @@ def test_explicit_hf_service_uses_factory_and_preserves_options(hf_bundle, monke
     assert service.detector.options == {
         "device": "cpu",
         "batch_size": 8,
+        "precision": "auto",
     }
     assert len(service.version) == 16 and service.version != "injected-detector"
     assert service.deidentify("Mara Calder arrived.")["text"] == "[NAME] arrived."
