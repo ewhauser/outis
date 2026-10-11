@@ -222,7 +222,9 @@ def test_usage_counters_are_exact_under_contention():
 def test_http_requests_run_concurrently_and_report_consistent_usage():
     detector = BlockingDetector()
     service = Deidentifier(detector=detector, secret=SECRET)
-    with TestClient(create_app(service)) as client:
+    # Four inference workers admit all four requests at once; the detector
+    # lock still serializes the model calls themselves.
+    with TestClient(create_app(service, inference_workers=4)) as client:
 
         def post(index):
             return client.post(

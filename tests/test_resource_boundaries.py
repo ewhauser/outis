@@ -14,7 +14,7 @@ import pytest
 from test_files import StubService, invoke, make_office, make_pdf
 
 import outis.api as api
-from outis.api import create_app
+from outis.api import InferenceExecutor, create_app
 from outis.formats.files import MAX_PDF_PAGES, MAX_ZIP_MEMBERS, W
 from outis.formats.structured import MAX_NODES, process_structured
 from outis.service import Deidentifier
@@ -98,9 +98,11 @@ def service(detector):
 @pytest.fixture
 def app(service):
     app = create_app(service)
-    # The lifespan sets this; the raw ASGI driver sends HTTP scopes only.
+    # The lifespan sets these; the raw ASGI driver sends HTTP scopes only.
     app.state.service = service
-    return app
+    app.state.inference = InferenceExecutor(1, 0)
+    yield app
+    app.state.inference.shutdown()
 
 
 def split(body, sizes):
