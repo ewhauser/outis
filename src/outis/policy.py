@@ -250,6 +250,9 @@ def _merge_coverage(entities: list[Entity]) -> list[Entity]:
     Explicit forced rules take precedence over custom expressions, which take
     precedence over finer built-in types and model labels. Equal-priority
     overlaps prefer the longest detection, then lexical label for stability.
+    A medical concept label never wins over an overlapping identifier: the
+    concept types are publicly restorable and may be kept, so letting one
+    relabel a merged span would expose the identifier it covers.
     """
     precedence = {
         "policy:blocklist": 4,
@@ -259,8 +262,9 @@ def _merge_coverage(entities: list[Entity]) -> list[Entity]:
     }
 
     def choose(group):
+        candidates = [item for item in group if item.label not in MEDICAL_TYPES]
         winner = max(
-            group,
+            candidates or group,
             key=lambda item: (
                 precedence.get(item.source, 0),
                 item.end - item.start,

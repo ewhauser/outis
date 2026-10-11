@@ -106,6 +106,25 @@ def test_medical_dictionaries_are_opt_in_literal_bounded_case_insensitive():
     ]
 
 
+@pytest.mark.parametrize(
+    "policy",
+    [
+        {"medical_terms": {"CONDITION": ["Parkinson"]}},
+        {"custom_entities": [{"label": "MEDICATION", "pattern": "John Parkinson"}]},
+    ],
+)
+def test_medical_labels_never_relabel_an_overlapping_identifier(policy):
+    text = "Seen by John Parkinson today."
+    result = apply_policy(text, [Span(8, 22, "NAME")], policy)
+    assert values(text, result) == [("John Parkinson", "NAME")]
+
+
+def test_medical_labels_still_resolve_overlaps_among_themselves():
+    text = "Parkinson disease"
+    policy = {"medical_terms": {"CONDITION": ["Parkinson disease", "Parkinson"]}}
+    assert values(text, apply_policy(text, [], policy)) == [(text, "CONDITION")]
+
+
 def test_overlapping_rules_union_full_coverage_with_deterministic_label():
     text = "abcdefghijk"
     original = [Span(0, 5, "NAME")]

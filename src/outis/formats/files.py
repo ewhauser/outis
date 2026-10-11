@@ -50,6 +50,29 @@ P = "http://schemas.openxmlformats.org/presentationml/2006/main"
 R = "http://schemas.openxmlformats.org/package/2006/relationships"
 C = "http://schemas.openxmlformats.org/package/2006/content-types"
 XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
+# Word run children that render visible characters. They are folded into the
+# extracted paragraph text so collapsing runs cannot displace or drop them.
+_WORD_INLINE = {
+    f"{{{W}}}tab": "\t",
+    f"{{{W}}}ptab": "\t",
+    f"{{{W}}}br": "\n",
+    f"{{{W}}}cr": "\n",
+    f"{{{W}}}noBreakHyphen": "\u2011",
+    f"{{{W}}}softHyphen": "",
+}
+# Run children whose rendered text Word computes; it cannot be reviewed.
+_WORD_DYNAMIC = {
+    f"{{{W}}}{name}"
+    for name in (
+        "dayShort",
+        "dayLong",
+        "monthShort",
+        "monthLong",
+        "yearShort",
+        "yearLong",
+        "pgNum",
+    )
+}
 
 
 def _decode(data):
@@ -342,7 +365,11 @@ def _date_styles(roots):
         fmt = re.sub(
             r'"[^\"]*"|\\\\.|\[[^]]*\]', "", item.get("formatCode", "")
         ).lower()
-        if re.search(r"[ydhs]|m[/\-]", fmt):
+        # Outside literals and brackets, every month/minute/year/day/hour/
+        # second/era token is a date or time; month-only formats (m, mm, mmm,
+        # mmmm) would otherwise release the raw, recoverable date serial.
+        fmt = fmt.replace("general", "")
+        if re.search(r"[ydhsmbg]|e(?![+-])", fmt):
             custom[item.get("numFmtId")] = True
     cell_xfs = root.find(f"{{{S}}}cellXfs")
     if cell_xfs is None:
@@ -436,19 +463,31 @@ def _office(service, raw, kind, options, link_records):
                     if any(id(node) in used for node in nodes):
                         raise ValueError("Nested Word paragraphs are unsupported")
                     used.update(id(node) for node in nodes)
-                    value = "".join(
-                        (node.text or "")
-                        if node.tag == f"{{{W}}}t"
-                        else ("\t" if _tag(node) == "tab" else "\n")
-                        for node in paragraph.iter()
-                        if node.tag == f"{{{W}}}t" or _tag(node) in {"tab", "br", "cr"}
-                    )
+                    pieces, inline, in_runs = [], [], set()
+                    for run in paragraph.iter(f"{{{W}}}r"):
+                        for child in run:
+                            if child.tag == f"{{{W}}}t":
+                                pieces.append(child.text or "")
+                                in_runs.add(id(child))
+                            elif child.tag in _WORD_INLINE:
+                                pieces.append(_WORD_INLINE[child.tag])
+                                inline.append((run, child))
+                            elif child.tag in _WORD_DYNAMIC:
+                                raise ValueError(
+                                    "Word file contains unsupported dynamic run content"
+                                )
+                    if in_runs != {id(node) for node in nodes}:
+                        raise ValueError(
+                            "Word file contains text outside supported runs"
+                        )
                     if nodes:
-                        add(nodes, {"part": part_index, "paragraph": i}, value)
-                        for parent in paragraph.iter():
-                            for child in list(parent):
-                                if _tag(child) in {"tab", "br", "cr"}:
-                                    parent.remove(child)
+                        # Visible inline characters join the collapsed text
+                        # rather than being displaced after it.
+                        add(
+                            nodes, {"part": part_index, "paragraph": i}, "".join(pieces)
+                        )
+                        for run, child in inline:
+                            run.remove(child)
                 if any(id(node) not in used for node in root.iter(f"{{{W}}}t")):
                     raise ValueError(
                         "Word file contains text outside supported paragraphs"
@@ -463,10 +502,19 @@ def _office(service, raw, kind, options, link_records):
                     claimed_attributes.add((id(item), f"{{{W}}}val"))
         elif kind == "pptx":
             for i, paragraph in enumerate(root.iter(f"{{{A}}}p")):
-                add(
-                    list(paragraph.iter(f"{{{A}}}t")),
-                    {"part": part_index, "paragraph": i},
+                nodes = list(paragraph.iter(f"{{{A}}}t"))
+                breaks = [child for child in paragraph if child.tag == f"{{{A}}}br"]
+                value = "".join(
+                    "\n"
+                    if child.tag == f"{{{A}}}br"
+                    else "".join(node.text or "" for node in child.iter(f"{{{A}}}t"))
+                    for child in paragraph
                 )
+                if nodes:
+                    # Soft breaks separate words; keep them in the collapsed text.
+                    add(nodes, {"part": part_index, "paragraph": i}, value)
+                    for child in breaks:
+                        paragraph.remove(child)
         else:
             for i, item in enumerate(root.iter(f"{{{S}}}si")):
                 add(
