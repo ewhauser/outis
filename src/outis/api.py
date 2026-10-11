@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
+from threading import BoundedSemaphore
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
@@ -18,7 +21,6 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -29,6 +31,9 @@ from outis.service import Deidentifier
 
 MAX_REQUEST_BYTES = 16 * 1024 * 1024
 _FAILURE = "Deidentification failed; no output released"
+_BUSY = "Inference capacity exhausted; retry later"
+DEFAULT_INFERENCE_WORKERS = 2
+DEFAULT_INFERENCE_QUEUE = 32
 
 
 class SafeModel(BaseModel):
@@ -310,6 +315,55 @@ def _safe_call(function):
         raise HTTPException(status_code=500, detail=_FAILURE) from None
 
 
+class InferenceCapacityError(Exception):
+    pass
+
+
+class InferenceExecutor:
+    """Dedicated, admission-bounded workers for model-backed requests.
+
+    Inference never occupies the shared request threadpool, so liveness and
+    operational routes stay responsive however much work is queued. Requests
+    beyond ``workers + queue`` are rejected immediately instead of waiting.
+    """
+
+    def __init__(self, workers, queue):
+        self.workers = workers
+        self.capacity = workers + queue
+        self._slots = BoundedSemaphore(self.capacity)
+        self._executor = ThreadPoolExecutor(
+            max_workers=workers, thread_name_prefix="outis-inference"
+        )
+
+    async def run(self, function, *args):
+        if not self._slots.acquire(blocking=False):
+            raise InferenceCapacityError
+        try:
+            future = self._executor.submit(function, *args)
+        except BaseException:
+            self._slots.release()
+            raise
+        # Release on completion, not when the caller stops waiting: a
+        # disconnected client must not free a slot its work still occupies.
+        future.add_done_callback(lambda _: self._slots.release())
+        return await asyncio.wrap_future(future)
+
+    def shutdown(self):
+        self._executor.shutdown(wait=True, cancel_futures=True)
+
+
+def _setting(value, name, default, minimum):
+    if value is None:
+        value = os.environ.get(name) or default
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be an integer") from None
+    if number < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    return number
+
+
 class RequestBoundaryMiddleware:
     """Limit even chunked bodies before parsing, and prohibit response caching."""
 
@@ -382,9 +436,17 @@ class RequestBoundaryMiddleware:
         await self.app(scope, bounded_receive, private_send)
 
 
-def create_app(service=None, *, api_key=None):
+def create_app(
+    service=None, *, api_key=None, inference_workers=None, inference_queue=None
+):
     service_arg = service
     configured_key = api_key if api_key is not None else os.environ.get("OUTIS_API_KEY")
+    workers = _setting(
+        inference_workers, "OUTIS_INFERENCE_WORKERS", DEFAULT_INFERENCE_WORKERS, 1
+    )
+    queue = _setting(
+        inference_queue, "OUTIS_INFERENCE_QUEUE", DEFAULT_INFERENCE_QUEUE, 0
+    )
 
     @asynccontextmanager
     async def lifespan(app):
@@ -393,7 +455,19 @@ def create_app(service=None, *, api_key=None):
             secret=os.environ.get("OUTIS_SECRET"),
             device=os.environ.get("OUTIS_DEVICE", "auto"),
         )
-        yield
+        app.state.inference = InferenceExecutor(workers, queue)
+        try:
+            yield
+        finally:
+            app.state.inference.shutdown()
+
+    async def infer(connection, function):
+        try:
+            return await connection.app.state.inference.run(_safe_call, function)
+        except InferenceCapacityError:
+            raise HTTPException(
+                status_code=503, detail=_BUSY, headers={"Retry-After": "1"}
+            ) from None
 
     app = FastAPI(
         title="Outis",
@@ -467,12 +541,13 @@ def create_app(service=None, *, api_key=None):
             headers={"Cache-Control": "no-store"},
         )
 
+    # Probes run on the event loop: they never wait for a worker thread.
     @app.get("/health")
-    def health():
+    async def health():
         return {"status": "ok"}
 
     @app.get("/ready", dependencies=[Depends(authorize)])
-    def ready(request: Request):
+    async def ready(request: Request):
         instance = request.app.state.service
         from outis.replacement.surrogates import _validated_secret
 
@@ -522,9 +597,9 @@ def create_app(service=None, *, api_key=None):
         response_model_exclude_none=True,
         dependencies=[Depends(authorize)],
     )
-    def deidentify(payload: DeidentifyRequest, request: Request):
-        return _safe_call(
-            lambda: single(request.app.state.service, "deidentify", payload)
+    async def deidentify(payload: DeidentifyRequest, request: Request):
+        return await infer(
+            request, lambda: single(request.app.state.service, "deidentify", payload)
         )
 
     @app.post(
@@ -533,14 +608,15 @@ def create_app(service=None, *, api_key=None):
         response_model_exclude_none=True,
         dependencies=[Depends(authorize)],
     )
-    def batch(payload: BatchRequest, request: Request):
-        return _safe_call(
+    async def batch(payload: BatchRequest, request: Request):
+        return await infer(
+            request,
             lambda: multiple(
                 request.app.state.service,
                 "deidentify_batch",
                 payload,
                 DeidentifyResponse,
-            )
+            ),
         )
 
     @app.post(
@@ -549,8 +625,10 @@ def create_app(service=None, *, api_key=None):
         response_model_exclude_none=True,
         dependencies=[Depends(authorize)],
     )
-    def detect(payload: DetectRequest, request: Request):
-        return _safe_call(lambda: single(request.app.state.service, "detect", payload))
+    async def detect(payload: DetectRequest, request: Request):
+        return await infer(
+            request, lambda: single(request.app.state.service, "detect", payload)
+        )
 
     @app.post(
         "/v1/detect/batch",
@@ -558,11 +636,12 @@ def create_app(service=None, *, api_key=None):
         response_model_exclude_none=True,
         dependencies=[Depends(authorize)],
     )
-    def detect_batch(payload: DetectBatchRequest, request: Request):
-        return _safe_call(
+    async def detect_batch(payload: DetectBatchRequest, request: Request):
+        return await infer(
+            request,
             lambda: multiple(
                 request.app.state.service, "detect_batch", payload, DetectResponse
-            )
+            ),
         )
 
     @app.post(
@@ -571,8 +650,10 @@ def create_app(service=None, *, api_key=None):
         response_model_exclude_none=True,
         dependencies=[Depends(authorize)],
     )
-    def analyze(payload: AnalyzeRequest, request: Request):
-        return _safe_call(lambda: single(request.app.state.service, "analyze", payload))
+    async def analyze(payload: AnalyzeRequest, request: Request):
+        return await infer(
+            request, lambda: single(request.app.state.service, "analyze", payload)
+        )
 
     @app.post(
         "/v1/reidentify",
@@ -591,14 +672,15 @@ def create_app(service=None, *, api_key=None):
         response_model_exclude_defaults=True,
         dependencies=[Depends(authorize)],
     )
-    def structured(payload: StructuredRequest, request: Request):
+    async def structured(payload: StructuredRequest, request: Request):
         from outis.formats.structured import process_structured
 
-        return _safe_call(
+        return await infer(
+            request,
             lambda: _validated_result(
                 StructuredResponse,
                 process_structured(request.app.state.service, **_payload(payload)),
-            )
+            ),
         )
 
     @app.post(
@@ -607,14 +689,15 @@ def create_app(service=None, *, api_key=None):
         response_model_exclude_none=True,
         dependencies=[Depends(authorize)],
     )
-    def files(payload: FileRequest, request: Request):
+    async def files(payload: FileRequest, request: Request):
         from outis.formats.files import process_file
 
-        return _safe_call(
+        return await infer(
+            request,
             lambda: _validated_result(
                 FileResponse,
                 process_file(request.app.state.service, **_payload(payload)),
-            )
+            ),
         )
 
     @app.get("/v1/policies", dependencies=[Depends(authorize)])
@@ -727,8 +810,8 @@ def create_app(service=None, *, api_key=None):
                     continue
                 try:
                     # The closure runs before the next message is read.
-                    result = await run_in_threadpool(
-                        _safe_call,
+                    result = await infer(
+                        socket,
                         lambda: single(
                             socket.app.state.service,
                             envelope.operation,  # noqa: B023
