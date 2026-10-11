@@ -272,12 +272,17 @@ def _json_document(service, data, selection, options, link_records):
 
 def _csv_document(service, data, selection, options, link_records):
     source = _input_text(data)
+    rows = []
+    budget = MAX_NODES
     try:
-        rows = list(csv.reader(io.StringIO(source, newline=""), strict=True))
+        for row in csv.reader(io.StringIO(source, newline=""), strict=True):
+            # Enforce the budget while parsing; a blank row still costs a node.
+            budget -= max(1, len(row))
+            if budget < 0:
+                raise ValueError("CSV input exceeds row or cell limits")
+            rows.append(row)
     except (csv.Error, OverflowError):
         raise ValueError("Invalid CSV input") from None
-    if sum(len(row) for row in rows) > MAX_NODES:
-        raise ValueError("CSV input exceeds cell limits")
     texts, locations, fields = [], [], []
     selection.includes(())
     for row_index, row in enumerate(rows):
