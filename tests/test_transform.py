@@ -504,7 +504,7 @@ def test_prepared_context_builds_global_indexes_once_for_many_fields(monkeypatch
     spans = spans_for(context, values)
     context_alias_calls = []
     context_binding_calls = []
-    original_aliases = module._name_aliases
+    original_aliases = module.name_aliases
     original_bindings = module.nickname_bindings
 
     def counted_aliases(text, spans):
@@ -517,7 +517,7 @@ def test_prepared_context_builds_global_indexes_once_for_many_fields(monkeypatch
             context_binding_calls.append(len(spans))
         return original_bindings(text, spans)
 
-    monkeypatch.setattr(module, "_name_aliases", counted_aliases)
+    monkeypatch.setattr(module, "name_aliases", counted_aliases)
     monkeypatch.setattr(module, "nickname_bindings", counted_bindings)
     prepared = module.prepare_context(context, spans)
     # Aliases do not depend on IDs. Bindings are rechecked once after linking
@@ -544,11 +544,11 @@ def test_render_analyzes_identities_once_without_shared_context(monkeypatch):
     text = "Jane Smith saw Jane"
     spans = [Entity(0, 10, "NAME", entity_id="e1"), Entity(15, 19, "NAME")]
     calls = []
-    original_aliases = module._name_aliases
+    original_aliases = module.name_aliases
     original_bindings = module.nickname_bindings
     monkeypatch.setattr(
         module,
-        "_name_aliases",
+        "name_aliases",
         lambda *args: calls.append("aliases") or original_aliases(*args),
     )
     monkeypatch.setattr(

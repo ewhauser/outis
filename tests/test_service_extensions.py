@@ -465,11 +465,11 @@ def test_explicit_request_analyzes_identities_once(service, monkeypatch):
     import outis.replacement.transform as transform
 
     calls = []
-    aliases = transform._name_aliases
+    aliases = transform.name_aliases
     bindings = transform.nickname_bindings
     monkeypatch.setattr(
         transform,
-        "_name_aliases",
+        "name_aliases",
         lambda *args: calls.append("aliases") or aliases(*args),
     )
     monkeypatch.setattr(

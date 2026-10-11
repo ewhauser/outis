@@ -564,26 +564,41 @@ def _date_styles(roots):
     }
 
 
-def _office(service, raw, kind, options, link_records):
-    roots = _sanitize_package(_zip_members(raw), kind)
-    groups = []
-    locations = []
-    setters = []
-    claimed_text = set()
-    claimed_attributes = set()
-    warnings = [
-        "Document properties, thumbnails, custom XML, printer settings, and nonessential extensions were removed. Text split across runs is normalized within each paragraph or cell."
-    ]
+_SPREADSHEET_ERRORS = {
+    "#NULL!",
+    "#DIV/0!",
+    "#VALUE!",
+    "#REF!",
+    "#NAME?",
+    "#NUM!",
+    "#N/A",
+    "#GETTING_DATA",
+}
 
-    def add(nodes, location, value=None, setter=None):
-        claimed_text.update(id(node) for node in nodes)
+
+class _OfficeText:
+    """Text collected from an Office package, in order, with write-back setters.
+
+    Elements and attributes recorded as claimed are skipped by the final
+    screen of remaining textual payloads.
+    """
+
+    def __init__(self):
+        self.groups = []
+        self.locations = []
+        self.setters = []
+        self.claimed_text = set()
+        self.claimed_attributes = set()
+
+    def add(self, nodes, location, value=None, setter=None):
+        self.claimed_text.update(id(node) for node in nodes)
         text = "".join(node.text or "" for node in nodes) if value is None else value
         if not text:
             return
-        groups.append(text)
-        locations.append(location)
+        self.groups.append(text)
+        self.locations.append(location)
         if setter is not None:
-            setters.append(setter)
+            self.setters.append(setter)
         else:
 
             def set_text(new, ns=nodes):
@@ -592,17 +607,54 @@ def _office(service, raw, kind, options, link_records):
                 for node in ns[1:]:
                     node.text = ""
 
-            setters.append(set_text)
+            self.setters.append(set_text)
 
-    date_styles = _date_styles(roots) if kind == "xlsx" else set()
-    shared_root = roots.get("xl/sharedStrings.xml")
-    shared_string_count = (
-        sum(1 for _ in shared_root.iter(f"{{{S}}}si")) if shared_root is not None else 0
+
+def _is_package_metadata(part):
+    return part.endswith(".rels") or part == "[Content_Types].xml"
+
+
+def _content_parts(roots):
+    """Yield (part_index, part, root) for parts other than package metadata."""
+    for part_index, (part, root) in enumerate(roots.items()):
+        if not _is_package_metadata(part):
+            yield part_index, part, root
+
+
+def _office(service, raw, kind, options, link_records):
+    roots = _sanitize_package(_zip_members(raw), kind)
+    collected = _OfficeText()
+    warnings = [
+        "Document properties, thumbnails, custom XML, printer settings, and nonessential extensions were removed. Text split across runs is normalized within each paragraph or cell."
+    ]
+    if kind == "docx":
+        _collect_word(collected, roots)
+    elif kind == "pptx":
+        _collect_slides(collected, roots)
+    else:
+        _collect_workbook(collected, roots)
+    _collect_remaining_text(collected, roots)
+    results = _process_texts(
+        service, collected.groups, options=options, link_records=link_records
     )
-    workbook = roots.get("xl/workbook.xml")
-    is_1904 = workbook is not None and any(
-        x.get("date1904") in {"1", "true"} for x in workbook.iter(f"{{{S}}}workbookPr")
-    )
+    for result, setter in zip(results, collected.setters):
+        setter(result["text"])
+    metadata = _entity_result(results, collected.locations)
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for part, root in roots.items():
+            archive.writestr(
+                part, ET.tostring(root, encoding="utf-8", xml_declaration=True)
+            )
+    if kind == "xlsx":
+        warnings.append(
+            "Numeric and date cells are returned as text; sheet names are sanitized and made unique."
+        )
+    return output.getvalue(), metadata, warnings
+
+
+def _word_identifier_maps(roots):
+    """Map Word style IDs and bookmark names to neutral replacements."""
     style_ids = {}
     bookmark_ids = {}
     for root in roots.values():
@@ -616,240 +668,253 @@ def _office(service, raw, kind, options, link_records):
             if item.tag == f"{{{W}}}hyperlink" and item.get(f"{{{W}}}anchor"):
                 key = item.get(f"{{{W}}}anchor")
                 bookmark_ids.setdefault(key, f"bookmark_{len(bookmark_ids)}")
-    for part_index, (part, root) in enumerate(roots.items()):
-        if part.endswith(".rels") or part == "[Content_Types].xml":
-            continue
-        if kind == "docx":
-            for item in root.iter():
-                if (
-                    item.tag == f"{{{W}}}style"
-                    and item.get(f"{{{W}}}styleId") in style_ids
-                ):
-                    item.set(f"{{{W}}}styleId", style_ids[item.get(f"{{{W}}}styleId")])
-                if (
-                    _tag(item)
-                    in {"pStyle", "rStyle", "tblStyle", "basedOn", "next", "link"}
-                    and item.get(f"{{{W}}}val") in style_ids
-                ):
-                    item.set(f"{{{W}}}val", style_ids[item.get(f"{{{W}}}val")])
-                if item.tag == f"{{{W}}}bookmarkStart":
-                    item.set(f"{{{W}}}name", bookmark_ids[item.get(f"{{{W}}}name", "")])
-                if (
-                    item.tag == f"{{{W}}}hyperlink"
-                    and item.get(f"{{{W}}}anchor") in bookmark_ids
-                ):
-                    item.set(f"{{{W}}}anchor", bookmark_ids[item.get(f"{{{W}}}anchor")])
-            if part.startswith("word/"):
-                # Collect every w:t, including headers, footnotes and text boxes.
-                used = set()
-                for i, paragraph in enumerate(root.iter(f"{{{W}}}p")):
-                    nodes = list(paragraph.iter(f"{{{W}}}t"))
-                    if any(id(node) in used for node in nodes):
-                        raise ValueError("Nested Word paragraphs are unsupported")
-                    used.update(id(node) for node in nodes)
-                    pieces, inline, in_runs = [], [], set()
-                    first_run = None
-                    for run in paragraph.iter(f"{{{W}}}r"):
-                        for child in run:
-                            if child.tag == f"{{{W}}}t":
-                                pieces.append(child.text or "")
-                                in_runs.add(id(child))
-                                if first_run is None:
-                                    first_run = run
-                            elif child.tag in _WORD_INLINE:
-                                pieces.append(_WORD_INLINE[child.tag])
-                                inline.append((run, child))
-                            elif child.tag in _WORD_DYNAMIC:
-                                raise ValueError(
-                                    "Word file contains unsupported dynamic run content"
-                                )
-                    if in_runs != {id(node) for node in nodes}:
-                        raise ValueError(
-                            "Word file contains text outside supported runs"
-                        )
-                    if nodes:
-                        # Visible inline characters join the collapsed text
-                        # rather than being displaced after it; tabs and breaks
-                        # are written back as elements in their new positions.
-                        def set_paragraph(new, ns=nodes, run=first_run, inline=inline):
-                            spares = [(_WORD_INLINE[c.tag], c) for _, c in inline]
-                            _set_with_breaks(
-                                ns,
-                                new,
-                                run,
-                                ns[0],
-                                _WORD_SEPARATORS,
-                                spares,
-                                lambda text: _text_element(f"{{{W}}}t", text),
-                            )
+    return style_ids, bookmark_ids
 
-                        add(
-                            nodes,
-                            {"part": part_index, "paragraph": i},
-                            "".join(pieces),
-                            set_paragraph,
-                        )
-                        for run, child in inline:
-                            run.remove(child)
-                if any(id(node) not in used for node in root.iter(f"{{{W}}}t")):
-                    raise ValueError(
-                        "Word file contains text outside supported paragraphs"
-                    )
-                for i, item in enumerate(root.iter(f"{{{W}}}lvlText")):
-                    add(
-                        [],
-                        {"part": part_index, "numbering_index": i},
-                        item.get(f"{{{W}}}val", ""),
-                        lambda new, item=item: item.set(f"{{{W}}}val", new),
-                    )
-                    claimed_attributes.add((id(item), f"{{{W}}}val"))
-        elif kind == "pptx":
-            for i, paragraph in enumerate(root.iter(f"{{{A}}}p")):
-                nodes = list(paragraph.iter(f"{{{A}}}t"))
-                breaks = [child for child in paragraph if child.tag == f"{{{A}}}br"]
-                value = "".join(
-                    "\n"
-                    if child.tag == f"{{{A}}}br"
-                    else "".join(node.text or "" for node in child.iter(f"{{{A}}}t"))
-                    for child in paragraph
-                )
-                if nodes:
-                    # Soft breaks separate words; keep them in the collapsed
-                    # text and write each back as a:br before a continuation run.
-                    run = next(child for child in paragraph if nodes[0] in child.iter())
 
-                    def continuation(text, run=run):
-                        new_run = ET.Element(f"{{{A}}}r")
-                        properties = run.find(f"{{{A}}}rPr")
-                        if properties is not None:
-                            new_run.append(copy.deepcopy(properties))
-                        new_run.append(_text_element(f"{{{A}}}t", text))
-                        return new_run
+def _rename_word_identifiers(root, style_ids, bookmark_ids):
+    for item in root.iter():
+        if item.tag == f"{{{W}}}style" and item.get(f"{{{W}}}styleId") in style_ids:
+            item.set(f"{{{W}}}styleId", style_ids[item.get(f"{{{W}}}styleId")])
+        if (
+            _tag(item) in {"pStyle", "rStyle", "tblStyle", "basedOn", "next", "link"}
+            and item.get(f"{{{W}}}val") in style_ids
+        ):
+            item.set(f"{{{W}}}val", style_ids[item.get(f"{{{W}}}val")])
+        if item.tag == f"{{{W}}}bookmarkStart":
+            item.set(f"{{{W}}}name", bookmark_ids[item.get(f"{{{W}}}name", "")])
+        if (
+            item.tag == f"{{{W}}}hyperlink"
+            and item.get(f"{{{W}}}anchor") in bookmark_ids
+        ):
+            item.set(f"{{{W}}}anchor", bookmark_ids[item.get(f"{{{W}}}anchor")])
 
-                    def set_paragraph(
-                        new,
-                        ns=nodes,
-                        p=paragraph,
-                        run=run,
-                        bs=breaks,
-                        make=continuation,
-                    ):
-                        spares = [("\n", b) for b in bs]
-                        separators = {"\n": f"{{{A}}}br"}
-                        _set_with_breaks(ns, new, p, run, separators, spares, make)
 
-                    add(
-                        nodes,
-                        {"part": part_index, "paragraph": i},
-                        value,
-                        set_paragraph,
-                    )
-                    for child in breaks:
-                        paragraph.remove(child)
-        else:
-            for i, item in enumerate(root.iter(f"{{{S}}}si")):
-                add(
-                    list(item.iter(f"{{{S}}}t")),
-                    {"part": part_index, "shared_string": i},
-                )
-            for i, cell in enumerate(root.iter(f"{{{S}}}c")):
-                kind_attr = cell.get("t", "n")
-                if kind_attr == "s":
-                    shared_index_nodes = list(cell.iter(f"{{{S}}}v"))
-                    claimed_text.update(id(node) for node in shared_index_nodes)
-                    if (
-                        len(shared_index_nodes) != 1
-                        or not re.fullmatch(r"[0-9]+", shared_index_nodes[0].text or "")
-                        or int(shared_index_nodes[0].text) >= shared_string_count
-                    ):
-                        raise ValueError(
-                            "Spreadsheet contains an invalid shared string reference"
-                        )
-                    continue
-                nodes = (
-                    list(cell.iter(f"{{{S}}}t"))
-                    if kind_attr == "inlineStr"
-                    else list(cell.iter(f"{{{S}}}v"))
-                )
-                value = "".join(node.text or "" for node in nodes)
-                if kind_attr in {"e", "b"} or not value:
-                    if kind_attr == "b" and value not in {"0", "1"}:
-                        raise ValueError("Spreadsheet contains an invalid boolean cell")
-                    if kind_attr == "e" and value not in {
-                        "#NULL!",
-                        "#DIV/0!",
-                        "#VALUE!",
-                        "#REF!",
-                        "#NAME?",
-                        "#NUM!",
-                        "#N/A",
-                        "#GETTING_DATA",
-                    }:
-                        raise ValueError(
-                            "Spreadsheet contains an unsupported error cell"
-                        )
-                    claimed_text.update(id(node) for node in nodes)
-                    continue
-                if cell.get("s") in date_styles and kind_attr == "n":
-                    try:
-                        serial = float(value)
-                        epoch = (
-                            datetime(1904, 1, 1)
-                            if is_1904
-                            else datetime(1899, 12, 31)
-                            if serial < 60
-                            else datetime(1899, 12, 30)
-                        )
-                        value = (
-                            (epoch + timedelta(days=serial))
-                            .isoformat(sep=" ")
-                            .removesuffix(" 00:00:00")
-                        )
-                    except (ValueError, OverflowError):
-                        raise ValueError(
-                            "Spreadsheet contains an invalid date cell"
-                        ) from None
-
-                def set_cell(new, node=cell, original=value, original_kind=kind_attr):
-                    if new == original and original_kind not in {"n", "d"}:
-                        # Existing string nodes can be collapsed safely.
-                        ns = list(node.iter(f"{{{S}}}t")) or list(
-                            node.iter(f"{{{S}}}v")
-                        )
-                        if ns:
-                            ns[0].text = new
-                            for other in ns[1:]:
-                                other.text = ""
-                        return
-                    for child in list(node):
-                        node.remove(child)
-                    node.set("t", "inlineStr")
-                    node.attrib.pop("s", None)
-                    text_node = ET.SubElement(
-                        ET.SubElement(node, f"{{{S}}}is"), f"{{{S}}}t"
-                    )
-                    text_node.set(XML_SPACE, "preserve")
-                    text_node.text = new
-
-                add(nodes, {"part": part_index, "cell_index": i}, value, set_cell)
-            for i, sheet in enumerate(root.iter(f"{{{S}}}sheet")):
-
-                def set_sheet(new, item=sheet, index=i):
-                    new = re.sub(r"[\\/*?:\[\]]", "_", new).strip("'")[:25] or "Sheet"
-                    item.set("name", f"{new}_{index + 1}")
-
-                add(
+def _collect_word(collected, roots):
+    style_ids, bookmark_ids = _word_identifier_maps(roots)
+    for part_index, part, root in _content_parts(roots):
+        _rename_word_identifiers(root, style_ids, bookmark_ids)
+        if part.startswith("word/"):
+            # Collect every w:t, including headers, footnotes and text boxes.
+            _collect_word_paragraphs(collected, part_index, root)
+            for i, item in enumerate(root.iter(f"{{{W}}}lvlText")):
+                collected.add(
                     [],
-                    {"part": part_index, "sheet_index": i},
-                    sheet.get("name", ""),
-                    set_sheet,
+                    {"part": part_index, "numbering_index": i},
+                    item.get(f"{{{W}}}val", ""),
+                    lambda new, item=item: item.set(f"{{{W}}}val", new),
                 )
-                claimed_attributes.add((id(sheet), "name"))
-    # Inspect every remaining textual payload. Schema attributes cannot be
-    # arbitrarily rewritten without corrupting the document, so detected entities
-    # in unsupported attributes fail closed. Text-bearing content is transformed.
+                collected.claimed_attributes.add((id(item), f"{{{W}}}val"))
+
+
+def _collect_word_paragraphs(collected, part_index, root):
+    used = set()
+    for i, paragraph in enumerate(root.iter(f"{{{W}}}p")):
+        nodes = list(paragraph.iter(f"{{{W}}}t"))
+        if any(id(node) in used for node in nodes):
+            raise ValueError("Nested Word paragraphs are unsupported")
+        used.update(id(node) for node in nodes)
+        pieces, inline, in_runs = [], [], set()
+        first_run = None
+        for run in paragraph.iter(f"{{{W}}}r"):
+            for child in run:
+                if child.tag == f"{{{W}}}t":
+                    pieces.append(child.text or "")
+                    in_runs.add(id(child))
+                    if first_run is None:
+                        first_run = run
+                elif child.tag in _WORD_INLINE:
+                    pieces.append(_WORD_INLINE[child.tag])
+                    inline.append((run, child))
+                elif child.tag in _WORD_DYNAMIC:
+                    raise ValueError(
+                        "Word file contains unsupported dynamic run content"
+                    )
+        if in_runs != {id(node) for node in nodes}:
+            raise ValueError("Word file contains text outside supported runs")
+        if nodes:
+            # Visible inline characters join the collapsed text rather than
+            # being displaced after it; tabs and breaks are written back as
+            # elements in their new positions.
+            def set_paragraph(new, ns=nodes, run=first_run, inline=inline):
+                spares = [(_WORD_INLINE[c.tag], c) for _, c in inline]
+                _set_with_breaks(
+                    ns,
+                    new,
+                    run,
+                    ns[0],
+                    _WORD_SEPARATORS,
+                    spares,
+                    lambda text: _text_element(f"{{{W}}}t", text),
+                )
+
+            collected.add(
+                nodes,
+                {"part": part_index, "paragraph": i},
+                "".join(pieces),
+                set_paragraph,
+            )
+            for run, child in inline:
+                run.remove(child)
+    if any(id(node) not in used for node in root.iter(f"{{{W}}}t")):
+        raise ValueError("Word file contains text outside supported paragraphs")
+
+
+def _collect_slides(collected, roots):
+    for part_index, _, root in _content_parts(roots):
+        for i, paragraph in enumerate(root.iter(f"{{{A}}}p")):
+            nodes = list(paragraph.iter(f"{{{A}}}t"))
+            if not nodes:
+                continue
+            breaks = [child for child in paragraph if child.tag == f"{{{A}}}br"]
+            value = "".join(
+                "\n"
+                if child.tag == f"{{{A}}}br"
+                else "".join(node.text or "" for node in child.iter(f"{{{A}}}t"))
+                for child in paragraph
+            )
+            # Soft breaks separate words; keep them in the collapsed text and
+            # write each back as a:br before a continuation run.
+            run = next(child for child in paragraph if nodes[0] in child.iter())
+
+            def continuation(text, run=run):
+                new_run = ET.Element(f"{{{A}}}r")
+                properties = run.find(f"{{{A}}}rPr")
+                if properties is not None:
+                    new_run.append(copy.deepcopy(properties))
+                new_run.append(_text_element(f"{{{A}}}t", text))
+                return new_run
+
+            def set_paragraph(
+                new, ns=nodes, p=paragraph, run=run, bs=breaks, make=continuation
+            ):
+                spares = [("\n", b) for b in bs]
+                separators = {"\n": f"{{{A}}}br"}
+                _set_with_breaks(ns, new, p, run, separators, spares, make)
+
+            collected.add(
+                nodes, {"part": part_index, "paragraph": i}, value, set_paragraph
+            )
+            for child in breaks:
+                paragraph.remove(child)
+
+
+def _collect_workbook(collected, roots):
+    date_styles = _date_styles(roots)
+    shared_root = roots.get("xl/sharedStrings.xml")
+    shared_string_count = (
+        sum(1 for _ in shared_root.iter(f"{{{S}}}si")) if shared_root is not None else 0
+    )
+    workbook = roots.get("xl/workbook.xml")
+    is_1904 = workbook is not None and any(
+        x.get("date1904") in {"1", "true"} for x in workbook.iter(f"{{{S}}}workbookPr")
+    )
+    for part_index, _, root in _content_parts(roots):
+        for i, item in enumerate(root.iter(f"{{{S}}}si")):
+            collected.add(
+                list(item.iter(f"{{{S}}}t")),
+                {"part": part_index, "shared_string": i},
+            )
+        for i, cell in enumerate(root.iter(f"{{{S}}}c")):
+            _collect_cell(
+                collected,
+                {"part": part_index, "cell_index": i},
+                cell,
+                date_styles,
+                shared_string_count,
+                is_1904,
+            )
+        for i, sheet in enumerate(root.iter(f"{{{S}}}sheet")):
+
+            def set_sheet(new, item=sheet, index=i):
+                new = re.sub(r"[\\/*?:\[\]]", "_", new).strip("'")[:25] or "Sheet"
+                item.set("name", f"{new}_{index + 1}")
+
+            collected.add(
+                [],
+                {"part": part_index, "sheet_index": i},
+                sheet.get("name", ""),
+                set_sheet,
+            )
+            collected.claimed_attributes.add((id(sheet), "name"))
+
+
+def _collect_cell(collected, location, cell, date_styles, shared_string_count, is_1904):
+    kind_attr = cell.get("t", "n")
+    if kind_attr == "s":
+        shared_index_nodes = list(cell.iter(f"{{{S}}}v"))
+        collected.claimed_text.update(id(node) for node in shared_index_nodes)
+        if (
+            len(shared_index_nodes) != 1
+            or not re.fullmatch(r"[0-9]+", shared_index_nodes[0].text or "")
+            or int(shared_index_nodes[0].text) >= shared_string_count
+        ):
+            raise ValueError("Spreadsheet contains an invalid shared string reference")
+        return
+    nodes = (
+        list(cell.iter(f"{{{S}}}t"))
+        if kind_attr == "inlineStr"
+        else list(cell.iter(f"{{{S}}}v"))
+    )
+    value = "".join(node.text or "" for node in nodes)
+    if kind_attr in {"e", "b"} or not value:
+        if kind_attr == "b" and value not in {"0", "1"}:
+            raise ValueError("Spreadsheet contains an invalid boolean cell")
+        if kind_attr == "e" and value not in _SPREADSHEET_ERRORS:
+            raise ValueError("Spreadsheet contains an unsupported error cell")
+        collected.claimed_text.update(id(node) for node in nodes)
+        return
+    if cell.get("s") in date_styles and kind_attr == "n":
+        value = _spreadsheet_date(value, is_1904)
+
+    def set_cell(new, node=cell, original=value, original_kind=kind_attr):
+        if new == original and original_kind not in {"n", "d"}:
+            # Existing string nodes can be collapsed safely.
+            ns = list(node.iter(f"{{{S}}}t")) or list(node.iter(f"{{{S}}}v"))
+            if ns:
+                ns[0].text = new
+                for other in ns[1:]:
+                    other.text = ""
+            return
+        for child in list(node):
+            node.remove(child)
+        node.set("t", "inlineStr")
+        node.attrib.pop("s", None)
+        text_node = ET.SubElement(ET.SubElement(node, f"{{{S}}}is"), f"{{{S}}}t")
+        text_node.set(XML_SPACE, "preserve")
+        text_node.text = new
+
+    collected.add(nodes, location, value, set_cell)
+
+
+def _spreadsheet_date(value, is_1904):
+    """Render a date-styled serial number as ISO text."""
+    try:
+        serial = float(value)
+        epoch = (
+            datetime(1904, 1, 1)
+            if is_1904
+            else datetime(1899, 12, 31)
+            if serial < 60
+            else datetime(1899, 12, 30)
+        )
+        return (
+            (epoch + timedelta(days=serial))
+            .isoformat(sep=" ")
+            .removesuffix(" 00:00:00")
+        )
+    except (ValueError, OverflowError):
+        raise ValueError("Spreadsheet contains an invalid date cell") from None
+
+
+def _collect_remaining_text(collected, roots):
+    """Inspect every textual payload no format adapter claimed.
+
+    Schema attributes cannot be arbitrarily rewritten without corrupting the
+    document, so detected entities in unsupported attributes fail closed.
+    Text-bearing content is transformed.
+    """
     for part_index, (part, root) in enumerate(roots.items()):
-        if part.endswith(".rels") or part == "[Content_Types].xml":
+        if _is_package_metadata(part):
             # Rebuilt from validated part names; only unrecognized relationship
             # and content types remain free text.
             items = ()
@@ -863,17 +928,21 @@ def _office(service, raw, kind, options, link_records):
         else:
             items, attributes = root.iter(), []
         for item_index, item in enumerate(items):
-            if id(item) not in claimed_text and item.text and item.text.strip():
-                add([item], {"part": part_index, "element": item_index})
+            if (
+                id(item) not in collected.claimed_text
+                and item.text
+                and item.text.strip()
+            ):
+                collected.add([item], {"part": part_index, "element": item_index})
             if item.tail and item.tail.strip():
-                add(
+                collected.add(
                     [],
                     {"part": part_index, "element": item_index, "tail": True},
                     item.tail,
                     lambda new, item=item: setattr(item, "tail", new),
                 )
             for attr, value in item.attrib.items():
-                if (id(item), attr) not in claimed_attributes and value:
+                if (id(item), attr) not in collected.claimed_attributes and value:
                     # Well-known relationship IDs and machine-generated run IDs
                     # are schema linkage, not text. All other values are screened.
                     local = attr.rsplit("}", 1)[-1]
@@ -893,26 +962,9 @@ def _office(service, raw, kind, options, link_records):
                         "Office file contains detected identifiers in unsupported attributes; remove custom styles or metadata first"
                     )
 
-            add(
+            collected.add(
                 [], {"part": part_index, "attributes": True}, original, check_attributes
             )
-    results = _process_texts(
-        service, groups, options=options, link_records=link_records
-    )
-    for result, setter in zip(results, setters):
-        setter(result["text"])
-    metadata = _entity_result(results, locations)
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for part, root in roots.items():
-            archive.writestr(
-                part, ET.tostring(root, encoding="utf-8", xml_declaration=True)
-            )
-    if kind == "xlsx":
-        warnings.append(
-            "Numeric and date cells are returned as text; sheet names are sanitized and made unique."
-        )
-    return output.getvalue(), metadata, warnings
 
 
 def _bounded_pdf_content(page, remaining):

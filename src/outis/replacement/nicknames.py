@@ -10,6 +10,7 @@ import re
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
+from outis.replacement.names.keys import name_identity
 from outis.replacement.names.nickname import (
     _complete_identity,
     contextual_person_names,
@@ -58,9 +59,6 @@ def nickname_bindings(text, spans):
     invalidate former names, or assert that quotations are non-PHI. Literal
     legacy aliases and all unproved occurrences retain their prior behavior.
     """
-    # Deferred import avoids a module cycle while preserving legacy name keys.
-    from outis.replacement.surrogates import _name_identity
-
     if not _RELATION_CUE.search(text):
         return MappingProxyType({})
     for clause in re.split(r"[.!?\r\n\u2028\u2029]", text):
@@ -77,7 +75,7 @@ def nickname_bindings(text, spans):
         entity_id = getattr(span, "entity_id", None)
         value = text[bounds[0] : bounds[1]]
         if entity_id is not None and _complete_identity(value):
-            supplied_owners.setdefault(entity_id, set()).add(_name_identity(value)[1])
+            supplied_owners.setdefault(entity_id, set()).add(name_identity(value)[1])
     proofs = []
     for proof in evidence:
         bounds = proof["start"], proof["end"]
@@ -89,7 +87,7 @@ def nickname_bindings(text, spans):
             or bounds == witness
         ):
             continue
-        owner = _name_identity(text[witness[0] : witness[1]])[1]
+        owner = name_identity(text[witness[0] : witness[1]])[1]
         proofs.append((proof, bounds, witness, owner))
         for endpoint in (bounds, witness):
             entity_id = getattr(retained[endpoint], "entity_id", None)
@@ -136,7 +134,7 @@ def nickname_bindings(text, spans):
             s.label == "NAME"
             and left[1] <= s.start < right[0]
             and (s.start, s.end) not in same_owner_bounds
-            and _name_identity(text[s.start : s.end])[1] != owner
+            and name_identity(text[s.start : s.end])[1] != owner
             for s in spans
         ):
             # Unproved intervening people stop inheritance. Independently

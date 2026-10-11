@@ -56,8 +56,8 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
-  # The package supports Python 3.11 and later. "test" above is the required
-  # check on 3.13; this job keeps the older supported versions passing.
+  # The package supports Python 3.13 and later. "test" above is the required
+  # check on 3.13; this job covers the other supported versions.
   test-python:
     name: test (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
@@ -67,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12"]
+        python: ["3.14", "3.15"]
     env:
       TIKTOKEN_CACHE_DIR: ${{ github.workspace }}/.cache/tiktoken
     steps:
