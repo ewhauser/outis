@@ -124,6 +124,55 @@ def test_docx_breaks_do_not_join_words():
     assert "".join(root.itertext()) == "Jane\tDoe"
 
 
+def test_docx_inline_characters_stay_in_place():
+    part = f'<w:document xmlns:w="{W}"><w:body><w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="720"/></w:tabs></w:pPr><w:r><w:t>Dose: 1</w:t><w:noBreakHyphen/><w:t>2 mg Jane</w:t><w:softHyphen/></w:r><w:r><w:t> Doe</w:t></w:r></w:p></w:body></w:document>'
+    result = invoke(make_office("docx", {"word/document.xml": part}), "docx")
+    root = ET.fromstring(unpack(result)["word/document.xml"])
+    assert "".join(root.itertext()) == "Dose: 1\u20112 mg [NAME]"
+    assert root.find(f".//{{{W}}}noBreakHyphen") is None
+    assert root.find(f".//{{{W}}}softHyphen") is None
+    # Paragraph tab stops are formatting, not run content.
+    assert root.find(f".//{{{W}}}tabs/{{{W}}}tab") is not None
+
+
+def test_docx_dynamic_run_content_rejected():
+    part = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>Seen </w:t><w:dayLong/></w:r></w:p></w:body></w:document>'
+    with pytest.raises(ValueError, match="dynamic"):
+        invoke(make_office("docx", {"word/document.xml": part}), "docx")
+
+
+def test_pptx_soft_breaks_do_not_join_words():
+    slide = f'<p:sld xmlns:p="{P}" xmlns:a="{A}"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Take aspirin</a:t></a:r><a:br/><a:r><a:t>daily.</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
+    result = invoke(make_office("pptx", {"ppt/slides/slide1.xml": slide}), "pptx")
+    root = ET.fromstring(unpack(result)["ppt/slides/slide1.xml"])
+    assert "".join(root.itertext()) == "Take aspirin\ndaily."
+    assert root.find(f".//{{{A}}}br") is None
+
+
+@pytest.mark.parametrize(
+    "code", ["m", "mm", "mmm", "mmmm", "mmmmm", "[$-409]mmmm", "bbbb"]
+)
+def test_xlsx_month_only_formats_are_dates(code):
+    parts = {
+        "xl/styles.xml": f'<styleSheet xmlns="{S}"><numFmts><numFmt numFmtId="166" formatCode="{code}"/></numFmts><cellXfs><xf numFmtId="0"/><xf numFmtId="166"/></cellXfs></styleSheet>',
+        "xl/worksheets/sheet1.xml": f'<worksheet xmlns="{S}"><sheetData><row><c r="A1" s="1"><v>45000</v></c></row></sheetData></worksheet>',
+    }
+    members = unpack(invoke(make_office("xlsx", parts), "xlsx"))
+    sheet = members["xl/worksheets/sheet1.xml"].decode()
+    assert "45000" not in sheet
+    assert "2023-03-15" in sheet
+
+
+@pytest.mark.parametrize("code", ["General", "0.00", "0.00E+00", "#,##0;[Red]-#,##0"])
+def test_xlsx_numeric_formats_are_not_dates(code):
+    parts = {
+        "xl/styles.xml": f'<styleSheet xmlns="{S}"><numFmts><numFmt numFmtId="166" formatCode="{code}"/></numFmts><cellXfs><xf numFmtId="0"/><xf numFmtId="166"/></cellXfs></styleSheet>',
+        "xl/worksheets/sheet1.xml": f'<worksheet xmlns="{S}"><sheetData><row><c r="A1" s="1"><v>45000</v></c></row></sheetData></worksheet>',
+    }
+    members = unpack(invoke(make_office("xlsx", parts), "xlsx"))
+    assert "45000" in members["xl/worksheets/sheet1.xml"].decode()
+
+
 @pytest.mark.parametrize(
     "part,body",
     [
