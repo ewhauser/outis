@@ -71,4 +71,5 @@ in the repository settings, with no bypass for administrators:
   A recovery run therefore leaves an already-published release untouched.
 - Workflows pin every action to a commit SHA and grant permissions per job;
   the release build never restores a cache. The zizmor workflow audits
-  workflow changes, and Dependabot proposes updates after a 7-day cooldown.
+  workflow changes. Dependabot opens security updates only, and uv resolves
+  only releases at least 7 days old.
