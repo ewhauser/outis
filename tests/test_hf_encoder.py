@@ -1,3 +1,6 @@
+import re
+import types
+
 import pytest
 
 torch = pytest.importorskip("torch")
@@ -90,6 +93,101 @@ def tiny_detector(max_length=16, batch_size=4):
     )
 
 
+# Scripted per-token tags for the tiny vocabulary; every other token is O.
+SCRIPT = {
+    "Harrow": "B-FACILITY",
+    "Clinic": "E-FACILITY",
+    "March": "B-DATE",
+    "4": "I-DATE",
+    ",": "I-DATE",
+    "2025": "E-DATE",
+    "(": "B-PHONE",
+    ")": "I-PHONE",
+    "555": "I-PHONE",
+    "-": "I-PHONE",
+    "0171": "E-PHONE",
+}
+SENTENCE = "patient seen at Harrow Clinic on March 4 , 2025 ."
+PHONE = "tel = ( 555 ) 555 - 0171 ."
+
+
+def scripted_logits(table, previous, ids, following):
+    """Tag scores for each token, marked in the O column with its row neighbours.
+
+    The marker makes a token's logits depend on the tokens beside it in the
+    window the model saw, so logits taken from the wrong position, or from a
+    window edge the token does not own, differ from the expected values.
+    """
+    logits = table[ids].clone()
+    logits[..., 0] += previous.float() / 100 + following.float() / 10_000
+    return logits
+
+
+class ScriptedEncoder(torch.nn.Module):
+    """Token classifier whose logits are a fixed function of the input rows."""
+
+    def __init__(self, tokenizer):
+        super().__init__()
+        vocab = tokenizer.get_vocab()
+        self.pad_id = tokenizer.pad_token_id
+        self.table = torch.zeros((len(vocab), len(TAGS)))
+        self.table[:, 0] = 10.0
+        for word, tag in SCRIPT.items():
+            self.table[vocab[word], 0] = 0.0
+            self.table[vocab[word], TAGS.index(tag)] = 10.0
+        self.config = types.SimpleNamespace(num_labels=len(TAGS))
+        self.rows = []
+
+    def forward(self, input_ids, attention_mask):
+        self.rows.extend(
+            row[mask.bool()].tolist() for row, mask in zip(input_ids, attention_mask)
+        )
+        pad = torch.full((len(input_ids), 1), self.pad_id)
+        previous = torch.cat([pad, input_ids[:, :-1]], dim=1)
+        following = torch.cat([input_ids[:, 1:], pad], dim=1)
+        return types.SimpleNamespace(
+            logits=scripted_logits(self.table, previous, input_ids, following)
+        )
+
+
+def scripted_detector(max_length=12, batch_size=4):
+    tokenizer = tiny_tokenizer()
+    return HFTokenDetector(
+        None,
+        device="cpu",
+        batch_size=batch_size,
+        model=ScriptedEncoder(tokenizer),
+        tokenizer=tokenizer,
+        config={"encoder": ENCODER_KIND, "max_length": max_length},
+    )
+
+
+def expected_logits(detector, text):
+    """Logits of each token as the middle of its full-document neighbourhood."""
+    ids = detector.tokenizer(text, add_special_tokens=False)["input_ids"]
+    previous = detector.prefix[-1:] + ids[:-1]
+    following = ids[1:] + detector.suffix[:1]
+    return scripted_logits(
+        detector.model.table,
+        torch.tensor(previous, dtype=torch.long),
+        torch.tensor(ids, dtype=torch.long),
+        torch.tensor(following, dtype=torch.long),
+    )
+
+
+def spans_of(text, *entities):
+    found = [
+        (match.start(), match.end(), label)
+        for value, label in entities
+        for match in re.finditer(re.escape(value), text)
+    ]
+    return sorted(found)
+
+
+def canonical(spans):
+    return [(s.start, s.end, s.label) for s in spans]
+
+
 @pytest.mark.parametrize(
     "n_tokens,window",
     [(0, 510), (1, 510), (510, 510), (511, 510), (2000, 510), (37, 14)],
@@ -139,14 +237,6 @@ def test_detector_offsets_are_valid_and_batch_invariant():
             assert text[span.start : span.end] == text[span.start : span.end].strip()
 
 
-def test_emissions_cover_long_documents_across_windows():
-    detector = tiny_detector(max_length=12)
-    text = " ".join(["clinical note patient seen"] * 10)
-    ((logits, offsets),) = detector.emissions([text])
-    assert logits.shape == (len(offsets), len(TAGS))
-    assert torch.isfinite(logits).all()
-
-
 def test_trim_merged_punctuation_balances_parentheses_and_periods():
     from outis.detection.hf_encoder import trim_merged_punctuation
 
@@ -161,12 +251,6 @@ def test_trim_merged_punctuation_balances_parentheses_and_periods():
     assert text[slice(*trim_merged_punctuation(text, c, c + 10))] == "Samira O."
     d = text.index("(617)")
     assert text[slice(*trim_merged_punctuation(text, d, d + 14))] == "(617) 555-0101"
-
-
-def test_detect_batch_is_model_only():
-    detector = tiny_detector()
-    texts = ["Seen at UCSF on 03/02/2024 by Dr. Ana Ruiz."]
-    assert detector.detect_batch(texts) == detector.raw_batch(texts)
 
 
 def test_only_encoder_checkpoints_load(tmp_path):
@@ -218,3 +302,58 @@ def test_cpu_window_batch_sizes_and_mixed_companions_preserve_spans(batch_size):
         return [[(s.start, s.end, s.label) for s in spans] for spans in docs]
 
     assert canonical(mixed) == list(reversed(canonical(reference)))
+
+
+@pytest.mark.parametrize("batch_size", [1, 3, 64])
+def test_emissions_are_the_model_logits_from_each_owning_window(batch_size):
+    detector = scripted_detector(max_length=12, batch_size=batch_size)
+    long_text = " ".join([SENTENCE] * 4)
+    texts = [SENTENCE, long_text, "", PHONE]
+    emitted = detector.emissions(texts)
+    for text, (logits, offsets) in zip(texts, emitted):
+        encoded = detector.tokenizer(
+            text, add_special_tokens=False, return_offsets_mapping=True
+        )
+        assert offsets == [tuple(pair) for pair in encoded["offset_mapping"]]
+        assert torch.equal(logits, expected_logits(detector, text))
+    # The long document needs several overlapping windows of 10 content tokens.
+    assert len(detector.model.rows) > len(texts)
+    assert max(len(row) for row in detector.model.rows) == 12
+
+
+def test_entities_crossing_window_boundaries_decode_whole():
+    detector = scripted_detector(max_length=12)
+    text = " ".join([SENTENCE] * 4)
+    ids = detector.tokenizer(text, add_special_tokens=False)["input_ids"]
+    windows = list(window_jobs(len(ids), detector.content_window))
+    owned_boundaries = {left for _, _, left, _ in windows[1:]}
+    window_edges = {stop for _, stop, _, _ in windows[:-1]}
+    date_tokens = [
+        range(i, i + 4)
+        for i in range(len(ids))
+        if ids[i] == detector.tokenizer.convert_tokens_to_ids("March")
+    ]
+    # Fixture check: dates straddle both ownership boundaries and window edges.
+    assert any(t.start < b <= t.stop - 1 for t in date_tokens for b in owned_boundaries)
+    assert any(t.start < e <= t.stop - 1 for t in date_tokens for e in window_edges)
+
+    expected = spans_of(text, ("Harrow Clinic", "FACILITY"), ("March 4 , 2025", "DATE"))
+    assert len(expected) == 8
+    assert canonical(detector.raw_batch([text])[0]) == expected
+    assert canonical(detector.raw_batch([PHONE])[0]) == spans_of(
+        PHONE, ("( 555 ) 555 - 0171", "PHONE")
+    )
+
+
+def test_detect_batch_releases_exactly_the_model_spans():
+    detector = scripted_detector(max_length=16)
+    texts = [
+        # Out-of-vocabulary text the model tags O throughout: no rule may add
+        # the obvious date or name.
+        "Seen at UCSF on 03/02/2024 by Dr. Ana Ruiz.",
+        "patient seen at Harrow Clinic on 03/02/2024 by Dr. Ana Ruiz .",
+    ]
+    assert [canonical(spans) for spans in detector.detect_batch(texts)] == [
+        [],
+        spans_of(texts[1], ("Harrow Clinic", "FACILITY")),
+    ]

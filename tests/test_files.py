@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+import posixpath
 import re
 import zipfile
 from xml.etree import ElementTree as ET
@@ -117,11 +118,39 @@ def test_docx_header_footer_and_footnotes_processed():
     assert all(b"Jane" not in raw for raw in unpack(result).values())
 
 
+def shape(element):
+    return [(child.tag.rsplit("}", 1)[-1], child.text or "") for child in element]
+
+
 def test_docx_breaks_do_not_join_words():
-    part = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>Jane</w:t><w:tab/><w:t>Doe</w:t></w:r></w:p></w:body></w:document>'
-    result = invoke(make_office("docx", {"word/document.xml": part}), "docx")
+    part = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>Jane</w:t><w:tab/><w:t>Doe</w:t></w:r><w:r><w:br w:type="textWrapping"/><w:t>Seen by Jane Doe</w:t><w:cr/><w:t>daily</w:t></w:r></w:p></w:body></w:document>'
+    seen = []
+    service = StubService()
+    detect = service.process_segments
+    service.process_segments = lambda requests, **kw: (
+        seen.extend(r["text"] for r in requests) or detect(requests, **kw)
+    )
+    result = process_file(
+        service,
+        data=encode(make_office("docx", {"word/document.xml": part})),
+        content_type=MIME_TYPES["docx"],
+    )
+    assert "Jane\tDoe\nSeen by Jane Doe\ndaily" in seen
     root = ET.fromstring(unpack(result)["word/document.xml"])
-    assert "".join(root.itertext()) == "Jane\tDoe"
+    first, second = root.iter(f"{{{W}}}r")
+    # Word does not render tabs or line feeds inside w:t; they stay elements.
+    assert shape(first) == [
+        ("t", "Jane"),
+        ("tab", ""),
+        ("t", "Doe"),
+        ("br", ""),
+        ("t", "Seen by [NAME]"),
+        ("cr", ""),
+        ("t", "daily"),
+        ("t", ""),
+    ]
+    assert first[3].get(f"{{{W}}}type") == "textWrapping"
+    assert shape(second) == [("t", ""), ("t", "")]
 
 
 def test_docx_inline_characters_stay_in_place():
@@ -142,11 +171,37 @@ def test_docx_dynamic_run_content_rejected():
 
 
 def test_pptx_soft_breaks_do_not_join_words():
-    slide = f'<p:sld xmlns:p="{P}" xmlns:a="{A}"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Take aspirin</a:t></a:r><a:br/><a:r><a:t>daily.</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
-    result = invoke(make_office("pptx", {"ppt/slides/slide1.xml": slide}), "pptx")
+    slide = f'<p:sld xmlns:p="{P}" xmlns:a="{A}"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:rPr b="1"/><a:t>Take 1</a:t></a:r><a:br><a:rPr b="1"/></a:br><a:r><a:t>tablet for Jane </a:t></a:r><a:r><a:t>Doe</a:t></a:r><a:endParaRPr/></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
+    seen = []
+    service = StubService()
+    detect = service.process_segments
+    service.process_segments = lambda requests, **kw: (
+        seen.extend(r["text"] for r in requests) or detect(requests, **kw)
+    )
+    result = process_file(
+        service,
+        data=encode(make_office("pptx", {"ppt/slides/slide1.xml": slide})),
+        content_type=MIME_TYPES["pptx"],
+    )
+    assert "Take 1\ntablet for Jane Doe" in seen
     root = ET.fromstring(unpack(result)["ppt/slides/slide1.xml"])
-    assert "".join(root.itertext()) == "Take aspirin\ndaily."
-    assert root.find(f".//{{{A}}}br") is None
+    paragraph = next(root.iter(f"{{{A}}}p"))
+    # PowerPoint does not render a line feed inside a:t; it stays an a:br.
+    assert shape(paragraph) == [
+        ("r", ""),
+        ("br", ""),
+        ("r", ""),
+        ("r", ""),
+        ("r", ""),
+        ("endParaRPr", ""),
+    ]
+    assert [shape(run) for run in paragraph.iter(f"{{{A}}}r")] == [
+        [("rPr", ""), ("t", "Take 1")],
+        [("rPr", ""), ("t", "tablet for [NAME]")],
+        [("t", "")],
+        [("t", "")],
+    ]
+    assert paragraph[1].find(f"{{{A}}}rPr") is not None
 
 
 @pytest.mark.parametrize(
@@ -498,3 +553,216 @@ def test_presentation_custom_path_geometry_rejected():
     slide = f'<p:sld xmlns:p="{P}" xmlns:a="{A}"><p:cSld><p:spTree><p:sp><p:spPr><a:custGeom><a:pathLst/></a:custGeom></p:spPr></p:sp></p:spTree></p:cSld></p:sld>'
     with pytest.raises(ValueError, match="unsupported fields"):
         invoke(make_office("pptx", {"ppt/slides/slide1.xml": slide}), "pptx")
+
+
+RELATIONSHIPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
+
+def test_package_relationship_ids_targets_and_types_are_rebuilt():
+    parts = {
+        "_rels/.rels": f'<Relationships xmlns="{R}"><Relationship Id="Jane_Doe" Type="{RELATIONSHIPS}/officeDocument" Target="word/JaneDoe/../document.xml" TargetMode="Internal">JaneDoe</Relationship></Relationships>',
+        "word/_rels/document.xml.rels": f'<Relationships xmlns="{R}"><Relationship Id="JaneDoeStyles" Type="{RELATIONSHIPS}/styles" Target="styles.xml"/><Relationship Id="JaneDoeHeader" Type="{RELATIONSHIPS}/header" Target="header1.xml"/></Relationships>',
+        "word/styles.xml": f'<w:styles xmlns:w="{W}"/>',
+        "word/header1.xml": f'<w:hdr xmlns:w="{W}"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>',
+        "word/document.xml": f'<w:document xmlns:w="{W}" xmlns:r="{RELATIONSHIPS}"><w:body><w:p><w:r><w:t>Seen</w:t></w:r></w:p><w:sectPr><w:headerReference w:type="default" r:id="JaneDoeHeader"/></w:sectPr></w:body></w:document>',
+        "[Content_Types].xml": f'<Types xmlns="{C}"><Default Extension="JaneDoe" ContentType="application/xml"/><Default Extension="XML" ContentType="application/xml"/><Override PartName="/WORD/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/JaneDoe.xml" ContentType="application/xml"/></Types>',
+    }
+    members = unpack(invoke(make_office("docx", parts), "docx"))
+    assert all(
+        b"Jane" not in value and b"Doe" not in value for value in members.values()
+    )
+    package = ET.fromstring(members["_rels/.rels"])
+    assert [rel.attrib for rel in package] == [
+        {
+            "Id": "rId1",
+            "Type": f"{RELATIONSHIPS}/officeDocument",
+            "Target": "word/document.xml",
+        }
+    ]
+    links = {
+        rel.get("Target"): rel.get("Id")
+        for rel in ET.fromstring(members["word/_rels/document.xml.rels"])
+    }
+    assert links == {"styles.xml": "rId1", "header1.xml": "rId2"}
+    document = ET.fromstring(members["word/document.xml"])
+    header = next(document.iter(f"{{{W}}}headerReference"))
+    assert header.get(f"{{{RELATIONSHIPS}}}id") == links["header1.xml"]
+    types = ET.fromstring(members["[Content_Types].xml"])
+    assert [item.attrib for item in types] == [
+        {"Extension": "xml", "ContentType": "application/xml"},
+        {
+            "PartName": "/word/document.xml",
+            "ContentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+        },
+    ]
+
+
+def test_presentation_relationship_references_stay_consistent():
+    parts = {
+        "ppt/_rels/presentation.xml.rels": f'<Relationships xmlns="{R}"><Relationship Id="JaneDoe" Type="{RELATIONSHIPS}/slide" Target="slides/slide1.xml"/></Relationships>',
+        "ppt/presentation.xml": f'<p:presentation xmlns:p="{P}" xmlns:r="{RELATIONSHIPS}"><p:sldIdLst><p:sldId id="256" r:id="JaneDoe"/></p:sldIdLst></p:presentation>',
+    }
+    members = unpack(invoke(make_office("pptx", parts), "pptx"))
+    assert all(b"Jane" not in value for value in members.values())
+    slide_id = next(
+        ET.fromstring(members["ppt/presentation.xml"]).iter(f"{{{P}}}sldId")
+    )
+    rel = next(iter(ET.fromstring(members["ppt/_rels/presentation.xml.rels"])))
+    assert slide_id.get(f"{{{RELATIONSHIPS}}}id") == rel.get("Id") == "rId1"
+    assert rel.get("Target") == "slides/slide1.xml"
+
+
+@pytest.mark.parametrize(
+    "part,xml",
+    [
+        (
+            "_rels/.rels",
+            f'<Relationships xmlns="{R}"><Relationship Id="r1" Type="urn:Jane Doe" Target="word/document.xml"/></Relationships>',
+        ),
+        (
+            "[Content_Types].xml",
+            f'<Types xmlns="{C}"><Override PartName="/word/document.xml" ContentType="application/Jane Doe+xml"/></Types>',
+        ),
+    ],
+)
+def test_identifiers_in_unrecognized_package_types_fail_closed(part, xml):
+    with pytest.raises(ValueError, match="unsupported attributes"):
+        invoke(make_office("docx", {part: xml}), "docx")
+
+
+def test_unresolved_relationship_reference_rejected():
+    part = f'<w:document xmlns:w="{W}" xmlns:r="{RELATIONSHIPS}"><w:body><w:sectPr><w:headerReference r:id="JaneDoe"/></w:sectPr></w:body></w:document>'
+    with pytest.raises(ValueError, match="unresolved relationship"):
+        invoke(make_office("docx", {"word/document.xml": part}), "docx")
+
+
+# The fixtures above are deliberately skeletal parser inputs. The tests below
+# start from complete documents written by python-docx, openpyxl and
+# python-pptx, and reopen the returned bytes with the same independent readers.
+
+
+def assert_complete_package(raw):
+    """Every internal relationship and content-type override names a real part."""
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        names = set(archive.namelist())
+        missing = []
+        for name in names:
+            if not name.endswith(".rels"):
+                continue
+            source_dir = posixpath.dirname(posixpath.dirname(name))
+            for relationship in ET.fromstring(archive.read(name)):
+                if relationship.get("TargetMode") == "External":
+                    continue
+                target = relationship.get("Target")
+                part = (
+                    target.lstrip("/")
+                    if target.startswith("/")
+                    else posixpath.normpath(posixpath.join(source_dir, target))
+                )
+                if part not in names:
+                    missing.append((name, target))
+        for override in ET.fromstring(archive.read("[Content_Types].xml")):
+            part = override.get("PartName")
+            if part and part.lstrip("/") not in names:
+                missing.append(("[Content_Types].xml", part))
+    assert missing == []
+
+
+def saved(document):
+    buf = io.BytesIO()
+    document.save(buf)
+    return buf.getvalue()
+
+
+def redacted(raw, kind):
+    result = invoke(raw, kind)
+    output = base64.b64decode(result["data"])
+    assert_complete_package(output)
+    with zipfile.ZipFile(io.BytesIO(output)) as archive:
+        assert all(
+            b"Jane" not in archive.read(name) and b"Doe" not in archive.read(name)
+            for name in archive.namelist()
+        )
+    return result, io.BytesIO(output)
+
+
+def test_valid_docx_round_trips_through_an_independent_reader():
+    docx = pytest.importorskip("docx")
+
+    document = docx.Document()
+    document.core_properties.author = "Jane Doe"
+    paragraph = document.add_paragraph("Seen today: ")
+    paragraph.add_run("Jane ")
+    paragraph.add_run("Doe").bold = True
+    paragraph.add_run(" takes metformin.")
+    table = document.add_table(rows=1, cols=2)
+    table.cell(0, 0).text = "Patient"
+    table.cell(0, 1).text = "Jane Doe"
+    document.sections[0].header.paragraphs[0].text = "Chart for Jane Doe"
+    document.sections[0].footer.paragraphs[0].text = "Page footer"
+    result, output = redacted(saved(document), "docx")
+
+    reopened = docx.Document(output)
+    assert [p.text for p in reopened.paragraphs] == [
+        "Seen today: [NAME] takes metformin."
+    ]
+    table = reopened.tables[0]
+    assert [cell.text for cell in table.rows[0].cells] == ["Patient", "[NAME]"]
+    section = reopened.sections[0]
+    assert section.header.paragraphs[0].text == "Chart for [NAME]"
+    assert section.footer.paragraphs[0].text == "Page footer"
+    assert reopened.core_properties.author == ""
+    assert result["entity_count"] == 3
+
+
+def test_valid_xlsx_round_trips_through_an_independent_reader():
+    from datetime import date
+
+    openpyxl = pytest.importorskip("openpyxl")
+
+    workbook = openpyxl.Workbook()
+    workbook.properties.creator = "Jane Doe"
+    sheet = workbook.active
+    sheet.title = "Jane Doe"
+    sheet.append(["Patient", "Visit", "Glucose"])
+    sheet.append(["Jane Doe", date(2023, 3, 15), 109])
+    second = workbook.create_sheet("Labs")
+    second["A1"] = "Reviewed with Jane Doe"
+    result, output = redacted(saved(workbook), "xlsx")
+
+    reopened = openpyxl.load_workbook(output)
+    assert len(reopened.sheetnames) == 2
+    assert all("Jane" not in name for name in reopened.sheetnames)
+    first, labs = (reopened[name] for name in reopened.sheetnames)
+    assert [[cell.value for cell in row] for row in first.iter_rows()] == [
+        ["Patient", "Visit", "Glucose"],
+        ["[NAME]", "2023-03-15", "109"],
+    ]
+    assert labs["A1"].value == "Reviewed with [NAME]"
+    assert reopened.properties.creator != "Jane Doe"
+    assert result["entity_count"] == 3
+
+
+def test_valid_pptx_round_trips_through_an_independent_reader():
+    pptx = pytest.importorskip("pptx")
+    from pptx.util import Inches
+
+    presentation = pptx.Presentation()
+    presentation.core_properties.author = "Jane Doe"
+    slide = presentation.slides.add_slide(presentation.slide_layouts[5])
+    slide.shapes.title.text = "Jane Doe follow-up"
+    box = slide.shapes.add_textbox(Inches(1), Inches(2), Inches(6), Inches(1))
+    paragraph = box.text_frame.paragraphs[0]
+    for text in ["Seen by ", "Jane ", "Doe", " today."]:
+        paragraph.add_run().text = text
+    second = presentation.slides.add_slide(presentation.slide_layouts[5])
+    second.shapes.title.text = "Plan"
+    result, output = redacted(saved(presentation), "pptx")
+
+    reopened = pptx.Presentation(output)
+    assert [
+        [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
+        for slide in reopened.slides
+    ] == [["[NAME] follow-up", "Seen by [NAME] today."], ["Plan"]]
+    assert reopened.core_properties.author == ""
+    assert result["entity_count"] == 2

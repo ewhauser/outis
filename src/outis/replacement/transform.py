@@ -25,12 +25,15 @@ from outis.entities import Entity, checked_entities
 from outis.replacement.names.aliases import full_identity_aliases
 from outis.replacement.nicknames import NameBinding, nickname_bindings
 from outis.replacement.surrogates import (
+    _age_label,
     _canonical,
     _digest,
     _name_aliases,
     _name_identity,
+    _safe_label,
     _shift_date,
     _synthetic_value,
+    _validate_spans,
     _validated_secret,
 )
 from outis.types import ENTITY_TYPES
@@ -518,8 +521,10 @@ def render(
     for index, span in enumerate(ordered):
         original = text[span.start : span.end]
         action = options.per_type.get(span.label, options.type)
+        # An AGE marker names only its Safe Harbor bucket, never the value.
+        marker_label = _age_label(original) if span.label == "AGE" else span.label
         marker = options.pattern.format(
-            label=span.label, id=span.entity_id, index=index_offset + index + 1
+            label=marker_label, id=span.entity_id, index=index_offset + index + 1
         )
         if span.source == "context_fragment" and action == "synthetic":
             action = "marker"
@@ -622,3 +627,61 @@ def render(
         reidentify(result["text"], mappings)
         result["mappings"] = mappings
     return result
+
+
+# Legacy compatibility: ``surrogates.replace`` and option-free service requests
+# predate ReplacementOptions. They render through ``render`` like every other
+# request; only the request defaults and the response shape below are legacy.
+_LEGACY_ENTITY_FIELDS = ("start", "end", "label", "replacement", "score", "source")
+
+
+def legacy_options(mode) -> ReplacementOptions:
+    """Replacement options equivalent to a legacy ``mode``-only request."""
+    return ReplacementOptions(
+        type="synthetic" if mode == "synthetic" else "marker", pattern="[{label}]"
+    )
+
+
+def legacy_response(result):
+    """Format a render result as a legacy response, without IDs or output offsets."""
+    return {
+        **result,
+        "entities": [
+            {key: entity[key] for key in _LEGACY_ENTITY_FIELDS}
+            for entity in result["entities"]
+        ],
+    }
+
+
+def legacy_replace(
+    text, spans, *, mode="redact", patient_id=None, secret=None, date_shift_days=None
+):
+    """Legacy ``mode``-only replacement rendered by ``render``.
+
+    Unsafe detector labels are redacted as PHI rather than rejected.
+    """
+    if mode not in {"redact", "synthetic"}:
+        raise ValueError("mode must be 'redact' or 'synthetic'")
+    entities = []
+    for span in _validate_spans(text, spans):
+        label = _safe_label(span.label)
+        entities.append(
+            Entity(
+                span.start,
+                span.end,
+                label if _LABEL.fullmatch(label) else "PHI",
+                span.score,
+                span.source,
+            )
+        )
+    return legacy_response(
+        render(
+            text,
+            entities,
+            options=legacy_options(mode),
+            mode=mode,
+            patient_id=patient_id,
+            secret=secret,
+            date_shift_days=date_shift_days,
+        )
+    )

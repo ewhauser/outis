@@ -18,7 +18,6 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from outis.replacement.names.aliases import full_identity_aliases
-from outis.replacement.nicknames import nickname_bindings
 from outis.types import Span
 
 _FIRST_NAMES = (
@@ -623,7 +622,8 @@ def _shift_date(value: str, offset: int) -> tuple[str, str | None, bool]:
     )
 
 
-def _age(value: str, mode: str) -> str:
+def _age_label(value: str) -> str:
+    """Return the marker category for an AGE value: AGE_90_PLUS or AGE."""
     from outis.replacement.names.age import parse_english_age
 
     match = re.fullmatch(
@@ -631,17 +631,16 @@ def _age(value: str, mode: str) -> str:
         value,
         re.I,
     )
-    if not match:
-        age = parse_english_age(value)
-        if age is None:
-            return "[AGE]"
-    else:
-        age = float(match[1])
-    if age > 89:
-        return "[AGE_90_PLUS]" if mode == "redact" else "90+"
-    # The request policy (``ages``) already leaves ages of 89 and under in place by
-    # default, so an age that reaches replacement is one the caller asked to remove.
-    return "[AGE]"
+    age = float(match[1]) if match else parse_english_age(value)
+    # Ages over 89 keep only the Safe Harbor aggregate. The request policy
+    # (``ages``) already leaves ages of 89 and under in place by default, so an
+    # age that reaches replacement is one the caller asked to remove.
+    return "AGE_90_PLUS" if age is not None and age > 89 else "AGE"
+
+
+def _age(value: str) -> str:
+    """Synthetic AGE replacement."""
+    return "90+" if _age_label(value) == "AGE_90_PLUS" else "[AGE]"
 
 
 def _facility_setting(value: str) -> str:
@@ -716,7 +715,7 @@ def _synthetic_value(
                 return "[NAME]"
         return rendered
     if label == "AGE":
-        return _age(value, "synthetic")
+        return _age(value)
     for salt in range(100):
         digest = _digest(secret, patient, label, identity, salt)
         token = digest.hex()[:12]
@@ -766,91 +765,17 @@ def replace(
     first component exceeds 12, and year/month/day when year comes first.
     A shifted day/month/year date is emitted year-first if its meaning would
     otherwise become ambiguous. Case-sensitive identifiers use exact keys.
-    """
-    if mode not in {"redact", "synthetic"}:
-        raise ValueError("mode must be 'redact' or 'synthetic'")
-    ordered = _validate_spans(text, spans)
-    key = b""
-    patient = ""
-    offset = 0
-    if mode == "synthetic":
-        key = _validated_secret(secret)
-        if not isinstance(patient_id, str) or not patient_id.strip():
-            raise ValueError("Synthetic replacement requires a stable patient_id")
-        patient = patient_id
-        if date_shift_days is not None:
-            if (
-                isinstance(date_shift_days, bool)
-                or not isinstance(date_shift_days, int)
-                or not 1 <= abs(date_shift_days) <= 3650
-            ):
-                raise ValueError(
-                    "date_shift_days must be a nonzero integer between -3650 and 3650"
-                )
-            offset = date_shift_days
-        else:
-            shift_index = (
-                int.from_bytes(_digest(key, patient, "DATE_SHIFT", "")[:8], "big") % 730
-            )
-            offset = shift_index - 365 if shift_index < 365 else shift_index - 364
 
-    aliases = _name_aliases(text, ordered) if mode == "synthetic" else {}
-    bindings = nickname_bindings(text, ordered) if mode == "synthetic" else {}
-    parts: list[str] = []
-    entities: list[dict[str, Any]] = []
-    warnings: list[str] = []
-    cursor = 0
-    shifted_dates = 0
-    redacted_dates = 0
-    for entity_index, span in enumerate(ordered):
-        original = text[span.start : span.end]
-        label = _safe_label(span.label)
-        if mode == "redact":
-            replacement = _age(original, mode) if label == "AGE" else f"[{label}]"
-        elif label == "DATE":
-            replacement, warning, shifted = _shift_date(original, offset)
-            if shifted:
-                shifted_dates += 1
-            else:
-                redacted_dates += 1
-            if warning:
-                warnings.append(f"Entity {entity_index} (DATE): {warning}")
-        else:
-            name_warnings = []
-            replacement = _synthetic_value(
-                original,
-                label,
-                key,
-                patient,
-                aliases,
-                name_binding=bindings.get((span.start, span.end)),
-                name_warnings=name_warnings,
-            )
-            warnings.extend(
-                f"Entity {entity_index} (NAME): {warning}" for warning in name_warnings
-            )
-        parts.extend((text[cursor : span.start], replacement))
-        entities.append(
-            {
-                "start": span.start,
-                "end": span.end,
-                "label": label,
-                "replacement": replacement,
-                "score": span.score,
-                "source": span.source,
-            }
-        )
-        cursor = span.end
-    parts.append(text[cursor:])
-    return {
-        "text": "".join(parts),
-        "entities": entities,
-        "warnings": warnings,
-        "preservation": {
-            "clinical_text_outside_spans_preserved": True,
-            "date_intervals_preserved": mode == "synthetic" and redacted_dates == 0,
-            "exact_dates_shifted": shifted_dates,
-            "unshiftable_dates_redacted": redacted_dates,
-            "patient_consistent_replacements": mode == "synthetic",
-        },
-    }
+    This is the legacy entry point; rendering is done by
+    ``outis.replacement.transform.render`` through ``legacy_replace``.
+    """
+    from outis.replacement.transform import legacy_replace
+
+    return legacy_replace(
+        text,
+        spans,
+        mode=mode,
+        patient_id=patient_id,
+        secret=secret,
+        date_shift_days=date_shift_days,
+    )
