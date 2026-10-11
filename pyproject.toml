@@ -74,6 +74,9 @@ dev = [
 [tool.uv]
 # A plain `uv sync` installs only the runtime; contributors add `--group dev`.
 default-groups = []
+# Supply-chain cooldown: resolve only releases at least a week old, so a
+# compromised upload has time to be noticed and yanked before we pick it up.
+exclude-newer = "7 days"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -1,0 +1,42 @@
+# Security updates only. open-pull-requests-limit: 0 turns off routine version
+# updates; Dependabot security updates (enabled in the repository settings)
+# still open pull requests for vulnerable dependencies, grouped per ecosystem.
+# Cooldowns do not delay security updates; they are kept so that version
+# updates, if ever re-enabled, wait a week (and zizmor's audit passes).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    cooldown:
+      default-days: 7
+    groups:
+      python:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /site
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    cooldown:
+      default-days: 7
+    groups:
+      site:
+        applies-to: security-updates
+        patterns: ["*"]

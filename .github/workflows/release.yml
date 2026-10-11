@@ -163,6 +163,8 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           python-version: "3.13"
+          # Never restore a cache into a release build (cache poisoning).
+          enable-cache: false
       - name: Check the release version
         run: |
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
@@ -263,8 +265,10 @@ jobs:
           if [ -n "$tag_sha" ]; then test "$tag_sha" = "$RELEASE_SHA"; fi
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" dist/* --clobber
+            # Immutable releases freeze assets once published; a recovery run
+            # finds a published release complete and leaves it alone.
             if [ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true ]; then
+              gh release upload "$RELEASE_TAG" dist/* --clobber
               gh release edit "$RELEASE_TAG" --draft=false
             fi
           else
