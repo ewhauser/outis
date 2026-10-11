@@ -142,6 +142,19 @@ def test_csv_malformed_quote_rejected():
         process_structured(StubService(), 'name\n"Alice Smith', format="csv")
 
 
+@pytest.mark.parametrize("row", ["", ",", "a,b"])
+def test_csv_rows_and_cells_are_budgeted_while_parsing(row):
+    # Blank rows hold no cells but still cost memory; the parser stops early.
+    source = "\n".join([row] * 60_000)
+    with pytest.raises(ValueError, match="row or cell limits"):
+        process_structured(StubService(), source, format="csv")
+
+
+def test_csv_blank_rows_within_budget_round_trip():
+    result = process_structured(StubService(), "a\n\nAlice Smith\n", format="csv")
+    assert result["data"] == "a\r\n\r\n[NAME]\r\n"
+
+
 def test_xml_text_tails_attributes_comments_and_processing_instructions():
     source = '<?xml version="1.0"?><root name="Alice Smith">Robert Jones<child>alice@example.test</child>Alice Smith<!--Alice Smith--><?identity Alice Smith?></root>'
     result = process_structured(StubService(), source, format="xml")

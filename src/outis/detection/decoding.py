@@ -14,6 +14,9 @@ import torch
 
 from outis.types import ENTITY_TYPES, Span
 
+# Apostrophes and hyphens (ASCII, U+2010, and the non-breaking U+2011 that Word
+# emits) that join the letters of one name, place, or facility word.
+_NAME_JOINERS = "'’-\u2010\u2011"
 TAGS = ["O"] + [f"{boundary}-{label}" for label in ENTITY_TYPES for boundary in "BIES"]
 
 
@@ -104,7 +107,7 @@ def decode_bioes(logits, offsets, text):
                         letter(text[a - 1])
                         and letter(text[a])
                         or (
-                            text[a] in "'’-"
+                            text[a] in _NAME_JOINERS
                             and a + 1 < b
                             and letter(text[a - 1])
                             and letter(text[a + 1])
@@ -112,7 +115,7 @@ def decode_bioes(logits, offsets, text):
                     ):
                         a -= 1
                     elif (
-                        text[a - 1] in "'’-"
+                        text[a - 1] in _NAME_JOINERS
                         and a - 2 >= left_limit
                         and letter(text[a - 2])
                         and letter(text[a])
@@ -125,7 +128,7 @@ def decode_bioes(logits, offsets, text):
                         letter(text[b - 1])
                         and letter(text[b])
                         or (
-                            text[b - 1] in "'’-"
+                            text[b - 1] in _NAME_JOINERS
                             and b - 2 >= a
                             and letter(text[b - 2])
                             and letter(text[b])
@@ -133,7 +136,7 @@ def decode_bioes(logits, offsets, text):
                     ):
                         b += 1
                     elif (
-                        text[b] in "'’-"
+                        text[b] in _NAME_JOINERS
                         and b + 1 < right_limit
                         and letter(text[b - 1])
                         and letter(text[b + 1])
@@ -156,7 +159,7 @@ def decode_bioes(logits, offsets, text):
                         or letter(text[possessive_end])
                         or text[possessive_end] == "_"
                         or (
-                            text[possessive_end] in "'’-\u2010\u2011"
+                            text[possessive_end] in _NAME_JOINERS
                             and possessive_end + 1 < len(text)
                             and letter(text[possessive_end + 1])
                         )
