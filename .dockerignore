@@ -1,0 +1,11 @@
+# The image is built only from the package sources and the lockfile; keep
+# corpora, checkpoints, caches and secrets out of the build context.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!NOTICE
+!src/
+**/__pycache__
+**/*.pyc

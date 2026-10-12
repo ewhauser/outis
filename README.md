@@ -114,6 +114,23 @@ schema at `/openapi.json`. Synthetic mode needs a replacement secret in
 creates and reuses one in `.cache/local-api-secret`. For other deployments, see
 [deployment](docs/deployment.md).
 
+### Docker
+
+Images with the model built in are published to the GitHub Container Registry
+for CPU (`linux/amd64`, `linux/arm64`) and NVIDIA GPUs (`linux/amd64`). They
+run without network access.
+
+```sh
+docker run --rm -p 8000:8000 -e OUTIS_API_KEY=change-me ghcr.io/ewhauser/outis:cpu
+```
+
+```sh
+docker run --rm --gpus all -p 8000:8000 -e OUTIS_API_KEY=change-me ghcr.io/ewhauser/outis:gpu
+```
+
+Requests then send the key in an `X-API-Key` header. See
+[deployment](docs/deployment.md#docker) for tags and settings.
+
 ### CLI
 
 ```sh

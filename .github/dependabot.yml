@@ -29,6 +29,18 @@ updates:
         applies-to: security-updates
         patterns: ["*"]
 
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    cooldown:
+      default-days: 7
+    groups:
+      docker:
+        applies-to: security-updates
+        patterns: ["*"]
+
   - package-ecosystem: npm
     directory: /site
     schedule:

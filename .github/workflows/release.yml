@@ -277,3 +277,14 @@ jobs:
               --title "Outis $RELEASE_VERSION" \
               --notes "See [CHANGELOG.md](https://github.com/$GH_REPO/blob/$RELEASE_TAG/CHANGELOG.md) and the package on [PyPI](https://pypi.org/project/outis/$RELEASE_VERSION/)."
           fi
+
+  docker:
+    name: release-docker
+    needs: [prepare, finalize]
+    permissions:
+      contents: read
+      packages: write # Push the version tags to ghcr.io.
+    uses: $/.github/workflows/docker.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      sha: ${{ needs.prepare.outputs.sha }}

@@ -36,6 +36,10 @@ other pull request. Do not change these version files by hand.
    files with the same SHA-256 digests.
 5. It then attaches the distributions and `SHA256SUMS` to the GitHub release
    and publishes it, which creates the tag.
+6. Finally, it builds the CPU and GPU Docker images from the release commit,
+   smoke-tests them and pushes the version tags to `ghcr.io/ewhauser/outis`
+   (see [deployment](docs/deployment.md#docker)). A recovery run pushes them
+   again from the rebuilt commit.
 
 ## First release and recovery
 
@@ -55,6 +59,9 @@ must hold exactly the rebuilt files, otherwise the run fails.
    optionally with required reviewers, and limit it to the `main` branch.
 3. Allow GitHub Actions to create pull requests (Settings → Actions → General →
    Workflow permissions).
+4. After the first image push, make the `outis` container package public
+   (Profile → Packages → outis → Package settings → Change visibility) and
+   confirm it is linked to this repository.
 
 ## Repository protections
 
