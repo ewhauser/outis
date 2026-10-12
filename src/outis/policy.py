@@ -373,9 +373,12 @@ def apply_policy(
         for span in original
         if span.label in enabled and text[span.start : span.end] not in exemptions
     ]
+    # Disabled dictionaries are dropped before longest-match pruning, so a
+    # longer excluded term cannot hide an enabled one it contains.
+    active = tuple(index for index in selected if dictionaries[index].label in enabled)
     # The literal pass is linear in the text, whatever the term count, so it
     # runs outside the expression budget.
-    literal_hits = site_dictionaries.find(text, selected) if selected else []
+    literal_hits = site_dictionaries.find(text, active) if active else []
     deadline = monotonic() + POLICY_TIMEOUT
 
     def matches(compiled, *, value_group=False):
@@ -422,15 +425,12 @@ def apply_policy(
             for start, end in matches(compiled):
                 add(start, end, label, "policy:medical_dictionary")
     for start, end, index in literal_hits:
-        dictionary = dictionaries[index]
-        if dictionary.label in enabled:
-            add(start, end, dictionary.label, dictionary.source)
-    if selected:
-        for index, compiled in site_dictionaries.patterns(selected):
+        add(start, end, dictionaries[index].label, dictionaries[index].source)
+    if active:
+        for index, compiled in site_dictionaries.patterns(active):
             dictionary = dictionaries[index]
-            if dictionary.label in enabled:
-                for start, end in matches(compiled):
-                    add(start, end, dictionary.label, dictionary.source)
+            for start, end in matches(compiled):
+                add(start, end, dictionary.label, dictionary.source)
     for literal in policy.blocklist:
         for start, end in matches(regex.compile(regex.escape(literal))):
             add(start, end, "ID", "policy:blocklist")

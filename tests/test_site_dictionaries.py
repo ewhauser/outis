@@ -373,6 +373,41 @@ def test_allowlist_profile_include_exclude_and_selection():
         validate_policy({"site_dictionaries": ["Not Valid"]})
 
 
+NESTED = [
+    {"name": "clinics", "label": "FACILITY", "terms": ["Odessa Fenwick Clinic"]},
+    {"name": "people", "label": "NAME", "terms": ["Odessa Fenwick"]},
+]
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [{"include": ["NAME"]}, {"profile": "identifiers_only"}, {"exclude": ["FACILITY"]}],
+)
+def test_disabled_dictionary_does_not_hide_contained_enabled_term(policy):
+    text = "Seen at Odessa Fenwick Clinic."
+    loaded = site(*NESTED)
+    assert values(text, apply_policy(text, [], None, loaded)) == [
+        ("Odessa Fenwick Clinic", "FACILITY")
+    ]
+    assert values(text, apply_policy(text, [], policy, loaded)) == [
+        ("Odessa Fenwick", "NAME")
+    ]
+
+
+def test_disabled_dictionary_does_not_hide_enabled_term_over_http():
+    service = Deidentifier(
+        detector=NameDetector(), secret=SECRET, site_dictionaries=NESTED
+    )
+    text = "Seen at Odessa Fenwick Clinic."
+    with TestClient(create_app(service)) as client:
+        body = client.post(
+            "/v1/deidentify",
+            json={"text": text, "mode": "redact", "policy": {"include": ["NAME"]}},
+        ).json()
+    assert "Odessa Fenwick" not in body["text"]
+    assert [e["label"] for e in body["entities"]] == ["NAME"]
+
+
 def test_policy_metadata_reports_names_never_terms():
     loaded = site()
     assert policy_metadata(None, loaded)["site_dictionaries"] == [
