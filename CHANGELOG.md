@@ -11,6 +11,10 @@ from the Conventional Commit messages merged since the previous release; see
 
 - Require Python 3.13 or later; drop Python 3.11 and 3.12 support and test
   Python 3.13, 3.14, and 3.15 in CI.
+- Run the token encoder with bf16 autocast by default on CUDA GPUs that support
+  bf16 and on Apple MPS; CPU and older GPUs stay fp32. Pass `precision="fp32"`
+  to `load_detector` (or `--precision fp32` to `eval_bank.py`) for the previous
+  behaviour.
 
 ## [0.2.1](https://github.com/ewhauser/outis/compare/v0.2.0...v0.2.1) (2026-10-11)
 

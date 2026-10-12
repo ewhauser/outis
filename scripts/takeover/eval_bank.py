@@ -156,6 +156,7 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--device", default="mps")
     parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--precision", choices=("auto", "fp32", "bf16"), default="auto")
     parser.add_argument("--show-failures", action="store_true")
     parser.add_argument("--predictions", help="optional path to save predictions (development banks only)")
     parser.add_argument("--limit", type=int)
@@ -182,7 +183,8 @@ def main():
     from outis.detection.hf_encoder import load_detector
 
     started = time.perf_counter()
-    detector = load_detector(args.model_dir, device=args.device, batch_size=args.batch_size)
+    detector = load_detector(args.model_dir, device=args.device, batch_size=args.batch_size,
+                             precision=args.precision)
     load_seconds = time.perf_counter() - started
     texts = [row["text"] for row in rows]
     raw = {}
@@ -202,6 +204,7 @@ def main():
     max_failures = len(rows) if args.show_failures else 0
     report = {"data": args.data, "corpus_sha256": manifest.get("sha256"), "model_dir": args.model_dir,
               "rows": len(rows), "device": args.device, "batch_size": args.batch_size,
+              "precision": getattr(detector, "precision", args.precision),
               "seconds": {"load": load_seconds, "neural": neural_seconds},
               "failures_written": bool(args.show_failures),
               "model_sha256": model_sha256, "model_artifacts": artifacts,

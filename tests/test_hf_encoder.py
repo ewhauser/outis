@@ -373,6 +373,42 @@ def test_detect_batch_releases_exactly_the_model_spans():
     ]
 
 
+def test_invalid_precision_rejected():
+    with pytest.raises(ValueError, match="precision"):
+        HFTokenDetector(None, precision="fp16")
+
+
+def test_bf16_precision_autocasts_and_returns_float32_logits():
+    detector = tiny_detector()
+    text = "patient seen at Harrow Clinic on March 4 , 2025 ."
+    reference = detector.emissions([text])[0][0]
+    detector.precision = "bf16"
+    seen = []
+    hook = detector.model.register_forward_hook(
+        lambda module, args, output: seen.append(output.logits.dtype)
+    )
+    try:
+        logits = detector.emissions([text])[0][0]
+    finally:
+        hook.remove()
+    assert seen == [torch.bfloat16]
+    assert logits.dtype == torch.float32
+    assert torch.allclose(logits, reference, atol=0.1)
+
+
+def test_auto_precision_uses_bf16_only_on_capable_accelerators(monkeypatch):
+    from outis.detection.hf_encoder import resolve_precision
+
+    assert resolve_precision("auto", torch.device("cpu")) == "fp32"
+    assert resolve_precision("auto", torch.device("mps")) == "bf16"
+    monkeypatch.setattr(torch.cuda, "is_bf16_supported", lambda: True)
+    assert resolve_precision("auto", torch.device("cuda")) == "bf16"
+    monkeypatch.setattr(torch.cuda, "is_bf16_supported", lambda: False)
+    assert resolve_precision("auto", torch.device("cuda")) == "fp32"
+    assert resolve_precision("fp32", torch.device("mps")) == "fp32"
+    assert tiny_detector().precision == "fp32"
+
+
 def test_windows_are_batched_by_length_not_arrival_order():
     # One full window among seven short inputs fits one arrival-order batch of
     # eight, which pads every short row to the full window.
