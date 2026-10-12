@@ -1,13 +1,13 @@
-"""Measure study-scope surrogate collisions on invented values.
+"""Measure project-scope surrogate collisions on invented values.
 
-In study scope one value maps to one surrogate across a whole release, so two
+In project scope one value maps to one surrogate across a whole release, so two
 distinct source values that draw the same surrogate merge in the output. This
 reports, per label and corpus size, the share of distinct invented values whose
 surrogate is shared with at least one other value. ``--scope patient`` shows
 what the narrower patient-scope spaces would give if one patient anchor covered
 the same number of values. ``--style realistic`` measures the format-preserving
-style; its spaces do not depend on scope. No real PHI is used; the secret, study
-ID and patient anchor are fixed test values.
+style; its spaces do not depend on scope. No real PHI is used; the secret,
+project ID and patient anchor are fixed test values.
 """
 
 import argparse
@@ -15,11 +15,11 @@ import random
 import string
 from collections import Counter
 
-from outis.replacement.primitives import study_key
+from outis.replacement.primitives import project_key
 from outis.replacement.synthetic import synthetic_value
 
 SECRET = b"surrogate-collision-measurement-secret-0123"
-STUDY_ID = "collision-measurement"
+PROJECT_ID = "collision-measurement"
 PATIENT = "collision-measurement-patient"
 
 
@@ -71,11 +71,19 @@ def distinct_values(label, count, seed=0):
 
 
 def collision_share(
-    label, values, *, scope="study", style="obvious", secret=SECRET, study_id=STUDY_ID
+    label,
+    values,
+    *,
+    scope="project",
+    style="obvious",
+    secret=SECRET,
+    project_id=PROJECT_ID,
 ):
     """Share of distinct values whose surrogate is not unique in one scope."""
     key, patient = (
-        (study_key(secret, study_id), None) if scope == "study" else (secret, PATIENT)
+        (project_key(secret, project_id), None)
+        if scope == "project"
+        else (secret, PATIENT)
     )
     entity = label.split(" ")[0]
     surrogates = [
@@ -90,7 +98,7 @@ def collision_share(
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--sizes", type=int, nargs="+", default=[2_000, 20_000])
-    parser.add_argument("--scope", choices=["study", "patient"], default="study")
+    parser.add_argument("--scope", choices=["project", "patient"], default="project")
     parser.add_argument("--style", choices=["obvious", "realistic"], default="obvious")
     args = parser.parse_args()
     print("| Label | " + " | ".join(f"{n:,} values" for n in args.sizes) + " |")

@@ -431,7 +431,7 @@ def _collisions():
     return module
 
 
-# Upper bounds on the share of 2,000 distinct study-scope values whose
+# Upper bounds on the share of 2,000 distinct project-scope values whose
 # realistic surrogate is shared; docs/replacement.md reports the measurements.
 REALISTIC_COLLISION_BOUNDS = {
     "MRN (3 digits)": 0.0,
@@ -458,9 +458,8 @@ def test_measured_collisions_stay_within_documented_bounds():
         assert rate <= bound, (label, rate)
 
 
-def test_realistic_style_composes_with_study_scope():
-    study = {"type": "synthetic", "style": "realistic", "scope": "study"}
-    study["study_id"] = "styles-test"
+def test_realistic_style_composes_with_project_scope():
+    project = {"type": "synthetic", "style": "realistic", "scope": "project"}
     text = "MRN MR-004521 lives in Brackenford, NM."
     spans = spans_for(text, [("MR-004521", "MRN"), ("Brackenford, NM", "LOCATION")])
 
@@ -472,9 +471,10 @@ def test_realistic_style_composes_with_study_scope():
             mode="synthetic",
             patient_id=patient,
             secret=SECRET,
+            project_id="styles-test" if options.get("scope") == "project" else None,
         )["text"]
 
-    first, second = rendered("patient-a", study), rendered("patient-b", study)
+    first, second = rendered("patient-a", project), rendered("patient-b", project)
     assert first == second and re.fullmatch(
         r"MRN [A-Z]{2}-\d{6} lives in .+, NM\.", first
     )

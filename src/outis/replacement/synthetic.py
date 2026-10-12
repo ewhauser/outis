@@ -1,7 +1,7 @@
-"""Patient- or study-consistent fictional surrogates from stateless keyed HMACs.
+"""Patient- or project-consistent fictional surrogates from stateless keyed HMACs.
 
-Patient scope passes the server secret and a patient anchor. Study scope passes
-a derived study key and ``patient=None``; it draws from wider fictional spaces
+Patient scope passes the server secret and a patient anchor. Project scope passes
+a derived project key and ``patient=None``; it draws from wider fictional spaces
 because one surrogate must stay distinct across a whole release.
 """
 
@@ -15,8 +15,8 @@ from outis.replacement.names.keys import name_identity, name_words
 from outis.replacement.primitives import (
     canonical_form,
     keyed_digest,
+    project_digest,
     safe_label,
-    study_digest,
 )
 from outis.replacement.realistic import REALISTIC_LABELS, realistic_value
 
@@ -89,8 +89,8 @@ _LAST_NAMES = (
     "Sable",
 )
 
-# Study scope only. Patient-scope outputs keep the vocabulary above unchanged.
-_STUDY_FIRST_NAMES = _FIRST_NAMES + (
+# Project scope only. Patient-scope outputs keep the vocabulary above unchanged.
+_PROJECT_FIRST_NAMES = _FIRST_NAMES + (
     "Addison",
     "Ainsley",
     "Ari",
@@ -124,7 +124,7 @@ _STUDY_FIRST_NAMES = _FIRST_NAMES + (
     "Tatum",
     "Wynn",
 )
-_STUDY_SURNAME_SUFFIXES = (
+_PROJECT_SURNAME_SUFFIXES = (
     "",
     *(
         "brook field ford wood ridge dale hill gate well more worth land shaw ley "
@@ -134,21 +134,21 @@ _STUDY_SURNAME_SUFFIXES = (
         "thwaite view wold yard bank beck bourne cote down fold"
     ).split(),
 )
-_STUDY_LAST_NAMES = tuple(
+_PROJECT_LAST_NAMES = tuple(
     dict.fromkeys(
         stem + suffix
         for stem in _LAST_NAMES
-        for suffix in _STUDY_SURNAME_SUFFIXES
+        for suffix in _PROJECT_SURNAME_SUFFIXES
         if suffix != stem.casefold()
     )
 )
-# Every NANP area code keeps 555-0100 through 555-0199 for fictional use. Study
+# Every NANP area code keeps 555-0100 through 555-0199 for fictional use. Project
 # scope spreads that block over geographic-format codes, excluding N11 codes.
-_STUDY_AREA_CODES = tuple(
+_PROJECT_AREA_CODES = tuple(
     code for code in range(200, 1000) if code // 10 % 10 != 9 and code % 100 != 11
 )
 # RFC 5737 documentation networks.
-_STUDY_IP_NETWORKS = ("192.0.2", "198.51.100", "203.0.113")
+_PROJECT_IP_NETWORKS = ("192.0.2", "198.51.100", "203.0.113")
 
 _EXACT_IDENTITY_LABELS = frozenset({"MRN", "ACCOUNT", "ID", "EMAIL", "URL"})
 _FACILITY_SPECIALTIES = (
@@ -192,8 +192,8 @@ def _digest(
     secret: bytes, patient: str | None, label: str, value: str, salt: int
 ) -> bytes:
     if patient is None:
-        # Study scope: the key is already study-specific; no patient is mixed in.
-        return study_digest(secret, label, value, salt)
+        # Project scope: the key is already project-specific; no patient is mixed in.
+        return project_digest(secret, label, value, salt)
     return keyed_digest(secret, patient, label, value, salt)
 
 
@@ -218,7 +218,7 @@ def _fictional_name(
         else None
     )
     first_names, last_names = (
-        (_STUDY_FIRST_NAMES, _STUDY_LAST_NAMES)
+        (_PROJECT_FIRST_NAMES, _PROJECT_LAST_NAMES)
         if patient is None
         else (_FIRST_NAMES, _LAST_NAMES)
     )
@@ -333,16 +333,16 @@ def synthetic_value(
             if canonical_form(replacement) != canonical:
                 return replacement
         return f"[{safe_label(label)}]"
-    study = patient is None
+    project = patient is None
     for salt in range(100):
         digest = _digest(secret, patient, label, identity, salt)
         token = digest.hex()[:12]
         if label == "PHONE":
             area = (
-                _STUDY_AREA_CODES[
-                    int.from_bytes(digest[4:8], "big") % len(_STUDY_AREA_CODES)
+                _PROJECT_AREA_CODES[
+                    int.from_bytes(digest[4:8], "big") % len(_PROJECT_AREA_CODES)
                 ]
-                if study
+                if project
                 else 202
             )
             replacement = (
@@ -351,7 +351,7 @@ def synthetic_value(
         elif label == "EMAIL":
             replacement = f"person.{token}@example.invalid"
         elif label == "ADDRESS":
-            city = f"Example City {token[:6].upper()}" if study else "Example City"
+            city = f"Example City {token[:6].upper()}" if project else "Example City"
             replacement = f"{100 + int.from_bytes(digest[:4], 'big') % 900} Synthetic Way, {city}, ZZ 00000"
         elif label == "SSN":
             replacement = f"000-{int.from_bytes(digest[:4], 'big') % 100:02d}-{int.from_bytes(digest[4:8], 'big') % 10000:04d}"
@@ -361,10 +361,10 @@ def synthetic_value(
             replacement = f"https://synthetic-{token}.invalid"
         elif label == "IP":
             network = (
-                _STUDY_IP_NETWORKS[
-                    int.from_bytes(digest[4:8], "big") % len(_STUDY_IP_NETWORKS)
+                _PROJECT_IP_NETWORKS[
+                    int.from_bytes(digest[4:8], "big") % len(_PROJECT_IP_NETWORKS)
                 ]
-                if study
+                if project
                 else "192.0.2"
             )
             replacement = f"{network}.{1 + int.from_bytes(digest[:4], 'big') % 254}"
