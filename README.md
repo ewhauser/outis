@@ -140,6 +140,21 @@ Requests then send the key in an `X-API-Key` header. See
 outis text --input note.txt --mode redact
 ```
 
+`outis batch` de-identifies a whole note table, JSONL or Parquet (with the
+`outis[parquet]` extra), in one process. Every row needs a unique note ID;
+synthetic mode also needs a patient ID column and `OUTIS_SECRET`. Output is
+written as it goes. With `--resume`, the same command starts the run or, after
+an interruption, continues it from the last completed batch:
+
+```sh
+outis batch --input notes.parquet --output deid.parquet \
+  --id-column note_id --text-column note_text \
+  --patient-column patient_id --mode synthetic --resume
+```
+
+See [batch processing](docs/deployment.md#batch-processing) for the output
+format, resume guarantee, out-of-memory handling and measured throughput.
+
 ## How it works
 
 ```
@@ -240,7 +255,7 @@ any output.
 | [Evaluation methodology](docs/evaluation.md) | Targets, any-label masking and how models are compared |
 | [API guide](docs/api.md) | Endpoints, policies, masks, structured data, files, WebSockets |
 | [Synthetic replacement](docs/replacement.md) | Secrets, patient anchors, date shifting, identity linking, project scope |
-| [Deployment](docs/deployment.md) | Launcher, default model, batch limits, security controls |
+| [Deployment](docs/deployment.md) | Launcher, default model, corpus batch runs and throughput, security controls |
 | [Model card](MODEL_CARD.md) | Architecture, training data, evaluation, risks |
 | [Training](docs/training.md) | Training candidates and generating corpora |
 | [External verification](docs/external-verification.md) | Public benchmark protocol and results |
