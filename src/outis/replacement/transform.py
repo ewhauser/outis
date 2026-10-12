@@ -64,6 +64,11 @@ class ReplacementOptions(BaseModel):
     per_type: dict[str, Action] = Field(default_factory=dict, max_length=256)
     include_mapping: bool = False
     entity_ids: Literal["numbered", "keyed"] = "numbered"
+    # Synthetic surrogate style: "obvious" marks values as fake; "realistic"
+    # preserves formats and uses reserved ranges and plausible fictional places.
+    style: Literal["obvious", "realistic"] = "obvious"
+    # Realistic style only: keep a place's state and country.
+    keep_region: bool = True
     # Project scope keys non-date surrogates and keyed IDs by the request's
     # project_id, not the patient.
     scope: Literal["patient", "project"] = "patient"
@@ -615,6 +620,8 @@ def render(
                 aliases,
                 name_binding=binding,
                 name_warnings=name_warnings,
+                style=options.style,
+                keep_region=options.keep_region,
             )
             warnings.extend(
                 f"Entity {index} (NAME): {warning}" for warning in name_warnings
@@ -687,10 +694,13 @@ def render(
 _LEGACY_ENTITY_FIELDS = ("start", "end", "label", "replacement", "score", "source")
 
 
-def legacy_options(mode) -> ReplacementOptions:
+def legacy_options(mode, *, style="obvious", keep_region=True) -> ReplacementOptions:
     """Replacement options equivalent to a legacy ``mode``-only request."""
     return ReplacementOptions(
-        type="synthetic" if mode == "synthetic" else "marker", pattern="[{label}]"
+        type="synthetic" if mode == "synthetic" else "marker",
+        pattern="[{label}]",
+        style=style,
+        keep_region=keep_region,
     )
 
 
@@ -706,7 +716,15 @@ def legacy_response(result):
 
 
 def legacy_replace(
-    text, spans, *, mode="redact", patient_id=None, secret=None, date_shift_days=None
+    text,
+    spans,
+    *,
+    mode="redact",
+    patient_id=None,
+    secret=None,
+    date_shift_days=None,
+    style="obvious",
+    keep_region=True,
 ):
     """Legacy ``mode``-only replacement rendered by ``render``.
 
@@ -730,7 +748,7 @@ def legacy_replace(
         render(
             text,
             entities,
-            options=legacy_options(mode),
+            options=legacy_options(mode, style=style, keep_region=keep_region),
             mode=mode,
             patient_id=patient_id,
             secret=secret,

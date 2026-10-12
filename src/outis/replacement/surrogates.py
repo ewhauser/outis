@@ -22,6 +22,8 @@ def replace(
     patient_id: str | None = None,
     secret: bytes | str | None = None,
     date_shift_days: int | None = None,
+    style: str = "obvious",
+    keep_region: bool = True,
 ) -> dict[str, Any]:
     """Replace supplied PHI spans while copying every other character exactly.
 
@@ -35,6 +37,8 @@ def replace(
     first component exceeds 12, and year/month/day when year comes first.
     A shifted day/month/year date is emitted year-first if its meaning would
     otherwise become ambiguous. Case-sensitive identifiers use exact keys.
+    ``style="realistic"`` selects format-preserving surrogates in reserved
+    ranges; ``keep_region`` then keeps a place's state and country.
 
     This is the legacy entry point; rendering is done by
     ``outis.replacement.transform.render`` through ``legacy_replace``.
@@ -46,4 +50,6 @@ def replace(
         patient_id=patient_id,
         secret=secret,
         date_shift_days=date_shift_days,
+        style=style,
+        keep_region=keep_region,
     )

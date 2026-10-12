@@ -5,8 +5,9 @@ distinct source values that draw the same surrogate merge in the output. This
 reports, per label and corpus size, the share of distinct invented values whose
 surrogate is shared with at least one other value. ``--scope patient`` shows
 what the narrower patient-scope spaces would give if one patient anchor covered
-the same number of values. No real PHI is used; the secret, project ID and
-patient anchor are fixed test values.
+the same number of values. ``--style realistic`` measures the format-preserving
+style; its spaces do not depend on scope. No real PHI is used; the secret,
+project ID and patient anchor are fixed test values.
 """
 
 import argparse
@@ -44,17 +45,25 @@ GENERATORS = {
     "URL": lambda rng: f"https://{_word(rng, 8).lower()}.example.org/",
     "IP": lambda rng: "10." + ".".join(str(rng.randint(0, 255)) for _ in range(3)),
     "SSN": lambda rng: f"{_digits(rng, 3)}-{_digits(rng, 2)}-{_digits(rng, 4)}",
-    "MRN (6 digits)": lambda rng: _digits(rng, 6),
-    "MRN (8 digits)": lambda rng: _digits(rng, 8),
-    "MRN (10 digits)": lambda rng: _digits(rng, 10),
+    **{
+        f"MRN ({length} digits)": lambda rng, length=length: _digits(rng, length)
+        for length in range(3, 13)
+    },
+    "MRN (AA-999999)": lambda rng: (
+        "".join(rng.choices(string.ascii_uppercase, k=2)) + "-" + _digits(rng, 6)
+    ),
     "ACCOUNT": lambda rng: _digits(rng, 9),
     "ID": lambda rng: "ID-" + _digits(rng, 7),
 }
 
 
 def distinct_values(label, count, seed=0):
+    """Up to ``count`` distinct values; a short MRN domain is used whole."""
     rng = random.Random(f"{label}:{seed}")
     generate = GENERATORS[label]
+    if label.startswith("MRN (") and label[5:].split(" ")[0].isdigit():
+        length = int(label[5:].split(" ")[0])
+        count = min(count, 10**length)
     values = set()
     while len(values) < count:
         values.add(generate(rng))
@@ -62,7 +71,13 @@ def distinct_values(label, count, seed=0):
 
 
 def collision_share(
-    label, values, *, scope="project", secret=SECRET, project_id=PROJECT_ID
+    label,
+    values,
+    *,
+    scope="project",
+    style="obvious",
+    secret=SECRET,
+    project_id=PROJECT_ID,
 ):
     """Share of distinct values whose surrogate is not unique in one scope."""
     key, patient = (
@@ -71,7 +86,10 @@ def collision_share(
         else (secret, PATIENT)
     )
     entity = label.split(" ")[0]
-    surrogates = [synthetic_value(value, entity, key, patient, {}) for value in values]
+    surrogates = [
+        synthetic_value(value, entity, key, patient, {}, style=style)
+        for value in values
+    ]
     counts = Counter(surrogates)
     shared = sum(1 for surrogate in surrogates if counts[surrogate] > 1)
     return shared / len(values)
@@ -81,12 +99,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--sizes", type=int, nargs="+", default=[2_000, 20_000])
     parser.add_argument("--scope", choices=["project", "patient"], default="project")
+    parser.add_argument("--style", choices=["obvious", "realistic"], default="obvious")
     args = parser.parse_args()
     print("| Label | " + " | ".join(f"{n:,} values" for n in args.sizes) + " |")
     print("| --- |" + " ---: |" * len(args.sizes))
     for label in GENERATORS:
         rates = [
-            collision_share(label, distinct_values(label, n), scope=args.scope)
+            collision_share(
+                label, distinct_values(label, n), scope=args.scope, style=args.style
+            )
             for n in args.sizes
         ]
         print(f"| {label} | " + " | ".join(f"{rate:.2%}" for rate in rates) + " |")

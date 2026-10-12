@@ -30,6 +30,16 @@ from the Conventional Commit messages merged since the previous release; see
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in `replacement.style: "realistic"` for synthetic replacement (also
+  `style=` on `surrogates.replace` and `outis text --style realistic`).
+  Identifiers keep their exact format through a keyed permutation; SSNs,
+  phones, emails, URLs and IPs stay inside never-issued or reserved ranges; and
+  places, addresses and facilities get fictional names. `keep_region` (default
+  `true`) keeps a place's state and country. The default `obvious` style is
+  unchanged.
+
 ### Changed
 
 - Require Python 3.13 or later; drop Python 3.11 and 3.12 support and test

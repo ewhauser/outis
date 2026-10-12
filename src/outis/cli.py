@@ -18,6 +18,17 @@ def main():
     redact.add_argument("--mode", choices=["redact", "synthetic"], default="redact")
     redact.add_argument("--patient-id")
     redact.add_argument(
+        "--style",
+        choices=["obvious", "realistic"],
+        help="Synthetic surrogate style (default: obvious). Setting it returns "
+        "the configured replacement response fields",
+    )
+    redact.add_argument(
+        "--replace-region",
+        action="store_true",
+        help="With --style realistic, also replace a place's state and country",
+    )
+    redact.add_argument(
         "--model-dir",
         help="Detector checkpoint directory (default: the published model, "
         "downloaded once into the Hugging Face cache)",
@@ -30,6 +41,10 @@ def main():
         "(default: OUTIS_SITE_DICTIONARIES; none when unset)",
     )
     args = parser.parse_args()
+    if args.command == "text" and args.style and args.mode != "synthetic":
+        parser.error("--style requires --mode synthetic")
+    if args.command == "text" and args.replace_region and args.style != "realistic":
+        parser.error("--replace-region requires --style realistic")
     if args.command == "serve":
         if args.host not in {"127.0.0.1", "localhost", "::1"} and not os.environ.get(
             "OUTIS_API_KEY"
@@ -51,7 +66,17 @@ def main():
         device=args.device,
         **options,
     )
-    result = deid.deidentify(text, mode=args.mode, patient_id=args.patient_id)
+    replacement = None
+    if args.style:
+        replacement = {
+            "type": "synthetic",
+            "pattern": "[{label}]",
+            "style": args.style,
+            "keep_region": not args.replace_region,
+        }
+    result = deid.deidentify(
+        text, mode=args.mode, patient_id=args.patient_id, replacement=replacement
+    )
     print(json.dumps(result, ensure_ascii=False))
 
 
