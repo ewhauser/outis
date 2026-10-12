@@ -37,6 +37,12 @@ def _model_version(model_dir, detector):
     return "injected-detector"
 
 
+def _scoped_project(req):
+    """The project that keys identities, or None in patient scope."""
+    scope = getattr(req.get("replacement"), "scope", "patient")
+    return req["project_id"] if scope == "project" else None
+
+
 class Deidentifier:
     def __init__(
         self,
@@ -122,6 +128,9 @@ class Deidentifier:
                 labels = KNOWN_LABELS | {item.label for item in policy.custom_entities}
                 if self.site_dictionaries is not None:
                     labels |= self.site_dictionaries.labels
+                if options.scope == "project" and "project_id" not in req:
+                    # The default project would silently share one key.
+                    raise ValueError("Project scope requires an explicit project_id")
                 if set(options.per_type) - labels:
                     raise ValueError("Unknown replacement entity type")
                 synthetic = (
@@ -235,9 +244,7 @@ class Deidentifier:
                 spans,
                 secret=self.secret if keyed else None,
                 patient_id=req.get("patient_id") if keyed else None,
-                study_id=getattr(req.get("replacement"), "study_id", None)
-                if keyed
-                else None,
+                project_id=_scoped_project(req) if keyed else None,
             )
             prepared = [shared] * len(requests)
             context_spans = shared.spans
@@ -280,9 +287,7 @@ class Deidentifier:
                         spans,
                         secret=self.secret if keyed else None,
                         patient_id=req.get("patient_id") if keyed else None,
-                        study_id=getattr(req.get("replacement"), "study_id", None)
-                        if keyed
-                        else None,
+                        project_id=_scoped_project(req) if keyed else None,
                     )
                 )
             predictions = [list(item.spans) for item in prepared]
@@ -324,21 +329,20 @@ class Deidentifier:
         date_shift_days=None,
         policy=None,
         replacement=None,
-        project_id="main",
+        project_id=None,
     ):
-        return self.deidentify_batch(
-            [
-                {
-                    "text": text,
-                    "mode": mode,
-                    "patient_id": patient_id,
-                    "date_shift_days": date_shift_days,
-                    "policy": policy,
-                    "replacement": replacement,
-                    "project_id": project_id,
-                }
-            ]
-        )[0]
+        request = {
+            "text": text,
+            "mode": mode,
+            "patient_id": patient_id,
+            "date_shift_days": date_shift_days,
+            "policy": policy,
+            "replacement": replacement,
+        }
+        if project_id is not None:
+            # Omitted means the default project, which project scope rejects.
+            request["project_id"] = project_id
+        return self.deidentify_batch([request])[0]
 
     def deidentify_batch(self, requests, *, link_batch=False, shared_entities=False):
         return self._process(
@@ -381,6 +385,7 @@ class Deidentifier:
                     prepared_context=context_index,
                     index_offset=mention_offset if context is not None else 0,
                     context_offset=context_offset if context is not None else 0,
+                    project_id=req["project_id"],
                 )
                 if req["_extended"] or link_batch or shared_entities:
                     result["policy"] = policy_metadata(

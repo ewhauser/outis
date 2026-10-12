@@ -198,8 +198,7 @@ as `[NAME_e1]` and processed offsets.
 | `per_type` | Overrides the action by label with `marker`, `mask`, `synthetic`, or `keep`. `keep` deliberately retains the original detected value. |
 | `entity_ids` | `numbered` gives request-local identities such as `e1`. `keyed` uses HMAC identities in the selected `scope` and requires `patient_id` plus the server's stable secret. |
 | `include_mapping` | Default `false`. When true, returns sensitive `{marker, original, label}` mappings for changed values. |
-| `scope` | `patient` (default) keys synthetic surrogates and keyed IDs by patient. `study` keys them by a study key instead, so one value gets one surrogate across all patients under that key; dates still shift per patient, and DATE keyed IDs stay per patient. |
-| `study_id` | Required with, and only with, `scope: "study"`. 1 to 128 characters from `A-Z a-z 0-9 _ . : -`. Each study ID derives an unrelated key from the server secret. |
+| `scope` | `patient` (default) keys synthetic surrogates and keyed IDs by patient. `project` keys them by a key derived from the request's `project_id` instead, so one value gets one surrogate across all patients in that project; dates still shift per patient, and DATE keyed IDs stay per patient. Project scope requires an explicit `project_id`. |
 
 Configured replacements include `processed_start` and `processed_end` alongside source
 `start` and `end`. The processed offsets select the emitted replacement in
@@ -228,42 +227,47 @@ date does not establish date-interval preservation. Keeping values deliberately
 reduces deidentification. See the README for existing synthetic alias, age,
 date-format, and fictional-identity limitations.
 
-### Patient and study scope
+### Patient and project scope
 
 The default `scope: "patient"` gives each patient independent surrogates and is
-unchanged from earlier releases. `scope: "study"` with a `study_id` keys NAME,
-FACILITY, LOCATION, ADDRESS, PHONE, EMAIL, URL, IP, MRN, SSN, ACCOUNT and ID
-surrogates, and keyed `entity_ids`, by a key derived from the server secret and
-the study ID (HKDF-SHA256, tag `outis-study-key-v1`). A provider or facility then
-keeps one surrogate across a release. Dates still shift by a per-patient offset
-derived from the study key, so `patient_id` remains required, and keyed
-`entity_ids` for DATE spans also stay per patient. No key or derived
-key is returned or logged. `project_id` remains a usage label only; see
-[replacement.md](replacement.md#patient-and-study-scope) for why the study key
-has its own field.
+unchanged from earlier releases. `scope: "project"` keys NAME, FACILITY,
+LOCATION, ADDRESS, PHONE, EMAIL, URL, IP, MRN, SSN, ACCOUNT and ID surrogates,
+and keyed `entity_ids`, by a key derived from the server secret and the
+request's `project_id` (HKDF-SHA256, tag `outis-project-key-v1`). A provider or
+facility then keeps one surrogate across a release. Dates still shift by a
+per-patient offset derived from the project key, so `patient_id` remains
+required, and keyed `entity_ids` for DATE spans also stay per patient. No key
+or derived key is returned or logged.
+
+Project scope rejects a request that leaves `project_id` at its default `main`,
+so callers who never set it cannot share one key by accident. Renaming a
+project re-keys its surrogates. See
+[replacement.md](replacement.md#patient-and-project-scope).
 
 ```json
 {
   "text": "Seen by Dr. Mara Calder at Exampleford Rehabilitation Hospital.",
   "mode": "synthetic",
   "patient_id": "internal-patient-42",
-  "replacement": {"type": "synthetic", "scope": "study", "study_id": "sepsis-2026-release-1"}
+  "project_id": "sepsis-2026-release-1",
+  "replacement": {"type": "synthetic", "scope": "project"}
 }
 ```
 
-Study scope enables cross-patient linkage and frequency analysis of surrogates
-within a release. Anyone who learns the secret or a derived study key can
-recompute surrogates for candidate values, and rotating the secret or study ID
-does not protect releases already issued. Use a new `study_id` for each release
-that must not be linkable to another.
+Project scope enables cross-patient linkage and frequency analysis of
+surrogates within a release. Anyone who learns the secret or a derived project
+key can recompute surrogates for candidate values, and rotating the secret or
+project ID does not protect releases already issued. Use a new `project_id` for
+each release that must not be linkable to another.
 
-Because study surrogates must stay distinct across a whole corpus, study scope
-uses wider reserved fictional spaces than patient scope (for example 71,200
-`555-01xx` phone numbers instead of 100). Distinct values can still merge: among
-2,000 and 20,000 distinct invented values, 1.6% and 14.1% of names, 2.5% and
-25.3% of phone numbers, and 92.5% and 100% of IP addresses shared a surrogate,
-while MRN, ACCOUNT, ID, EMAIL and URL surrogates did not collide. The full table
-and mitigations are in [replacement.md](replacement.md#surrogate-collisions).
+Because project surrogates must stay distinct across a whole corpus, project
+scope uses wider reserved fictional spaces than patient scope (for example
+71,200 `555-01xx` phone numbers instead of 100). Distinct values can still
+merge: among 2,000 and 20,000 distinct invented values, 1.4% and 14.3% of names,
+2.9% and 24.4% of phone numbers, and 92.0% and 100% of IP addresses shared a
+surrogate, while MRN, ACCOUNT, ID, EMAIL and URL surrogates did not collide. The
+full table and mitigations are in
+[replacement.md](replacement.md#surrogate-collisions).
 
 ## Related messages and identities
 
@@ -278,9 +282,9 @@ switches have distinct effects:
 
 Shared requests must have identical policies, project, patient anchor, mode,
 replacement options, and date-shift settings. Use a separate batch for a
-different patient or processing policy. This also holds in study scope: shared
+different patient or processing policy. This also holds in project scope: shared
 context resolves partial names and nicknames, which should not cross patients,
-while the study key already keeps full values consistent across batches. The service does not persist linked
+while the project key already keeps full values consistent across batches. The service does not persist linked
 context between requests.
 
 ```json
@@ -498,6 +502,8 @@ processing seconds. Projects are represented by the first 16 hexadecimal
 characters of SHA-256 of the project ID, with excess distinct projects grouped
 into `overflow` after 128 project buckets. No source text or patient anchors
 are recorded in these counters. Hashing a project ID is not a secrecy guarantee.
+With `replacement.scope: "project"`, the project ID also keys synthetic
+surrogates; see [Patient and project scope](#patient-and-project-scope).
 
 Counts are process-local and reset on restart; separate workers have separate
 counters. A batch counts as one processing request for each included project,

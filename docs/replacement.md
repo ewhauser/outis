@@ -67,7 +67,7 @@ detected as PHI. The replacement engine preserves every character outside
 detected spans. Fictional identities may coincidentally resemble real people;
 they do not establish anonymity or resistance to reidentification.
 
-## Patient and study scope
+## Patient and project scope
 
 By default (`replacement.scope: "patient"`) every surrogate is keyed by the
 server secret, the patient anchor, the label and the value. One provider,
@@ -75,87 +75,86 @@ facility, phone number or MRN therefore gets a different fictional value for
 each patient, and a released corpus cannot follow it across patients. This is
 the default and its outputs are unchanged from earlier releases.
 
-Study scope is an opt-in alternative for building one research release. Set
-`replacement.scope: "study"` and a `replacement.study_id`:
+Project scope is an opt-in alternative for building one release, such as a
+research data set. Set `replacement.scope: "project"` and the request's
+`project_id`:
 
 ```json
 {
   "text": "Seen by Dr. Mara Calder at Exampleford Rehabilitation Hospital on 2024-02-28.",
   "mode": "synthetic",
   "patient_id": "internal-patient-42",
+  "project_id": "sepsis-2026-release-1",
   "replacement": {
     "type": "synthetic",
-    "scope": "study",
-    "study_id": "sepsis-2026-release-1"
+    "scope": "project"
   }
 }
 ```
 
-In study scope:
+In project scope:
 
 - NAME, FACILITY, LOCATION, ADDRESS, PHONE, EMAIL, URL, IP, MRN, SSN, ACCOUNT
-  and ID surrogates are keyed by a study key, the label and the value, with no
-  patient. The same value gets the same surrogate in every patient's notes
-  under one `study_id`. Keyed `entity_ids` follow the same scope.
+  and ID surrogates are keyed by a project key, the label and the value, with
+  no patient. The same value gets the same surrogate in every patient's notes
+  under one `project_id`. Keyed `entity_ids` follow the same scope.
 - Dates still shift by one nonzero offset per patient, so `patient_id` stays
-  required. The offset is derived from the study key and the patient, so a
-  patient's dates also shift differently in different studies. An explicit
+  required. The offset is derived from the project key and the patient, so a
+  patient's dates also shift differently in different projects. An explicit
   `date_shift_days` still overrides it.
-- Keyed `entity_ids` for DATE spans stay per patient (study key plus patient).
+- Keyed `entity_ids` for DATE spans stay per patient (project key plus patient).
   A DATE ID shared across patients would group one original date's
   differently shifted copies, and the bounded shift range would then reveal
   the original date and each patient's offset.
-- The study key is derived from `OUTIS_SECRET` and the study ID with
-  HKDF-SHA256 under the versioned tag `outis-study-key-v1`. Different study IDs
-  give unrelated keys, so their surrogates and keyed IDs cannot be linked
-  without the server secret. Study surrogates are also unrelated to
+- The project key is derived from `OUTIS_SECRET` and the project ID with
+  HKDF-SHA256 under the versioned tag `outis-project-key-v1`. Different project
+  IDs give unrelated keys, so their surrogates and keyed IDs cannot be linked
+  without the server secret. Project surrogates are also unrelated to
   patient-scope surrogates for the same secret. Neither the secret nor any
-  derived key appears in responses or logs; responses do not echo the study ID.
-- `study_id` is 1 to 128 characters from `A-Z a-z 0-9 _ . : -`. It names a key
-  but is not itself secret.
+  derived key appears in responses or logs; responses do not echo the project
+  ID.
+- `project_id` must be set explicitly. Requests that omit it fall back to the
+  default `main`, so project scope rejects them instead of putting every such
+  caller into one shared key. An explicit `"project_id": "main"` is accepted.
+- `project_id` is the same 1 to 60 characters from `A-Z a-z 0-9 _ : -` that
+  usage accounting already accepts. It names a key but is not itself secret.
+  Usage counters hash it, and renaming a project re-keys its surrogates. Use a
+  separate project ID for each release that must not be linkable to another.
 - Within-note alias and nickname linking work as in patient scope. A
   standalone partial name in another note (`Calder` alone) is still not linked
   to a full name, so it draws its own surrogate.
 - `shared_entities` and `link_batch` still require one patient per batch.
   Shared context resolves partial names and nicknames, and that evidence should
-  not cross patients. Cross-patient consistency comes from the study key
+  not cross patients. Cross-patient consistency comes from the project key
   instead, so send each patient's notes as a separate batch with the same
-  `study_id`.
-
-`study_id` is a separate field rather than a reuse of `project_id`.
-`project_id` is a usage-accounting label that defaults to `main`, so reusing it
-would put every caller who never set it into one shared study, and renaming a
-project for accounting would silently re-key a release. One project may also
-need several unlinkable releases. Keeping the study ID inside `replacement`
-makes the choice explicit and lets shared batches compare it with the other
-replacement options.
+  `project_id`.
 
 ### Threat model
 
-Study scope trades unlinkability for analytic utility. Before choosing it:
+Project scope trades unlinkability for analytic utility. Before choosing it:
 
 - Anyone holding the release can link a surrogate across patients and count
   how often it occurs. Frequency analysis then becomes possible: the most
   common surrogate surname or facility in a regional corpus likely maps to a
   common real surname or the largest local hospital.
 - Surrogates are keyed hashes of the source value. Anyone who learns the
-  server secret, or a derived study key, can recompute the surrogate for any
+  server secret, or a derived project key, can recompute the surrogate for any
   candidate value (for example a list of local physicians) and confirm which
-  ones appear in that study's release.
-- Rotating `OUTIS_SECRET` or choosing a new `study_id` protects future
+  ones appear in that project's release.
+- Rotating `OUTIS_SECRET` or choosing a new `project_id` protects future
   releases only. Releases already issued keep their surrogates, and anyone
   holding an old key can still test candidates against them.
-- Use one `study_id` per release or recipient that should not be linkable to
+- Use one `project_id` per release or recipient that should not be linkable to
   another, and keep `OUTIS_SECRET` outside the release environment.
 
 ### Surrogate collisions
 
 Patient-scope surrogates only need to be distinct within one patient, so they
-draw from small fictional spaces. In study scope two distinct real values that
-draw the same surrogate merge across the whole release, so study scope uses
+draw from small fictional spaces. In project scope two distinct real values that
+draw the same surrogate merge across the whole release, so project scope uses
 wider reserved spaces:
 
-| Label | Patient scope | Study scope |
+| Label | Patient scope | Project scope |
 | --- | --- | --- |
 | NAME | 32 × 32 = 1,024 full names | 64 given names × 2,045 compound surnames = 130,880 |
 | PHONE | `(202) 555-0100` to `555-0199`: 100 numbers | `555-01xx` under 712 geographic-format area codes (N11 excluded): 71,200 |
@@ -165,18 +164,18 @@ wider reserved spaces:
 | FACILITY, LOCATION | 6 hex digits (about 16.8 million) per setting | same |
 | EMAIL, URL, MRN, ACCOUNT, ID | 12 hex digits (48 bits) | same |
 
-The table below gives the share of distinct invented values whose study-scope
+The table below gives the share of distinct invented values whose project-scope
 surrogate is shared with at least one other value, measured by
 `uv run python scripts/surrogate_collisions.py --sizes 200 2000 20000`:
 
 | Label | 200 values | 2,000 values | 20,000 values |
 | --- | ---: | ---: | ---: |
-| NAME | 1.00% | 1.60% | 14.11% |
-| PHONE | 0.00% | 2.50% | 25.25% |
-| IP | 20.50% | 92.50% | 100.00% |
-| SSN | 0.00% | 0.20% | 2.01% |
-| FACILITY | 0.00% | 0.00% | 0.13% |
-| LOCATION | 0.00% | 0.00% | 0.11% |
+| NAME | 0.00% | 1.35% | 14.29% |
+| PHONE | 0.00% | 2.90% | 24.44% |
+| IP | 23.00% | 91.95% | 100.00% |
+| SSN | 0.00% | 0.30% | 1.93% |
+| FACILITY | 0.00% | 0.00% | 0.15% |
+| LOCATION | 0.00% | 0.00% | 0.10% |
 | ADDRESS, EMAIL, URL, MRN (6, 8 or 10 digits), ACCOUNT, ID | 0.00% | 0.00% | 0.00% |
 
 With the patient-scope spaces, 2,000 distinct values would collide for 85% of
