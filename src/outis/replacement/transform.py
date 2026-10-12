@@ -194,7 +194,8 @@ def _link(text, spans, *, secret=None, patient_id=None, study_id=None):
 
     Returns the linked spans with the aliases, nickname bindings and identity
     keys of those linked spans, so callers never repeat the analysis. With a
-    study_id, keyed IDs depend on the study key instead of the patient.
+    study_id, keyed IDs depend on the study key instead of the patient, except
+    DATE IDs, which also stay patient-scoped because dates shift per patient.
     """
     if not isinstance(text, str) or len(text) > _MAX_OUTPUT:
         raise ValueError("Invalid identity context")
@@ -225,12 +226,22 @@ def _link(text, spans, *, secret=None, patient_id=None, study_id=None):
         if entity_id is None:
             if key is not None:
                 # The pre-rename tag keeps patient-scope entity IDs stable for
-                # an existing secret.
-                id_key, scoped = (
-                    (study, ["outis-study-entity-v1", *identity])
-                    if study is not None
-                    else (key, ["clinical-deid-entity-v1", patient, *identity])
-                )
+                # an existing secret. Dates shift per patient, so a DATE ID
+                # shared across patients would let recipients group one
+                # original date's shifted copies and bound it by the shift
+                # range; study-scoped DATE IDs stay per patient.
+                if study is None:
+                    id_key, scoped = (
+                        key,
+                        ["clinical-deid-entity-v1", patient, *identity],
+                    )
+                elif span.label == "DATE":
+                    id_key, scoped = (
+                        study,
+                        ["outis-study-date-entity-v1", patient, *identity],
+                    )
+                else:
+                    id_key, scoped = (study, ["outis-study-entity-v1", *identity])
                 message = json.dumps(
                     scoped, ensure_ascii=False, separators=(",", ":")
                 ).encode()

@@ -101,6 +101,10 @@ In study scope:
   required. The offset is derived from the study key and the patient, so a
   patient's dates also shift differently in different studies. An explicit
   `date_shift_days` still overrides it.
+- Keyed `entity_ids` for DATE spans stay per patient (study key plus patient).
+  A DATE ID shared across patients would group one original date's
+  differently shifted copies, and the bounded shift range would then reveal
+  the original date and each patient's offset.
 - The study key is derived from `OUTIS_SECRET` and the study ID with
   HKDF-SHA256 under the versioned tag `outis-study-key-v1`. Different study IDs
   give unrelated keys, so their surrogates and keyed IDs cannot be linked
