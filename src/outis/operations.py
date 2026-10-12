@@ -76,7 +76,7 @@ class Usage:
 
 
 def diagnostics(service):
-    return {
+    result = {
         "api_version": "0.2.0",
         "model_version": service.version,
         "python_version": platform.python_version(),
@@ -85,3 +85,8 @@ def diagnostics(service):
         "language_scope": ["en"],
         "usage_persistence": "process_local",
     }
+    # Names, counts and content hashes only; never dictionary terms.
+    site = getattr(service, "site_dictionaries", None)
+    if site is not None:
+        result["site_dictionaries"] = site.summary()
+    return result
