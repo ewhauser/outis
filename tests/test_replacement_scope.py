@@ -87,6 +87,14 @@ def study(patient, study_id="trial-a", **kwargs):
     return run(patient, scope="study", study_id=study_id, **kwargs)
 
 
+def ids(result, labels):
+    return [
+        entity["entity_id"]
+        for entity in result["entities"]
+        if entity["label"] in labels
+    ]
+
+
 def replacements(result, labels=NON_DATE):
     return [
         entity["replacement"]
@@ -135,9 +143,7 @@ def test_default_patient_scope_outputs_are_pinned():
 def test_study_scope_shares_non_date_surrogates_and_ids_across_patients():
     first, second = study("patient-a"), study("patient-b")
     assert replacements(first) == replacements(second)
-    assert [e["entity_id"] for e in first["entities"]] == [
-        e["entity_id"] for e in second["entities"]
-    ]
+    assert ids(first, NON_DATE) == ids(second, NON_DATE)
     # One identity keeps one surrogate within the note as well.
     assert first["entities"][0]["replacement"].endswith(
         first["entities"][14]["replacement"]
@@ -152,6 +158,11 @@ def test_study_scope_shifts_dates_per_patient():
     first, second = study("patient-a"), study("patient-b")
     dates = [replacements(r, {"DATE"}) for r in (first, second)]
     assert dates[0] != dates[1]
+    # A shared DATE ID would group one original date's differently shifted
+    # copies across patients, and the bounded shift range would then pin the
+    # original date. DATE IDs therefore stay per patient.
+    assert not set(ids(first, {"DATE"})) & set(ids(second, {"DATE"}))
+    assert ids(first, {"DATE"}) == ids(study("patient-a"), {"DATE"})
     assert all(value not in {"03/02/2024", "2024-03-09"} for value in dates[0])
     for result in (first, second):
         assert result["preservation"]["date_intervals_preserved"]

@@ -198,7 +198,7 @@ as `[NAME_e1]` and processed offsets.
 | `per_type` | Overrides the action by label with `marker`, `mask`, `synthetic`, or `keep`. `keep` deliberately retains the original detected value. |
 | `entity_ids` | `numbered` gives request-local identities such as `e1`. `keyed` uses HMAC identities in the selected `scope` and requires `patient_id` plus the server's stable secret. |
 | `include_mapping` | Default `false`. When true, returns sensitive `{marker, original, label}` mappings for changed values. |
-| `scope` | `patient` (default) keys synthetic surrogates and keyed IDs by patient. `study` keys them by a study key instead, so one value gets one surrogate across all patients under that key; dates still shift per patient. |
+| `scope` | `patient` (default) keys synthetic surrogates and keyed IDs by patient. `study` keys them by a study key instead, so one value gets one surrogate across all patients under that key; dates still shift per patient, and DATE keyed IDs stay per patient. |
 | `study_id` | Required with, and only with, `scope: "study"`. 1 to 128 characters from `A-Z a-z 0-9 _ . : -`. Each study ID derives an unrelated key from the server secret. |
 
 Configured replacements include `processed_start` and `processed_end` alongside source
@@ -236,7 +236,8 @@ FACILITY, LOCATION, ADDRESS, PHONE, EMAIL, URL, IP, MRN, SSN, ACCOUNT and ID
 surrogates, and keyed `entity_ids`, by a key derived from the server secret and
 the study ID (HKDF-SHA256, tag `outis-study-key-v1`). A provider or facility then
 keeps one surrogate across a release. Dates still shift by a per-patient offset
-derived from the study key, so `patient_id` remains required. No key or derived
+derived from the study key, so `patient_id` remains required, and keyed
+`entity_ids` for DATE spans also stay per patient. No key or derived
 key is returned or logged. `project_id` remains a usage label only; see
 [replacement.md](replacement.md#patient-and-study-scope) for why the study key
 has its own field.
