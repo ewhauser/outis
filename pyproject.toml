@@ -43,6 +43,8 @@ dependencies = [
 [project.optional-dependencies]
 # Native PDF input and output for /v1/files.
 pdf = ["pypdf>=6.19.0", "reportlab>=4"]
+# Parquet input and output for `outis batch`.
+parquet = ["pyarrow>=18"]
 
 [project.urls]
 Homepage = "https://github.com/ewhauser/outis"
@@ -65,6 +67,7 @@ dev = [
     { include-group = "generators" },
     "pypdf>=6.19.0",
     "reportlab>=4",
+    "pyarrow>=18",
     "pytest>=8",
     "httpx>=0.28",
     "ruff>=0.11",

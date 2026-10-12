@@ -4,6 +4,8 @@ import os
 import sys
 from pathlib import Path
 
+from outis import batch
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -40,7 +42,10 @@ def main():
         help="Site dictionary manifest or directory "
         "(default: OUTIS_SITE_DICTIONARIES; none when unset)",
     )
+    batch.add_parser(sub)
     args = parser.parse_args()
+    if args.command == "batch":
+        sys.exit(batch.main(args))
     if args.command == "text" and args.style and args.mode != "synthetic":
         parser.error("--style requires --mode synthetic")
     if args.command == "text" and args.replace_region and args.style != "realistic":

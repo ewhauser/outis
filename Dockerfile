@@ -44,7 +44,7 @@ PY
     gpu) excluded="" ;;
     *) echo "VARIANT must be cpu or gpu, not $VARIANT" >&2; exit 1 ;;
 esac
-uv export --frozen --no-dev --extra pdf --no-emit-project --no-header --no-annotate $excluded -o requirements.txt
+uv export --frozen --no-dev --extra pdf --extra parquet --no-emit-project --no-header --no-annotate $excluded -o requirements.txt
 if [ "$VARIANT" = cpu ]; then
     uv pip install --no-config --no-deps -r torch.txt --index-url https://download.pytorch.org/whl/cpu
 fi
