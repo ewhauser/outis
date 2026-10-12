@@ -27,6 +27,38 @@ def keyed_digest(
     return hmac.new(secret, message, hashlib.sha256).digest()
 
 
+# Versioned tags for study scope. Changing either re-keys every study release.
+_STUDY_KEY_DOMAIN = b"outis-study-key-v1"
+_STUDY_DIGEST_DOMAIN = "outis-study-replacement-v1"
+
+
+def study_key(secret: bytes, study_id: str) -> bytes:
+    """Derive an independent per-study key with single-block HKDF-SHA256.
+
+    Distinct study IDs give unrelated keys, so their surrogates cannot be linked
+    without the server secret. The result is key material: never return or log it.
+    """
+    prk = hmac.new(_STUDY_KEY_DOMAIN, secret, hashlib.sha256).digest()
+    info = json.dumps(
+        [_STUDY_KEY_DOMAIN.decode(), study_id],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hmac.new(prk, info + b"\x01", hashlib.sha256).digest()
+
+
+def study_digest(
+    key: bytes, label: str, value: str, salt: int = 0, patient: str | None = None
+) -> bytes:
+    """Keyed digest under a study key; patient is set only for date offsets."""
+    message = json.dumps(
+        [_STUDY_DIGEST_DOMAIN, patient, label, value, salt],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hmac.new(key, message, hashlib.sha256).digest()
+
+
 def validated_secret(secret: bytes | str | None) -> bytes:
     if isinstance(secret, str):
         secret = secret.encode("utf-8")

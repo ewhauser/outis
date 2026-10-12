@@ -31,8 +31,8 @@ server.
 - **14 PHI types**: NAME, DATE, AGE, ADDRESS, LOCATION, FACILITY, PHONE, EMAIL,
   URL, IP, MRN, SSN, ACCOUNT and ID.
 - **Redaction or replacement**: typed markers or masks, or fictional values that
-  stay consistent per patient. Dates shift by a stable per-patient offset that
-  preserves intervals.
+  stay consistent per patient, or opt-in across a whole study release. Dates
+  shift by a stable per-patient offset that preserves intervals.
 - **Model-only detection**: one fine-tuned encoder, decoded to exact original
   character offsets.
 - **Configurable policies**: per-type actions, custom identifier rules, linked
@@ -239,7 +239,7 @@ any output.
 |---|---|
 | [Evaluation methodology](docs/evaluation.md) | Targets, any-label masking and how models are compared |
 | [API guide](docs/api.md) | Endpoints, policies, masks, structured data, files, WebSockets |
-| [Synthetic replacement](docs/replacement.md) | Secrets, patient anchors, date shifting, identity linking |
+| [Synthetic replacement](docs/replacement.md) | Secrets, patient anchors, date shifting, identity linking, study scope |
 | [Deployment](docs/deployment.md) | Launcher, default model, batch limits, security controls |
 | [Model card](MODEL_CARD.md) | Architecture, training data, evaluation, risks |
 | [Training](docs/training.md) | Training candidates and generating corpora |

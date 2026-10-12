@@ -506,6 +506,8 @@ def create_app(
             "items",
             "policy",
             "replacement",
+            "scope",
+            "study_id",
             "project_id",
             "link_batch",
             "shared_entities",

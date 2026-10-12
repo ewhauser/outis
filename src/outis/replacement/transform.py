@@ -1,8 +1,8 @@
 """Configurable replacement, conservative identity linking, and explicit restoration.
 
 Offsets count Python Unicode characters. Numbered identities are request-local;
-keyed identities use a patient-scoped HMAC. Restoration mappings are sensitive
-caller-owned values and are never retained by this module.
+keyed identities use a patient- or study-scoped HMAC. Restoration mappings are
+sensitive caller-owned values and are never retained by this module.
 """
 
 from __future__ import annotations
@@ -31,6 +31,8 @@ from outis.replacement.primitives import (
     canonical_form,
     keyed_digest,
     safe_label,
+    study_digest,
+    study_key,
     validate_spans,
     validated_secret,
 )
@@ -60,6 +62,17 @@ class ReplacementOptions(BaseModel):
     per_type: dict[str, Action] = Field(default_factory=dict, max_length=256)
     include_mapping: bool = False
     entity_ids: Literal["numbered", "keyed"] = "numbered"
+    # Study scope keys non-date surrogates and keyed IDs by study, not patient.
+    scope: Literal["patient", "study"] = "patient"
+    study_id: str | None = Field(
+        default=None, pattern=r"^[A-Za-z0-9_.:-]{1,128}$", max_length=128
+    )
+
+    @model_validator(mode="after")
+    def valid_scope(self):
+        if (self.scope == "study") != (self.study_id is not None):
+            raise ValueError("study_id is required with, and only with, study scope")
+        return self
 
     @field_validator("pattern")
     @classmethod
@@ -176,11 +189,12 @@ def _identity_keys(text, spans, names, bindings):
     return keys
 
 
-def _link(text, spans, *, secret=None, patient_id=None):
+def _link(text, spans, *, secret=None, patient_id=None, study_id=None):
     """Link entities and return the request-scoped identity analysis.
 
     Returns the linked spans with the aliases, nickname bindings and identity
-    keys of those linked spans, so callers never repeat the analysis.
+    keys of those linked spans, so callers never repeat the analysis. With a
+    study_id, keyed IDs depend on the study key instead of the patient.
     """
     if not isinstance(text, str) or len(text) > _MAX_OUTPUT:
         raise ValueError("Invalid identity context")
@@ -190,6 +204,9 @@ def _link(text, spans, *, secret=None, patient_id=None):
         if secret is not None or patient_id is not None
         else (None, None)
     )
+    if study_id is not None and key is None:
+        raise ValueError("Study-scoped identities require a secret and patient_id")
+    study = study_key(key, study_id) if study_id is not None else None
     names = _name_index(text, ordered)
     bindings = nickname_bindings(text, ordered)
     keys = _identity_keys(text, ordered, names, bindings)
@@ -207,14 +224,18 @@ def _link(text, spans, *, secret=None, patient_id=None):
         entity_id = span.entity_id or assigned.get(identity)
         if entity_id is None:
             if key is not None:
-                # The pre-rename key keeps entity IDs stable for an existing secret.
+                # The pre-rename tag keeps patient-scope entity IDs stable for
+                # an existing secret.
+                id_key, scoped = (
+                    (study, ["outis-study-entity-v1", *identity])
+                    if study is not None
+                    else (key, ["clinical-deid-entity-v1", patient, *identity])
+                )
                 message = json.dumps(
-                    ["clinical-deid-entity-v1", patient, *identity],
-                    ensure_ascii=False,
-                    separators=(",", ":"),
+                    scoped, ensure_ascii=False, separators=(",", ":")
                 ).encode()
                 entity_id = (
-                    "k" + hmac.new(key, message, hashlib.sha256).hexdigest()[:32]
+                    "k" + hmac.new(id_key, message, hashlib.sha256).hexdigest()[:32]
                 )
                 if entity_id in reserved:
                     raise ValueError(
@@ -238,13 +259,19 @@ def _link(text, spans, *, secret=None, patient_id=None):
     return result, names[0], bindings, keys
 
 
-def link_entities(text, spans, *, secret=None, patient_id=None) -> list[Entity]:
+def link_entities(
+    text, spans, *, secret=None, patient_id=None, study_id=None
+) -> list[Entity]:
     """Assign identities using exact values and unambiguous literal name aliases.
 
-    Pass both secret and patient_id for patient-scoped keyed identities. Existing
-    IDs are retained; numbered IDs skip identifiers already in use.
+    Pass both secret and patient_id for patient-scoped keyed identities, and a
+    study_id as well for study-scoped ones. Existing IDs are retained; numbered
+    IDs skip identifiers already in use.
     """
-    return _link(text, spans, secret=secret, patient_id=patient_id)[0]
+    linked, *_ = _link(
+        text, spans, secret=secret, patient_id=patient_id, study_id=study_id
+    )
+    return linked
 
 
 @dataclass(frozen=True)
@@ -263,10 +290,12 @@ class PreparedContext:
     occurrence_ids: Mapping[tuple[int, int, str], str] = field(repr=False)
 
 
-def prepare_context(text, spans, *, secret=None, patient_id=None) -> PreparedContext:
+def prepare_context(
+    text, spans, *, secret=None, patient_id=None, study_id=None
+) -> PreparedContext:
     """Validate, link and index all entities once, preserving assigned IDs."""
     linked, aliases, bindings, keys = _link(
-        text, spans, secret=secret, patient_id=patient_id
+        text, spans, secret=secret, patient_id=patient_id, study_id=study_id
     )
     identities: dict[tuple[str, str], set[str]] = {}
     for span, identity in zip(linked, keys):
@@ -418,6 +447,7 @@ def render(
     nickname proofs never transfer by spelling or by a supplied entity ID.
     Reversible output requires unambiguous literal replacement tokens: patterns
     using {index} support distinct spellings of the same linked identity.
+    Study scope still needs patient_id: dates shift by a per-patient offset.
     """
     options = ReplacementOptions.model_validate(options)
     if type(index_offset) is not int or not 0 <= index_offset <= 1_000_000:
@@ -451,18 +481,28 @@ def render(
         raise ValueError(
             "date_shift_days requires synthetic replacement and a nonzero integer between -3650 and 3650"
         )
+    # Study scope: non-date surrogates use the study key with no patient anchor.
+    surrogate_key, surrogate_patient = (
+        (study_key(key, options.study_id), None)
+        if key is not None and options.scope == "study"
+        else (key, patient)
+    )
     offset = 0
     if synthetic:
         if date_shift_days is not None:
             offset = date_shift_days
         else:
-            shift_index = (
-                int.from_bytes(keyed_digest(key, patient, "DATE_SHIFT", "")[:8], "big")
-                % 730
+            shift_digest = (
+                study_digest(surrogate_key, "DATE_SHIFT", "", patient=patient)
+                if options.scope == "study"
+                else keyed_digest(key, patient, "DATE_SHIFT", "")
             )
+            shift_index = int.from_bytes(shift_digest[:8], "big") % 730
             offset = shift_index - 365 if shift_index < 365 else shift_index - 364
     link_kwargs = (
-        {"secret": key, "patient_id": patient} if options.entity_ids == "keyed" else {}
+        {"secret": key, "patient_id": patient, "study_id": options.study_id}
+        if options.entity_ids == "keyed"
+        else {}
     )
     if prepared_context is None:
         prepared_context = prepare_context(
@@ -558,8 +598,8 @@ def render(
             replacement = synthetic_value(
                 original,
                 span.label,
-                key,
-                patient,
+                surrogate_key,
+                surrogate_patient,
                 aliases,
                 name_binding=binding,
                 name_warnings=name_warnings,

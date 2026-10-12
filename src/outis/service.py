@@ -235,6 +235,9 @@ class Deidentifier:
                 spans,
                 secret=self.secret if keyed else None,
                 patient_id=req.get("patient_id") if keyed else None,
+                study_id=getattr(req.get("replacement"), "study_id", None)
+                if keyed
+                else None,
             )
             prepared = [shared] * len(requests)
             context_spans = shared.spans
@@ -277,6 +280,9 @@ class Deidentifier:
                         spans,
                         secret=self.secret if keyed else None,
                         patient_id=req.get("patient_id") if keyed else None,
+                        study_id=getattr(req.get("replacement"), "study_id", None)
+                        if keyed
+                        else None,
                     )
                 )
             predictions = [list(item.spans) for item in prepared]

@@ -1,4 +1,9 @@
-"""Patient-consistent fictional surrogates from stateless keyed HMACs."""
+"""Patient- or study-consistent fictional surrogates from stateless keyed HMACs.
+
+Patient scope passes the server secret and a patient anchor. Study scope passes
+a derived study key and ``patient=None``; it draws from wider fictional spaces
+because one surrogate must stay distinct across a whole release.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +12,12 @@ import re
 from outis.replacement.ages import synthetic_age
 from outis.replacement.names.aliases import full_identity_aliases
 from outis.replacement.names.keys import name_identity, name_words
-from outis.replacement.primitives import canonical_form, keyed_digest, safe_label
+from outis.replacement.primitives import (
+    canonical_form,
+    keyed_digest,
+    safe_label,
+    study_digest,
+)
 
 _FIRST_NAMES = (
     "Avery",
@@ -78,6 +88,67 @@ _LAST_NAMES = (
     "Sable",
 )
 
+# Study scope only. Patient-scope outputs keep the vocabulary above unchanged.
+_STUDY_FIRST_NAMES = _FIRST_NAMES + (
+    "Addison",
+    "Ainsley",
+    "Ari",
+    "Ashton",
+    "Bailey",
+    "Bellamy",
+    "Blake",
+    "Bowie",
+    "Briar",
+    "Carson",
+    "Corey",
+    "Dallas",
+    "Devon",
+    "Eden",
+    "Elliot",
+    "Emerson",
+    "Frankie",
+    "Gray",
+    "Hollis",
+    "Indigo",
+    "Jessie",
+    "Jules",
+    "Kai",
+    "Kerry",
+    "Lennon",
+    "Monroe",
+    "Noel",
+    "Peyton",
+    "Rory",
+    "Shea",
+    "Tatum",
+    "Wynn",
+)
+_STUDY_SURNAME_SUFFIXES = (
+    "",
+    *(
+        "brook field ford wood ridge dale hill gate well more worth land shaw ley "
+        "by ton wick stead mont crest bury combe hurst mere holt thorne bridge "
+        "cliff haven row vale burn croft fell garth glen hall ham heath hollow "
+        "howe lake leigh lock marsh mead mill moor port rock shire side stow "
+        "thwaite view wold yard bank beck bourne cote down fold"
+    ).split(),
+)
+_STUDY_LAST_NAMES = tuple(
+    dict.fromkeys(
+        stem + suffix
+        for stem in _LAST_NAMES
+        for suffix in _STUDY_SURNAME_SUFFIXES
+        if suffix != stem.casefold()
+    )
+)
+# Every NANP area code keeps 555-0100 through 555-0199 for fictional use. Study
+# scope spreads that block over geographic-format codes, excluding N11 codes.
+_STUDY_AREA_CODES = tuple(
+    code for code in range(200, 1000) if code // 10 % 10 != 9 and code % 100 != 11
+)
+# RFC 5737 documentation networks.
+_STUDY_IP_NETWORKS = ("192.0.2", "198.51.100", "203.0.113")
+
 _EXACT_IDENTITY_LABELS = frozenset({"MRN", "ACCOUNT", "ID", "EMAIL", "URL"})
 _FACILITY_SPECIALTIES = (
     (
@@ -116,7 +187,18 @@ _FACILITY_TYPES = (
 )
 
 
-def _fictional_name(secret: bytes, patient: str, identity: str) -> tuple[str, str]:
+def _digest(
+    secret: bytes, patient: str | None, label: str, value: str, salt: int
+) -> bytes:
+    if patient is None:
+        # Study scope: the key is already study-specific; no patient is mixed in.
+        return study_digest(secret, label, value, salt)
+    return keyed_digest(secret, patient, label, value, salt)
+
+
+def _fictional_name(
+    secret: bytes, patient: str | None, identity: str
+) -> tuple[str, str]:
     original_words = name_words(identity)
     expressed_parts = full_identity_aliases(identity)
     family_words = name_words(expressed_parts[-1]) if len(expressed_parts) == 2 else []
@@ -134,10 +216,15 @@ def _fictional_name(secret: bytes, patient: str, identity: str) -> tuple[str, st
         if original_words
         else None
     )
+    first_names, last_names = (
+        (_STUDY_FIRST_NAMES, _STUDY_LAST_NAMES)
+        if patient is None
+        else (_FIRST_NAMES, _LAST_NAMES)
+    )
     for salt in range(100):
-        digest = keyed_digest(secret, patient, "NAME", identity, salt)
-        first = _FIRST_NAMES[int.from_bytes(digest[:4], "big") % len(_FIRST_NAMES)]
-        last = _LAST_NAMES[int.from_bytes(digest[4:8], "big") % len(_LAST_NAMES)]
+        digest = _digest(secret, patient, "NAME", identity, salt)
+        first = first_names[int.from_bytes(digest[:4], "big") % len(first_names)]
+        last = last_names[int.from_bytes(digest[4:8], "big") % len(last_names)]
         # Partial follow-up mentions must also change, even if only one original
         # component happened to collide with a candidate fictional component.
         if (
@@ -173,7 +260,7 @@ def synthetic_value(
     value: str,
     label: str,
     secret: bytes,
-    patient: str,
+    patient: str | None,
     aliases: dict[str, tuple[str, str]],
     *,
     name_binding=None,
@@ -224,15 +311,26 @@ def synthetic_value(
         return rendered
     if label == "AGE":
         return synthetic_age(value)
+    study = patient is None
     for salt in range(100):
-        digest = keyed_digest(secret, patient, label, identity, salt)
+        digest = _digest(secret, patient, label, identity, salt)
         token = digest.hex()[:12]
         if label == "PHONE":
-            replacement = f"(202) 555-01{int.from_bytes(digest[:4], 'big') % 100:02d}"
+            area = (
+                _STUDY_AREA_CODES[
+                    int.from_bytes(digest[4:8], "big") % len(_STUDY_AREA_CODES)
+                ]
+                if study
+                else 202
+            )
+            replacement = (
+                f"({area}) 555-01{int.from_bytes(digest[:4], 'big') % 100:02d}"
+            )
         elif label == "EMAIL":
             replacement = f"person.{token}@example.invalid"
         elif label == "ADDRESS":
-            replacement = f"{100 + int.from_bytes(digest[:4], 'big') % 900} Synthetic Way, Example City, ZZ 00000"
+            city = f"Example City {token[:6].upper()}" if study else "Example City"
+            replacement = f"{100 + int.from_bytes(digest[:4], 'big') % 900} Synthetic Way, {city}, ZZ 00000"
         elif label == "SSN":
             replacement = f"000-{int.from_bytes(digest[:4], 'big') % 100:02d}-{int.from_bytes(digest[4:8], 'big') % 10000:04d}"
         elif label in {"MRN", "ACCOUNT", "ID"}:
@@ -240,7 +338,14 @@ def synthetic_value(
         elif label == "URL":
             replacement = f"https://synthetic-{token}.invalid"
         elif label == "IP":
-            replacement = f"192.0.2.{1 + int.from_bytes(digest[:4], 'big') % 254}"
+            network = (
+                _STUDY_IP_NETWORKS[
+                    int.from_bytes(digest[4:8], "big") % len(_STUDY_IP_NETWORKS)
+                ]
+                if study
+                else "192.0.2"
+            )
+            replacement = f"{network}.{1 + int.from_bytes(digest[:4], 'big') % 254}"
         elif label == "LOCATION":
             replacement = f"Example City {token[:6].upper()}"
         elif label == "FACILITY":

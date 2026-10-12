@@ -8,7 +8,7 @@ current results.
 - [Clinical text API](api.md): requests, policies, masks, structured inputs,
   file processing and WebSockets.
 - [Synthetic replacement](replacement.md): secrets, patient anchors, date
-  shifting and identity linking.
+  shifting, identity linking, and patient or study scope.
 - [Deployment](deployment.md): local launcher, default model, batch limits
   and security controls.
 
