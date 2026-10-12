@@ -1,7 +1,7 @@
 """Configurable replacement, conservative identity linking, and explicit restoration.
 
 Offsets count Python Unicode characters. Numbered identities are request-local;
-keyed identities use a patient- or study-scoped HMAC. Restoration mappings are
+keyed identities use a patient- or project-scoped HMAC. Restoration mappings are
 sensitive caller-owned values and are never retained by this module.
 """
 
@@ -30,9 +30,9 @@ from outis.replacement.nicknames import NameBinding, nickname_bindings
 from outis.replacement.primitives import (
     canonical_form,
     keyed_digest,
+    project_digest,
+    project_key,
     safe_label,
-    study_digest,
-    study_key,
     validate_spans,
     validated_secret,
 )
@@ -41,6 +41,8 @@ from outis.types import ENTITY_TYPES
 
 _MAX_TEXT = 100_000
 _MAX_OUTPUT = 1_000_000
+# Matches the request-level project_id accepted by the API and service.
+_PROJECT_ID = re.compile(r"[A-Za-z0-9_:-]{1,60}")
 _LABEL = re.compile(r"[A-Z][A-Z0-9_]{0,63}\Z")
 _PUBLIC_CONCEPT_TYPES = frozenset({"CONDITION", "MEDICATION"})
 Action = Literal["marker", "mask", "synthetic", "keep"]
@@ -62,17 +64,9 @@ class ReplacementOptions(BaseModel):
     per_type: dict[str, Action] = Field(default_factory=dict, max_length=256)
     include_mapping: bool = False
     entity_ids: Literal["numbered", "keyed"] = "numbered"
-    # Study scope keys non-date surrogates and keyed IDs by study, not patient.
-    scope: Literal["patient", "study"] = "patient"
-    study_id: str | None = Field(
-        default=None, pattern=r"^[A-Za-z0-9_.:-]{1,128}$", max_length=128
-    )
-
-    @model_validator(mode="after")
-    def valid_scope(self):
-        if (self.scope == "study") != (self.study_id is not None):
-            raise ValueError("study_id is required with, and only with, study scope")
-        return self
+    # Project scope keys non-date surrogates and keyed IDs by the request's
+    # project_id, not the patient.
+    scope: Literal["patient", "project"] = "patient"
 
     @field_validator("pattern")
     @classmethod
@@ -189,12 +183,12 @@ def _identity_keys(text, spans, names, bindings):
     return keys
 
 
-def _link(text, spans, *, secret=None, patient_id=None, study_id=None):
+def _link(text, spans, *, secret=None, patient_id=None, project_id=None):
     """Link entities and return the request-scoped identity analysis.
 
     Returns the linked spans with the aliases, nickname bindings and identity
     keys of those linked spans, so callers never repeat the analysis. With a
-    study_id, keyed IDs depend on the study key instead of the patient, except
+    project_id, keyed IDs depend on the project key instead of the patient, except
     DATE IDs, which also stay patient-scoped because dates shift per patient.
     """
     if not isinstance(text, str) or len(text) > _MAX_OUTPUT:
@@ -205,9 +199,9 @@ def _link(text, spans, *, secret=None, patient_id=None, study_id=None):
         if secret is not None or patient_id is not None
         else (None, None)
     )
-    if study_id is not None and key is None:
-        raise ValueError("Study-scoped identities require a secret and patient_id")
-    study = study_key(key, study_id) if study_id is not None else None
+    if project_id is not None and key is None:
+        raise ValueError("Project-scoped identities require a secret and patient_id")
+    project = project_key(key, project_id) if project_id is not None else None
     names = _name_index(text, ordered)
     bindings = nickname_bindings(text, ordered)
     keys = _identity_keys(text, ordered, names, bindings)
@@ -229,19 +223,19 @@ def _link(text, spans, *, secret=None, patient_id=None, study_id=None):
                 # an existing secret. Dates shift per patient, so a DATE ID
                 # shared across patients would let recipients group one
                 # original date's shifted copies and bound it by the shift
-                # range; study-scoped DATE IDs stay per patient.
-                if study is None:
+                # range; project-scoped DATE IDs stay per patient.
+                if project is None:
                     id_key, scoped = (
                         key,
                         ["clinical-deid-entity-v1", patient, *identity],
                     )
                 elif span.label == "DATE":
                     id_key, scoped = (
-                        study,
-                        ["outis-study-date-entity-v1", patient, *identity],
+                        project,
+                        ["outis-project-date-entity-v1", patient, *identity],
                     )
                 else:
-                    id_key, scoped = (study, ["outis-study-entity-v1", *identity])
+                    id_key, scoped = (project, ["outis-project-entity-v1", *identity])
                 message = json.dumps(
                     scoped, ensure_ascii=False, separators=(",", ":")
                 ).encode()
@@ -271,16 +265,16 @@ def _link(text, spans, *, secret=None, patient_id=None, study_id=None):
 
 
 def link_entities(
-    text, spans, *, secret=None, patient_id=None, study_id=None
+    text, spans, *, secret=None, patient_id=None, project_id=None
 ) -> list[Entity]:
     """Assign identities using exact values and unambiguous literal name aliases.
 
     Pass both secret and patient_id for patient-scoped keyed identities, and a
-    study_id as well for study-scoped ones. Existing IDs are retained; numbered
+    project_id as well for project-scoped ones. Existing IDs are retained; numbered
     IDs skip identifiers already in use.
     """
     linked, *_ = _link(
-        text, spans, secret=secret, patient_id=patient_id, study_id=study_id
+        text, spans, secret=secret, patient_id=patient_id, project_id=project_id
     )
     return linked
 
@@ -302,11 +296,11 @@ class PreparedContext:
 
 
 def prepare_context(
-    text, spans, *, secret=None, patient_id=None, study_id=None
+    text, spans, *, secret=None, patient_id=None, project_id=None
 ) -> PreparedContext:
     """Validate, link and index all entities once, preserving assigned IDs."""
     linked, aliases, bindings, keys = _link(
-        text, spans, secret=secret, patient_id=patient_id, study_id=study_id
+        text, spans, secret=secret, patient_id=patient_id, project_id=project_id
     )
     identities: dict[tuple[str, str], set[str]] = {}
     for span, identity in zip(linked, keys):
@@ -447,6 +441,7 @@ def render(
     prepared_context=None,
     index_offset=0,
     context_offset=None,
+    project_id=None,
 ):
     """Render configured replacements with input/output character offsets.
 
@@ -458,9 +453,15 @@ def render(
     nickname proofs never transfer by spelling or by a supplied entity ID.
     Reversible output requires unambiguous literal replacement tokens: patterns
     using {index} support distinct spellings of the same linked identity.
-    Study scope still needs patient_id: dates shift by a per-patient offset.
+    Project scope needs project_id, and still needs patient_id: dates shift by
+    a per-patient offset.
     """
     options = ReplacementOptions.model_validate(options)
+    if options.scope == "project":
+        if not isinstance(project_id, str) or not _PROJECT_ID.fullmatch(project_id):
+            raise ValueError("Project scope requires a valid project_id")
+    else:
+        project_id = None
     if type(index_offset) is not int or not 0 <= index_offset <= 1_000_000:
         raise ValueError("index_offset must be a nonnegative bounded integer")
     if mode not in {"redact", "synthetic"}:
@@ -492,10 +493,10 @@ def render(
         raise ValueError(
             "date_shift_days requires synthetic replacement and a nonzero integer between -3650 and 3650"
         )
-    # Study scope: non-date surrogates use the study key with no patient anchor.
+    # Project scope: non-date surrogates use the project key with no patient anchor.
     surrogate_key, surrogate_patient = (
-        (study_key(key, options.study_id), None)
-        if key is not None and options.scope == "study"
+        (project_key(key, project_id), None)
+        if key is not None and options.scope == "project"
         else (key, patient)
     )
     offset = 0
@@ -504,14 +505,14 @@ def render(
             offset = date_shift_days
         else:
             shift_digest = (
-                study_digest(surrogate_key, "DATE_SHIFT", "", patient=patient)
-                if options.scope == "study"
+                project_digest(surrogate_key, "DATE_SHIFT", "", patient=patient)
+                if options.scope == "project"
                 else keyed_digest(key, patient, "DATE_SHIFT", "")
             )
             shift_index = int.from_bytes(shift_digest[:8], "big") % 730
             offset = shift_index - 365 if shift_index < 365 else shift_index - 364
     link_kwargs = (
-        {"secret": key, "patient_id": patient, "study_id": options.study_id}
+        {"secret": key, "patient_id": patient, "project_id": project_id}
         if options.entity_ids == "keyed"
         else {}
     )

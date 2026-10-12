@@ -62,6 +62,8 @@ class DeidentifyOptions(SafeModel):
             not self.patient_id or not self.patient_id.strip()
         ):
             raise ValueError("Replacement requires patient_id")
+        if options.scope == "project" and "project_id" not in self.model_fields_set:
+            raise ValueError("Project scope requires an explicit project_id")
         if self.date_shift_days == 0:
             raise ValueError("date_shift_days must be nonzero")
         if not synthetic and self.date_shift_days is not None:
@@ -507,7 +509,6 @@ def create_app(
             "policy",
             "replacement",
             "scope",
-            "study_id",
             "project_id",
             "link_batch",
             "shared_entities",

@@ -27,32 +27,32 @@ def keyed_digest(
     return hmac.new(secret, message, hashlib.sha256).digest()
 
 
-# Versioned tags for study scope. Changing either re-keys every study release.
-_STUDY_KEY_DOMAIN = b"outis-study-key-v1"
-_STUDY_DIGEST_DOMAIN = "outis-study-replacement-v1"
+# Versioned tags for project scope. Changing either re-keys every project release.
+_PROJECT_KEY_DOMAIN = b"outis-project-key-v1"
+_PROJECT_DIGEST_DOMAIN = "outis-project-replacement-v1"
 
 
-def study_key(secret: bytes, study_id: str) -> bytes:
-    """Derive an independent per-study key with single-block HKDF-SHA256.
+def project_key(secret: bytes, project_id: str) -> bytes:
+    """Derive an independent per-project key with single-block HKDF-SHA256.
 
-    Distinct study IDs give unrelated keys, so their surrogates cannot be linked
+    Distinct project IDs give unrelated keys, so their surrogates cannot be linked
     without the server secret. The result is key material: never return or log it.
     """
-    prk = hmac.new(_STUDY_KEY_DOMAIN, secret, hashlib.sha256).digest()
+    prk = hmac.new(_PROJECT_KEY_DOMAIN, secret, hashlib.sha256).digest()
     info = json.dumps(
-        [_STUDY_KEY_DOMAIN.decode(), study_id],
+        [_PROJECT_KEY_DOMAIN.decode(), project_id],
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
     return hmac.new(prk, info + b"\x01", hashlib.sha256).digest()
 
 
-def study_digest(
+def project_digest(
     key: bytes, label: str, value: str, salt: int = 0, patient: str | None = None
 ) -> bytes:
-    """Keyed digest under a study key; patient is set only for date offsets."""
+    """Keyed digest under a project key; patient is set only for date offsets."""
     message = json.dumps(
-        [_STUDY_DIGEST_DOMAIN, patient, label, value, salt],
+        [_PROJECT_DIGEST_DOMAIN, patient, label, value, salt],
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
