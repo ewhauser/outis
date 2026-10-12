@@ -18,8 +18,10 @@ import ipaddress
 import json
 import re
 import string
+import unicodedata
 from collections.abc import Callable
 from math import prod
+from urllib.parse import urlsplit
 
 from outis.replacement import realistic_data as data
 from outis.replacement.primitives import canonical_form
@@ -189,10 +191,14 @@ def _identifier(value: str, label: str, keyed: Keyed, salt: int) -> str:
 def _ssn(value: str, identity: str, keyed: Keyed, salt: int) -> str:
     """Keep the layout; nine-digit values use only never-issued SSN areas."""
     draws = _Draws(keyed("SSN", identity, salt))
-    positions = [index for index, char in enumerate(value) if char in _DIGITS]
-    if len(positions) != 9 or any(
-        char.isdigit() and char not in _DIGITS for char in value
-    ):
+    # Any decimal digit counts, so fullwidth or Arabic-Indic SSNs also get a
+    # never-issued (ASCII) number rather than unrestricted digits.
+    positions = [
+        index
+        for index, char in enumerate(value)
+        if unicodedata.decimal(char, None) is not None
+    ]
+    if len(positions) != 9:
         return _random_shape(value, draws, letters=False)
     special = len(data.SSN_NEVER_ISSUED_AREAS) - 100
     groups = len(data.SSN_NON_ITIN_GROUPS)
@@ -209,10 +215,9 @@ def _ssn(value: str, identity: str, keyed: Keyed, salt: int) -> str:
     return "".join(characters)
 
 
+_EXTENSION_WORDS = frozenset({"ext", "extn", "x", "extension"})
 # Generic words copied verbatim; any other word makes the shape unrecognized.
-_PHONE_WORDS = frozenset(
-    {"ext", "extn", "x", "extension", "tel", "phone", "ph", "fax", "cell", "mobile"}
-)
+_PHONE_WORDS = _EXTENSION_WORDS | {"tel", "phone", "ph", "fax", "cell", "mobile"}
 
 
 def _phone(value: str, identity: str, keyed: Keyed, salt: int) -> str:
@@ -229,22 +234,28 @@ def _phone(value: str, identity: str, keyed: Keyed, salt: int) -> str:
         or any(char.isdigit() and char not in _DIGITS for char in value)
     ):
         return fallback
-    digits = "".join(value[index] for index in positions)
+    # The main number ends at the first extension marker after its first
+    # digit; it must then be exactly a 7-, 10- or 1+10-digit NANP number.
+    boundary = next(
+        (
+            match.start()
+            for match in re.finditer(r"[^\W\d_]+|[#,;]", value)
+            if match.start() > positions[0]
+            and (match[0] in "#,;" or match[0].casefold() in _EXTENSION_WORDS)
+        ),
+        len(value),
+    )
+    digits = "".join(value[index] for index in positions if index < boundary)
     international = "+" in value[: positions[0]]
-    if digits[0] == "1" and len(digits) >= 11:
-        number, length = "1" + area + fictional, 11
-    elif digits[0] in "23456789" and not international and len(digits) >= 10:
-        number, length = area + fictional, 10
-    elif digits[0] in "23456789" and not international and len(digits) >= 7:
-        number, length = fictional, 7
+    if len(digits) == 11 and digits[0] == "1":
+        number = "1" + area + fictional
+    elif len(digits) == 10 and digits[0] in "23456789" and not international:
+        number = area + fictional
+    elif len(digits) == 7 and digits[0] in "23456789" and not international:
+        number = fictional
     else:
         return fallback
-    if len(digits) > length:
-        # Trailing digits are an extension only when explicitly marked.
-        gap = value[positions[length - 1] + 1 : positions[length]]
-        if not re.search(r"[^\W\d_]|[#,;]", gap):
-            return fallback
-    number += draws.digits(len(digits) - length)
+    number += draws.digits(len(positions) - len(digits))
     characters = list(value)
     for position, digit in zip(positions, number):
         characters[position] = digit
@@ -336,10 +347,13 @@ def _email(value: str, identity: str, keyed: Keyed, salt: int) -> str:
 
 
 _URL = re.compile(
-    r"(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*://)?(?P<authority>[^/?#]*)(?P<rest>.*)",
+    r"(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*://|//)?(?P<authority>[^/?#]*)(?P<rest>.*)",
     re.S,
 )
-_SCHEMES = frozenset({"http://", "https://", "ftp://", "sftp://", "ws://", "wss://"})
+_SCHEMES = frozenset(
+    {"//", "http://", "https://", "ftp://", "sftp://", "ws://", "wss://"}
+)
+_RESERVED_HOST = re.compile(r"(?:[a-z0-9-]+\.)*example\.(?:com|org|net)", re.I)
 
 
 def _url_tail(rest: str, draws: _Draws) -> str:
@@ -383,7 +397,15 @@ def _url(value: str, identity: str, keyed: Keyed, salt: int) -> str:
     host, colon, port = host.partition(":")
     port = colon + port if port.isdigit() else ""
     authority = _reserved_host(host, draws, site=True) + port if host or scheme else ""
-    return scheme + authority + _url_tail(match["rest"], draws)
+    rendered = scheme + authority + _url_tail(match["rest"], draws)
+    # Browsers read "\" as "/"; any host a parser can find must be reserved.
+    try:
+        parsed = urlsplit(rendered.replace("\\", "/")).hostname
+    except ValueError:
+        parsed = ""
+    if parsed is None or _RESERVED_HOST.fullmatch(parsed):
+        return rendered
+    return "https://" + _reserved_host("", draws, site=True) + "/"
 
 
 _IPV4 = re.compile(r"\d{1,3}(?:\.\d{1,3}){3}(?P<tail>/\d{1,2}|:\d{1,5})?")

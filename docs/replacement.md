@@ -240,17 +240,21 @@ response fields, such as entity IDs and processed offsets:
 - **SSN** keeps its layout. Nine-digit values use only areas the SSA never
   issues: `000`, `666` and `900`–`999`. In the 900s, the groups the IRS uses
   for ITINs (50–65, 70–88, 90–92, 94–99) are avoided, so no output is a valid
-  SSN or ITIN. Partial values, such as `XXX-XX-6789`, keep their mask and
-  replace only the digits.
+  SSN or ITIN. Nine decimal digits in any script, such as fullwidth digits,
+  count, and are emitted as ASCII. Partial values, such as `XXX-XX-6789`, keep
+  their mask and replace only the digits.
 - **PHONE** keeps the original punctuation, spacing, `+1` country code,
   extension and generic words such as `ext` or `Tel`. The number becomes
   `NXX-555-01XX`. NANP reserves 555-0100 to 555-0199 for fictional use in
-  every area code, so no output can reach a real line. The area code is a
-  keyed choice among 602 well-formed geographic-style codes; the original area
-  code is not kept. This gives 60,200 distinct ten-digit numbers, and only 100
-  seven-digit ones. Numbers that are not NANP-shaped (other country codes,
-  vanity letters, unknown words) become `(NXX) 555-01XX`, because Outis uses no
-  reserved fictional range for other countries.
+  every area code, so no output can reach a real line. The main number ends at
+  the first extension marker (`x`, `ext`, `extension`, `#`, `,` or `;`), and it
+  must then have exactly 7, 10, or 11 digits with a leading `1`. The area
+  code is a keyed choice among 602 well-formed geographic-style codes; the
+  original area code is not kept. This gives 60,200 distinct ten-digit
+  numbers, and only 100 seven-digit ones. Numbers that are not NANP-shaped
+  (other country codes, vanity letters, unknown words, digits after an
+  unmarked word) become `(NXX) 555-01XX`, because Outis uses no reserved
+  fictional range for other countries.
 - **EMAIL** keeps the local part's shape: letter runs become a fictional first
   name, surname or initial, digit runs keep their length, and separators stay.
   The domain is always `example.com`, `example.org` or `example.net`, matching
@@ -261,6 +265,9 @@ response fields, such as entity IDs and processed offsets:
   words and digit runs keep their length. The site label becomes a keyed
   fictional name, so the host is always a subdomain of `example.com`,
   `example.org` or `example.net`, such as `portal.millbrook.example.org`.
+  Scheme-relative URLs (`//host/path`) are handled the same way. If a URL
+  parser, or a browser reading `\` as `/`, would still find another host, the
+  surrogate becomes `https://example.com/`.
 - **IP** uses only documentation ranges: `192.0.2.0/24`, `198.51.100.0/24`,
   `203.0.113.0/24` and `2001:db8::/32`. A CIDR suffix or port is kept, and an
   exploded IPv6 address stays exploded. There are only 762 IPv4 surrogates,

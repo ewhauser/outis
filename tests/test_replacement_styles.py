@@ -5,6 +5,7 @@ import random
 import re
 import string
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 from pydantic import ValidationError
@@ -215,34 +216,54 @@ def test_ssns_keep_layout_and_are_never_issuable():
         if area.startswith("9"):
             assert group not in itin_groups
     assert realistic("XXX-XX-6789", "SSN").startswith("XXX-XX-")
+    # Fullwidth and Arabic-Indic digits also get a never-issued ASCII number.
+    for value in ("１２３-４５-６７８９", "١٢٣-٤٥-٦٧٨٩"):
+        surrogate = realistic(value, "SSN")
+        area, group, _ = surrogate.split("-")
+        assert re.fullmatch(r"\d{3}-\d{2}-\d{4}", surrogate), surrogate
+        assert area in {"000", "666"} or area.startswith("9")
+        if area.startswith("9"):
+            assert int(group) not in itin_groups
 
 
 def test_phones_keep_layout_and_use_only_the_fictional_555_01_range():
+    # (value, digits in the main number before any extension)
     cases = [
-        "(617) 555-0193",
-        "617-555-0193",
-        "617.555.0193",
-        "6175550193",
-        "+1 617 555 0193",
-        "1-617-555-0193",
-        "(612) 555-0193, extension 2276",
-        "617-555-0193 x12",
-        "555-0193",
-        "Tel: 617-555-0193",
+        ("(617) 555-0193", 10),
+        ("617-555-0193", 10),
+        ("617.555.0193", 10),
+        ("6175550193", 10),
+        ("+1 617 555 0193", 11),
+        ("1-617-555-0193", 11),
+        ("(612) 555-0193, extension 2276", 10),
+        ("617-555-0193 x12", 10),
+        ("617-555-0193x12", 10),
+        ("+1 617 555 0193 #4", 11),
+        ("555-0193", 7),
+        ("555-0193 x123", 7),
+        ("555-0193 ext. 4567", 7),
+        ("Tel: 617-555-0193", 10),
     ]
-    for value in cases:
+    for value, main in cases:
         surrogate = realistic(value, "PHONE")
         assert _shape(surrogate) == _shape(value), value
-        digits = _ssn_digits(surrogate)
-        start = 1 if digits[0] == "1" and len(digits) >= 11 else 0
-        if len(digits) - start >= 10:
+        digits = _ssn_digits(surrogate)[:main]
+        start = 1 if main == 11 else 0
+        if main >= 10:
             assert digits[start : start + 3] in data.AREA_CODES
             start += 3
-        assert digits[start : start + 5] == "55501"
+        assert digits[start:] == "55501" + digits[-2:], (value, surrogate)
 
 
 def test_unrecognized_phone_shapes_fall_back_to_a_fictional_nanp_number():
-    for value in ("+44 20 7946 0958", "0123 456", "1-800-FLOWERS"):
+    for value in (
+        "+44 20 7946 0958",
+        "0123 456",
+        "1-800-FLOWERS",
+        # Digits after an unmarked word are not a known extension.
+        "617-555-0193 cell 22",
+        "617 555 0193 4567",
+    ):
         surrogate = realistic(value, "PHONE")
         assert re.fullmatch(r"\(\d{3}\) 555-01\d\d", surrogate)
         assert surrogate[1:4] in data.AREA_CODES
@@ -283,6 +304,19 @@ def test_urls_keep_structure_on_reserved_hosts():
         host = re.sub(r"^[a-z]+://", "", surrogate).split("/")[0].split(":")[0]
         assert RESERVED_HOST.fullmatch(host), surrogate
         assert "northwood" not in surrogate
+    # Any host a URL parser (or a browser reading "\\" as "/") finds is reserved.
+    for value in (
+        "//northwood.org",
+        "//northwood.org/records/7",
+        "/\\northwood.org",
+        "\\\\northwood.org",
+        "https:///northwood.org",
+    ):
+        surrogate = realistic(value, "URL")
+        host = urlsplit(surrogate.replace("\\", "/")).hostname
+        assert host is None or RESERVED_HOST.fullmatch(host), (value, surrogate)
+        assert "northwood" not in surrogate
+    assert urlsplit(realistic("//northwood.org", "URL")).hostname
 
 
 DOCUMENTATION_NETWORKS = [
