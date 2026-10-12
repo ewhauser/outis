@@ -450,10 +450,14 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app):
+        options = {}
+        if site_dictionaries := os.environ.get("OUTIS_SITE_DICTIONARIES"):
+            options["site_dictionaries"] = site_dictionaries
         app.state.service = service_arg or Deidentifier(
             os.environ.get("OUTIS_MODEL_DIR") or None,
             secret=os.environ.get("OUTIS_SECRET"),
             device=os.environ.get("OUTIS_DEVICE", "auto"),
+            **options,
         )
         app.state.inference = InferenceExecutor(workers, queue)
         try:
@@ -516,6 +520,7 @@ def create_app(
             "mappings",
             "allowed_types",
             "restore_sensitive",
+            "site_dictionaries",
         }
         errors = [
             {
@@ -556,11 +561,15 @@ def create_app(
             synthetic_enabled = True
         except ValueError:
             synthetic_enabled = False
-        return {
+        result = {
             "status": "ready",
             "model_version": instance.version,
             "synthetic_enabled": synthetic_enabled,
         }
+        site = getattr(instance, "site_dictionaries", None)
+        if site is not None:
+            result["site_dictionaries"] = site.summary()
+        return result
 
     def single(instance, operation, payload):
         if operation == "reidentify":

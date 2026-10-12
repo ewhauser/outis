@@ -23,6 +23,12 @@ def main():
         "downloaded once into the Hugging Face cache)",
     )
     redact.add_argument("--device", default="auto")
+    redact.add_argument(
+        "--site-dictionaries",
+        default=os.environ.get("OUTIS_SITE_DICTIONARIES") or None,
+        help="Site dictionary manifest or directory "
+        "(default: OUTIS_SITE_DICTIONARIES; none when unset)",
+    )
     args = parser.parse_args()
     if args.command == "serve":
         if args.host not in {"127.0.0.1", "localhost", "::1"} and not os.environ.get(
@@ -36,8 +42,14 @@ def main():
     from outis.service import Deidentifier
 
     text = args.input.read_text(encoding="utf-8") if args.input else sys.stdin.read()
+    options = {}
+    if args.site_dictionaries:
+        options["site_dictionaries"] = args.site_dictionaries
     deid = Deidentifier(
-        args.model_dir, secret=os.environ.get("OUTIS_SECRET"), device=args.device
+        args.model_dir,
+        secret=os.environ.get("OUTIS_SECRET"),
+        device=args.device,
+        **options,
     )
     result = deid.deidentify(text, mode=args.mode, patient_id=args.patient_id)
     print(json.dumps(result, ensure_ascii=False))

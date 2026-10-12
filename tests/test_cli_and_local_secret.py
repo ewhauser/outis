@@ -23,7 +23,13 @@ from outis.types import Span
 
 SECRET = "test-only-secret-never-use-in-production-12345"
 SCRIPT = Path(__file__).parents[1] / "scripts" / "serve_local.py"
-ENVIRONMENT = ("OUTIS_SECRET", "OUTIS_MODEL_DIR", "OUTIS_DEVICE", "OUTIS_API_KEY")
+ENVIRONMENT = (
+    "OUTIS_SECRET",
+    "OUTIS_MODEL_DIR",
+    "OUTIS_DEVICE",
+    "OUTIS_API_KEY",
+    "OUTIS_SITE_DICTIONARIES",
+)
 
 
 class NameDetector:
@@ -80,6 +86,41 @@ def test_text_from_stdin_redacts_and_prints_unescaped_json(
     assert result["text"] == "Seen: [NAME] at café.\n" and result["mode"] == "redact"
     assert "Zoë" not in out.out and "café" in out.out
     assert constructed == [{"model_dir": None, "secret": None, "device": "auto"}]
+
+
+def test_text_loads_site_dictionaries_from_flag_or_environment(
+    monkeypatch, capsys, tmp_path
+):
+    manifest = tmp_path / "site.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "dictionaries": [
+                    {
+                        "name": "facilities",
+                        "label": "FACILITY",
+                        "terms": ["Quillfeather Memorial Infirmary"],
+                    }
+                ]
+            }
+        )
+    )
+    calls = []
+
+    def factory(model_dir, *, secret=None, device="auto", **options):
+        calls.append(options)
+        return Deidentifier(detector=NameDetector(), secret=secret, **options)
+
+    monkeypatch.setattr(outis.service, "Deidentifier", factory)
+    stdin = "Zoë Núñez left Quillfeather Memorial Infirmary.\n"
+    flagged = run_cli(
+        monkeypatch, capsys, "text", "--site-dictionaries", str(manifest), stdin=stdin
+    )
+    assert json.loads(flagged.out)["text"] == "[NAME] left [FACILITY].\n"
+    monkeypatch.setenv("OUTIS_SITE_DICTIONARIES", str(manifest))
+    from_env = run_cli(monkeypatch, capsys, "text", stdin=stdin)
+    assert from_env.out == flagged.out
+    assert calls == [{"site_dictionaries": str(manifest)}] * 2
 
 
 def test_text_from_file_with_options(monkeypatch, capsys, constructed, tmp_path):

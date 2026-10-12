@@ -37,6 +37,9 @@ server.
   character offsets.
 - **Configurable policies**: per-type actions, custom identifier rules, linked
   messages, explicit restoration, and JSON, CSV, XML and plain-text file input.
+- **Site dictionaries** (opt-in): load a site's own facility names, departments
+  and identifier formats once at startup and match them in a single pass. They
+  are site-supplied, and their effect on accuracy has not been measured.
 - **Local by design**: loopback-only by default, optional API key, no request
   logging, `Cache-Control: no-store` on responses.
 

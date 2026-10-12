@@ -15,6 +15,7 @@ import regex
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from outis.entities import Entity
+from outis.site_dictionaries import SOURCE_PREFIX as SITE_SOURCE
 from outis.types import ENTITY_TYPES
 
 POLICY_VERSION = "1"
@@ -38,6 +39,7 @@ KNOWN_LABELS = frozenset((*ENTITY_TYPES, *EXTENDED_TYPES, *MEDICAL_TYPES))
 _IDENTIFIERS = frozenset(ENTITY_TYPES) - {"DATE", "AGE", "LOCATION", "FACILITY"}
 _LABEL = regex.compile(r"[A-Z][A-Z0-9_]{0,47}\Z")
 _REPETITIONS = regex.compile(r"\{([0-9]*)(?:,([0-9]*))?\}")
+_SITE_NAME = regex.compile(r"[a-z0-9][a-z0-9_-]{0,63}\Z")
 
 
 def _compile_custom(value):
@@ -99,12 +101,24 @@ class DetectionPolicy(BaseModel):
     # The detector finds every age. "over_89" (default) leaves ages of 89 and
     # under untouched, as the Safe Harbor age rule allows; "all" removes every age.
     ages: Literal["over_89", "all"] = "over_89"
+    # Server-loaded site dictionaries to apply: None applies every loaded
+    # dictionary, [] disables them, and names select a subset.
+    site_dictionaries: list[str] | None = Field(default=None, max_length=64)
 
     @field_validator("allowlist", "blocklist")
     @classmethod
     def bounded_terms(cls, values):
         if any(not value or len(value) > 256 for value in values):
             raise ValueError("Policy terms must have 1 to 256 characters")
+        return list(dict.fromkeys(values))
+
+    @field_validator("site_dictionaries")
+    @classmethod
+    def site_dictionary_names(cls, values):
+        if values is None:
+            return None
+        if any(not _SITE_NAME.match(value) for value in values):
+            raise ValueError("Invalid site dictionary name")
         return list(dict.fromkeys(values))
 
     @field_validator("medical_terms")
@@ -141,9 +155,20 @@ def validate_policy(policy: DetectionPolicy | dict | None) -> DetectionPolicy:
         raise ValueError("Invalid detection policy") from None
 
 
-def policy_metadata(policy: DetectionPolicy | dict | None) -> dict:
+def site_selection(site_dictionaries, policy: DetectionPolicy) -> tuple:
+    """Selected loaded dictionary indices; unknown names are a request error."""
+    if site_dictionaries is None:
+        if policy.site_dictionaries:
+            raise ValueError("Unknown site dictionary")
+        return ()
+    return site_dictionaries.select(policy.site_dictionaries)
+
+
+def policy_metadata(
+    policy: DetectionPolicy | dict | None, site_dictionaries=None
+) -> dict:
     policy = validate_policy(policy)
-    return {
+    metadata = {
         "profile": policy.profile,
         "version": POLICY_VERSION,
         "custom_entity_count": len(policy.custom_entities),
@@ -152,6 +177,14 @@ def policy_metadata(policy: DetectionPolicy | dict | None) -> dict:
         "medical_dictionary_labels": sorted(policy.medical_terms),
         "ages": policy.ages,
     }
+    # Names only, and only when dictionaries are configured or requested, so
+    # deployments without them return exactly the metadata they always did.
+    if site_dictionaries is not None or policy.site_dictionaries is not None:
+        metadata["site_dictionaries"] = [
+            site_dictionaries.names[index]
+            for index in site_selection(site_dictionaries, policy)
+        ]
+    return metadata
 
 
 def age_value(value: str) -> float | None:
@@ -248,8 +281,9 @@ def _merge_coverage(entities: list[Entity]) -> list[Entity]:
     """Union every connected overlap; choosing a label never drops a suffix.
 
     Explicit forced rules take precedence over custom expressions, which take
-    precedence over finer built-in types and model labels. Equal-priority
-    overlaps prefer the longest detection, then lexical label for stability.
+    precedence over finer built-in types, then site dictionaries, then model
+    labels. Equal-priority overlaps prefer the longest detection, then lexical
+    label for stability.
     A medical concept label never wins over an overlapping identifier: the
     concept types are publicly restorable and may be kept, so letting one
     relabel a merged span would expose the identifier it covers.
@@ -266,7 +300,7 @@ def _merge_coverage(entities: list[Entity]) -> list[Entity]:
         winner = max(
             candidates or group,
             key=lambda item: (
-                precedence.get(item.source, 0),
+                precedence.get(item.source, int(item.source.startswith(SITE_SOURCE))),
                 item.end - item.start,
                 item.score,
                 item.label,
@@ -291,9 +325,13 @@ def _merge_coverage(entities: list[Entity]) -> list[Entity]:
 
 
 def apply_policy(
-    text: str, spans: Iterable, policy: DetectionPolicy | dict | None = None
+    text: str,
+    spans: Iterable,
+    policy: DetectionPolicy | dict | None = None,
+    site_dictionaries=None,
 ) -> list[Entity]:
     policy = validate_policy(policy)
+    selected = site_selection(site_dictionaries, policy)
     if not isinstance(text, str) or len(text) > MAX_POLICY_TEXT:
         raise ValueError("Policy text exceeds the supported limit")
     original = []
@@ -307,7 +345,7 @@ def apply_policy(
     if any(span.end > len(text) for span in original):
         raise ValueError("Invalid detection offsets")
     original = [span for span in original if _keep_age(text, span, policy.ages)]
-    if policy == DetectionPolicy():
+    if policy == DetectionPolicy() and not selected:
         return original
 
     enabled = set(ENTITY_TYPES)
@@ -317,6 +355,15 @@ def apply_policy(
         enabled.update(EXTENDED_TYPES)
     enabled.update(item.label for item in policy.custom_entities)
     enabled.update(policy.medical_terms)
+    # Dictionaries with a clinical label follow the profile like detector
+    # spans; any other label is enabled by selecting its dictionary.
+    if selected:
+        dictionaries = site_dictionaries.dictionaries
+        enabled.update(
+            dictionaries[index].label
+            for index in selected
+            if dictionaries[index].label not in ENTITY_TYPES
+        )
     if policy.include is not None:
         enabled = set(policy.include)
     enabled.difference_update(policy.exclude)
@@ -326,6 +373,9 @@ def apply_policy(
         for span in original
         if span.label in enabled and text[span.start : span.end] not in exemptions
     ]
+    # The literal pass is linear in the text, whatever the term count, so it
+    # runs outside the expression budget.
+    literal_hits = site_dictionaries.find(text, selected) if selected else []
     deadline = monotonic() + POLICY_TIMEOUT
 
     def matches(compiled, *, value_group=False):
@@ -371,6 +421,16 @@ def apply_policy(
             )
             for start, end in matches(compiled):
                 add(start, end, label, "policy:medical_dictionary")
+    for start, end, index in literal_hits:
+        dictionary = dictionaries[index]
+        if dictionary.label in enabled:
+            add(start, end, dictionary.label, dictionary.source)
+    if selected:
+        for index, compiled in site_dictionaries.patterns(selected):
+            dictionary = dictionaries[index]
+            if dictionary.label in enabled:
+                for start, end in matches(compiled):
+                    add(start, end, dictionary.label, dictionary.source)
     for literal in policy.blocklist:
         for start, end in matches(regex.compile(regex.escape(literal))):
             add(start, end, "ID", "policy:blocklist")

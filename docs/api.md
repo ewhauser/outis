@@ -28,7 +28,7 @@ requests. `/health` is public. HTTP responses use `Cache-Control: no-store`.
 | `GET /v1/usage` | Read aggregate process-local usage. |
 | `GET /metrics` | Read Prometheus counters and the active-request gauge. |
 | `GET /diagnostics` | Read API/model version, device, platform, and supported language scope. |
-| `GET /health`, `GET /ready` | Check liveness or loaded-model readiness. |
+| `GET /health`, `GET /ready` | Check liveness or loaded-model readiness; `/ready` also summarizes any loaded [site dictionaries](#site-dictionaries). |
 | WebSocket `/v1/ws` | Reuse a connection for individual detect, deidentify, analyze, and reidentify requests. |
 
 Text inputs are at most 100,000 Unicode characters. A public batch has at most
@@ -71,6 +71,7 @@ not calibrated safety estimates.
 | `blocklist` | Forces case-sensitive literal matches anywhere in the text as `ID`. These matches override the allowlist and label selection. |
 | `custom_entities` | Up to 32 `{label, pattern}` rules. The entire regex match becomes the span. Custom labels do not change or retrain the NER classifier. |
 | `medical_terms` | Explicit `CONDITION` and/or `MEDICATION` term lists, matched case-insensitively at word boundaries. These categories are opt-in dictionaries, not additional trained medical models. |
+| `site_dictionaries` | Selects server-loaded [site dictionaries](#site-dictionaries): omitted or `null` applies every loaded dictionary, `[]` disables them, and a list of names applies only those. Naming a dictionary the server has not loaded rejects the request. |
 | `ages` | `over_89` (default) or `all`. The detector finds every age; `over_89` leaves ages of 89 and under in place, as the HIPAA Safe Harbor age rule permits, and generalises older ages; `all` removes every age. |
 
 Profiles first choose enabled labels, then custom labels and supplied medical
@@ -88,8 +89,8 @@ rules and do not cover every institution's identifier formats.
 
 Overlapping policy matches are merged into their complete connected coverage,
 so choosing a label does not leave an overlapping suffix exposed. The label
-priority is blocklist, custom regex, extended/medical dictionary, then ordinary
-detector. Equal-priority matches prefer greater span length, then score and a
+priority is blocklist, custom regex, extended/medical dictionary, site
+dictionary, then ordinary detector. Equal-priority matches prefer greater span length, then score and a
 stable label ordering. Adjacent non-overlapping spans remain separate.
 
 Custom labels use uppercase letters, digits, and underscores, begin with a
@@ -100,6 +101,71 @@ empty matches and excessive repetition counts are rejected. Matching has a
 allowlist entries, 128 blocklist entries, and 128 supplied medical terms; each
 literal has 1–256 characters. Policy metadata reports counts and labels rather
 than the submitted literals or regexes.
+
+## Site dictionaries
+
+A deployment can load site dictionaries once at startup: local facility names,
+departments, provider names, or identifier formats that the trained detector
+has not seen. They are supplied by the deploying site, are off by default, and
+are not shipped with Outis. **Their effect on detection accuracy has not been
+measured**; a dictionary adds spans where its terms occur and can also add
+false positives where a term is ordinary text. Configuration is described in
+[Deployment](deployment.md#site-dictionaries).
+
+Each dictionary has a name, a label, literal terms, and optional
+identifier-format expressions. Its matches flow through the same policy merge,
+redaction, synthetic replacement, structured and file processing, and analysis
+as detector spans, with `source` set to `site_dictionary:<name>` and score 1.0:
+
+```json
+{"start": 31, "end": 61, "label": "FACILITY", "score": 1.0,
+ "source": "site_dictionary:facilities", "entity_id": "..."}
+```
+
+- **Terms** match literally, case-insensitively unless the dictionary is
+  `case_sensitive`. Each whitespace character in the text matches one space
+  in a term, so a name wrapped across a line still matches. With
+  `word_boundaries` (the default), the characters before and after a match
+  must not be letters, digits or underscores; without it, a term matches
+  inside longer words, as an identifier prefix would.
+- **Longest match**: at each position the longest term wins, and a match
+  contained in another is dropped. Partially overlapping matches, including
+  overlaps with detector spans, are merged into their complete coverage as
+  described above. A dictionary match takes the label when it overlaps an
+  ordinary detection; blocklist, custom-regex, extended and medical-dictionary
+  matches take it over a dictionary match. When the same text matches
+  dictionaries with different labels, the dictionary configured first wins.
+- **Patterns** use the same validation, repetition limits, 25 ms timeout and
+  250 ms per-policy budget as `custom_entities`. The entire match becomes the
+  span; use inline flags such as `(?i)` for case-insensitive formats.
+- **Labels**: a dictionary with one of the 14 clinical labels follows the
+  profile, `include` and `exclude` like detector spans (for example,
+  `identifiers_only` omits a `FACILITY` dictionary). Any other label, such as
+  an extended label or a custom `DEPARTMENT`, is enabled whenever its
+  dictionary is selected, as custom-entity labels are, and can be removed with
+  `site_dictionaries`. `include` and `exclude` cannot name custom site labels,
+  so a supplied `include` list disables them. Replacement `per_type` accepts
+  loaded dictionary labels. Custom labels are replaced by markers in synthetic
+  mode, as custom-entity labels are.
+- The allowlist exempts a dictionary match whose complete value equals an
+  entry, and dictionary matches count toward the 10,000-match bound.
+
+Responses and errors never contain dictionary terms or patterns. When
+dictionaries are loaded, policy metadata adds `site_dictionaries` with the
+names applied to that request, and `/ready` and `/diagnostics` add a summary:
+
+```json
+{"count": 1, "term_count": 3, "sha256": "4c1d0e2b9a7f6e5d",
+ "dictionaries": [{"name": "facilities", "label": "FACILITY", "term_count": 3,
+   "pattern_count": 0, "case_sensitive": false, "word_boundaries": true,
+   "sha256": "9e8d7c6b5a4f3e2d"}]}
+```
+
+The hashes are truncated SHA-256 fingerprints of each dictionary's normalized
+content, for confirming which version a server loaded. A fingerprint of a very
+small dictionary can be checked against guesses, so treat it as no more public
+than the dictionary. Without configured dictionaries, responses, metadata,
+`/ready` and `/diagnostics` are unchanged.
 
 ## Replacement controls and output offsets
 

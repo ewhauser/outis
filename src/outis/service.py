@@ -45,7 +45,13 @@ class Deidentifier:
         secret=None,
         device="auto",
         detector=None,
+        site_dictionaries=None,
     ):
+        # Validate operator configuration before any model load.
+        if site_dictionaries is not None:
+            from outis.site_dictionaries import load_site_dictionaries
+
+            site_dictionaries = load_site_dictionaries(site_dictionaries)
         if detector is None:
             from outis.detection.hf_encoder import load_detector
 
@@ -56,9 +62,10 @@ class Deidentifier:
         self.lock = Lock()
         self.usage = Usage()
         self.version = _model_version(model_dir, detector)
+        self.site_dictionaries = site_dictionaries
 
     def _requests(self, requests, *, detect=False, limit=16):
-        from outis.policy import KNOWN_LABELS, validate_policy
+        from outis.policy import KNOWN_LABELS, site_selection, validate_policy
         from outis.replacement.transform import ReplacementOptions, legacy_options
 
         if not isinstance(requests, (list, tuple)) or not 1 <= len(requests) <= limit:
@@ -83,6 +90,7 @@ class Deidentifier:
             ):
                 raise ValueError("Invalid project ID")
             policy = validate_policy(req.get("policy"))
+            site_selection(self.site_dictionaries, policy)
             item = {
                 **req,
                 "policy": policy,
@@ -112,6 +120,8 @@ class Deidentifier:
                 except (ValueError, TypeError):
                     raise ValueError("Invalid replacement options") from None
                 labels = KNOWN_LABELS | {item.label for item in policy.custom_entities}
+                if self.site_dictionaries is not None:
+                    labels |= self.site_dictionaries.labels
                 if set(options.per_type) - labels:
                     raise ValueError("Unknown replacement entity type")
                 synthetic = (
@@ -195,12 +205,15 @@ class Deidentifier:
                 raise ValueError("Linked input exceeds 100000 characters")
         if link_batch:
             spans = apply_policy(
-                context, self._infer([context])[0], requests[0]["policy"]
+                context,
+                self._infer([context])[0],
+                requests[0]["policy"],
+                self.site_dictionaries,
             )
             predictions = None
         else:
             predictions = [
-                apply_policy(text, spans, req["policy"])
+                apply_policy(text, spans, req["policy"], self.site_dictionaries)
                 for text, spans, req in zip(texts, self._infer(texts), requests)
             ]
             if shared_entities:
@@ -291,7 +304,7 @@ class Deidentifier:
                     "entities": [entity.as_dict() for entity in spans],
                     "entity_count": len(spans),
                     "model_version": self.version,
-                    "policy": policy_metadata(req["policy"]),
+                    "policy": policy_metadata(req["policy"], self.site_dictionaries),
                 }
                 for req, spans in zip(requests, predictions)
             ]
@@ -364,7 +377,9 @@ class Deidentifier:
                     context_offset=context_offset if context is not None else 0,
                 )
                 if req["_extended"] or link_batch or shared_entities:
-                    result["policy"] = policy_metadata(req["policy"])
+                    result["policy"] = policy_metadata(
+                        req["policy"], self.site_dictionaries
+                    )
                 else:
                     result = legacy_response(result)
                 result.update(
@@ -425,6 +440,6 @@ class Deidentifier:
             result.update(
                 model_version=self.version,
                 entity_count=len(predictions[0]),
-                policy=policy_metadata(requests[0]["policy"]),
+                policy=policy_metadata(requests[0]["policy"], self.site_dictionaries),
             )
             return result
