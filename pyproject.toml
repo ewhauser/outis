@@ -67,7 +67,8 @@ dev = [
     { include-group = "generators" },
     "pypdf>=6.19.0",
     "reportlab>=4",
-    "pyarrow>=18",
+    # No pyarrow wheels for Python 3.15 yet; Parquet tests skip without it.
+    "pyarrow>=18; python_version < '3.15'",
     "pytest>=8",
     "httpx>=0.28",
     "ruff>=0.11",
