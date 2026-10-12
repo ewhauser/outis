@@ -1,0 +1,140 @@
+name: Docker
+
+# Builds the CPU and GPU images and smoke-tests each one offline. Pull requests
+# only build; pushes to main publish the main-cpu and main-gpu tags to the
+# GitHub Container Registry; the Release workflow calls this workflow to publish
+# the version tags. See docs/deployment.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      version:
+        description: Released package version, such as 0.3.0
+        required: true
+        type: string
+      sha:
+        description: Release commit to build
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  # A call from the Release workflow reports that workflow's name and event, so
+  # it never shares a group with this workflow's own main-push run.
+  group: docker-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  image:
+    name: docker (${{ matrix.variant }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write # Push images to ghcr.io; unused on pull requests.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: cpu
+            platforms: linux/amd64,linux/arm64
+          # The locked PyPI torch ships CUDA libraries for x86_64.
+          - variant: gpu
+            platforms: linux/amd64
+    env:
+      VARIANT: ${{ matrix.variant }}
+      VERSION: ${{ inputs.version }}
+      PUBLISH: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.sha || github.sha }}
+      # The GPU image is several gigabytes and is held twice (build cache and
+      # the loaded smoke-test image); free room on the runner first.
+      - name: Free disk space
+        if: matrix.variant == 'gpu'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - name: Resolve image tags
+        id: tags
+        env:
+          REPOSITORY: ${{ github.repository }}
+          REF: ${{ github.ref }}
+        shell: python3 {0}
+        run: |
+          import os, re
+
+          env = os.environ
+          image = f"ghcr.io/{env['REPOSITORY'].lower()}"
+          variant = env["VARIANT"]
+          version = env.get("VERSION", "")
+          if version:
+              match = re.fullmatch(r"(\d+)\.(\d+)\.\d+((?:a|b|rc)\d+)?(?:\.post\d+)?", version)
+              if not match:
+                  raise SystemExit(f"invalid version: {version}")
+              names = [f"{version}-{variant}"]
+              # Pre-releases get only their exact tag.
+              if not match.group(3):
+                  names += [f"{match.group(1)}.{match.group(2)}-{variant}", variant]
+                  if variant == "cpu":
+                      names += [version, f"{match.group(1)}.{match.group(2)}", "latest"]
+          elif env["REF"] == "refs/heads/main":
+              names = [f"main-{variant}"]
+          else:
+              names = []  # Pull requests build without pushing.
+          with open(env["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"image={image}\n")
+              f.write("tags=" + ",".join(f"{image}:{name}" for name in names) + "\n")
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        if: env.PUBLISH == 'true' && contains(matrix.platforms, 'arm64')
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # Build for the runner's platform first and test that image; the
+      # multi-platform push below reuses this build for linux/amd64.
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          build-args: VARIANT=${{ matrix.variant }}
+          platforms: linux/amd64
+          load: true
+          tags: outis:test
+      # No network: the image must load its baked-in model offline. Runners
+      # have no GPU, so this also checks the GPU image falls back to CPU.
+      - name: Smoke test
+        run: |
+          printf 'Seen by Dr. Maria Lopez on 03/14/2024 at Mercy General Hospital.\n' \
+            | docker run --rm -i --network none outis:test text > result.json
+          python3 - <<'EOF'
+          import json
+          result = json.load(open("result.json"))
+          if not result.get("entities"):
+              raise SystemExit(f"no entities detected: {result}")
+          if "Maria Lopez" in result["text"]:
+              raise SystemExit("name not redacted")
+          print(result["text"])
+          EOF
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        if: env.PUBLISH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Push
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          build-args: VARIANT=${{ matrix.variant }}
+          platforms: ${{ matrix.platforms }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.revision=${{ inputs.sha || github.sha }}
+            org.opencontainers.image.version=${{ inputs.version || format('main-{0}', matrix.variant) }}
+          provenance: mode=max
+          sbom: true

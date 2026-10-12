@@ -23,6 +23,60 @@ its weights are present, or the pinned model from Hugging Face. It refuses to
 start without a fine-tuned encoder checkpoint. On Apple silicon, set
 `OUTIS_DEVICE=mps`; CPU is supported.
 
+## Docker
+
+The [Dockerfile](../Dockerfile) builds two images from `uv.lock`. Both bake in
+the pinned Hugging Face checkpoint and set `HF_HUB_OFFLINE=1`, so the container
+never reaches the network and can run with `--network none` for the CLI. They
+run as an unprivileged user and serve on port 8000.
+
+| Variant | Platforms | PyTorch |
+| --- | --- | --- |
+| `cpu` | `linux/amd64`, `linux/arm64` | CPU build of the locked version |
+| `gpu` | `linux/amd64` | the locked PyPI build with CUDA 13 libraries |
+
+The GPU image needs the
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/)
+and a driver that supports CUDA 13 (580 or newer). With `--gpus`, the default
+`OUTIS_DEVICE=auto` selects the GPU and infers in bf16 where the GPU supports
+it; without a GPU it falls back to the CPU.
+
+The [Docker workflow](../.github/workflows/docker.yml) builds and smoke-tests
+both images on every pull request and publishes them to
+`ghcr.io/ewhauser/outis`:
+
+| Tag | Published by |
+| --- | --- |
+| `X.Y.Z-cpu`, `X.Y-cpu`, `cpu`, `X.Y.Z`, `X.Y`, `latest` | each release (CPU) |
+| `X.Y.Z-gpu`, `X.Y-gpu`, `gpu` | each release (GPU) |
+| `main-cpu`, `main-gpu` | each push to `main` |
+
+Pre-releases get only their `X.Y.Z-cpu` and `X.Y.Z-gpu` tags. Images carry
+build provenance and an SBOM; pin a digest for reproducible deployments.
+
+```sh
+docker run -d -p 8000:8000 \
+  -e OUTIS_API_KEY=change-me \
+  -e OUTIS_SECRET=a-replacement-secret-of-at-least-32-bytes \
+  ghcr.io/ewhauser/outis:cpu
+```
+
+The server binds to `0.0.0.0` inside the container, so it refuses to start
+without `OUTIS_API_KEY`. Set `OUTIS_SECRET` to enable synthetic mode, and keep
+it stable across container restarts to keep patient mappings stable. The other
+`OUTIS_*` settings below apply unchanged. To run another checkpoint, mount it
+and set `OUTIS_MODEL_DIR`. The CLI reads standard input:
+
+```sh
+docker run --rm -i --network none ghcr.io/ewhauser/outis:cpu text < note.txt
+```
+
+To build locally, pass the variant:
+
+```sh
+docker build --build-arg VARIANT=cpu -t outis:cpu .
+```
+
 ## Detector
 
 Detection is model-only: a fine-tuned DeBERTa-v3-base token classifier reads the
