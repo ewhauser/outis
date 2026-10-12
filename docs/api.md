@@ -200,6 +200,8 @@ as `[NAME_e1]` and processed offsets.
 | `include_mapping` | Default `false`. When true, returns sensitive `{marker, original, label}` mappings for changed values. |
 | `scope` | `patient` (default) keys synthetic surrogates and keyed IDs by patient. `study` keys them by a study key instead, so one value gets one surrogate across all patients under that key; dates still shift per patient. |
 | `study_id` | Required with, and only with, `scope: "study"`. 1 to 128 characters from `A-Z a-z 0-9 _ . : -`. Each study ID derives an unrelated key from the server secret. |
+| `style` | Synthetic surrogate style. `obvious` (default) emits visibly fake values such as `SYN-MRN-…`, `Example City …` and `@example.invalid`. `realistic` keeps identifier, SSN and phone formats, and uses reserved ranges (`555-01XX` lines, `example.com`/`.org`/`.net`, documentation IP ranges, never-issued SSN areas) and fictional town, street and facility names. Names, dates and ages are the same in both styles. See [replacement styles](replacement.md#replacement-styles). |
+| `keep_region` | Realistic style only; default `true`. Keeps a LOCATION or ADDRESS state and country verbatim, with a ZIP code from that state's prefix range. `false` replaces them with a different keyed state or country. |
 
 Configured replacements include `processed_start` and `processed_end` alongside source
 `start` and `end`. The processed offsets select the emitted replacement in
@@ -221,6 +223,13 @@ If an inferred day/month/year date shifts to a value that could mean a different
 date under the month/day/year default, it is emitted as year/month/day with the
 original separator and a warning. For example, `13/09/2024` shifted by 20 days
 becomes `2024/10/03`.
+
+Realistic surrogates are harder to tell apart from real data. That can hide
+a missed identifier, though this project has not tested that claim. It also
+makes accidental resemblance to real people, records and places more likely:
+a format-preserving MRN can equal another real patient's MRN. Read the
+[trade-offs](replacement.md#trade-offs) and
+[collision measurements](replacement.md#collisions) before choosing it.
 
 The response's `preservation` fields report date-shift outcomes and replacement
 consistency for the selected actions. Masking, marking, or keeping a detected

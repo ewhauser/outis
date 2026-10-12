@@ -60,7 +60,8 @@ when upgrading if they must share one replacement mapping.
 Synthetic facilities retain only whitelisted generic setting and specialty
 terms, such as hospice, rehabilitation hospital, pediatric clinic, dialysis
 unit, or infusion center. Identifying names and unknown terms are replaced.
-Contacts use reserved fictional domains/phone ranges. Ages above 89 are
+Contacts use reserved fictional domains/phone ranges in both
+[replacement styles](#replacement-styles). Ages above 89 are
 bucketed to `90+`; other ages, diagnoses, medications, doses, labs, vitals,
 relative durations, and clinical narrative remain outside replacements unless
 detected as PHI. The replacement engine preserves every character outside
@@ -183,3 +184,196 @@ given or family name alone collides more often than the full names above.
 Where these merges matter, mark PHONE and IP with `per_type` instead of
 synthesizing them, and use keyed `entity_ids` (128-bit, collision-free in
 practice) when an analysis must tell identities apart.
+
+## Replacement styles
+
+Synthetic replacement has two styles. The default, `obvious`, marks every
+surrogate as fake. The opt-in `realistic` style keeps the format of the
+original and draws values from reserved ranges and bundled fictional word
+lists. Both styles share the same keys, determinism and invariants: the same
+secret, patient and value always give the same surrogate. Characters outside
+spans are copied exactly. A surrogate never canonically equals its original,
+and no secret material appears in output. Names, dates and ages are identical
+in both styles. The style is independent of [scope](#patient-and-study-scope):
+in study scope, realistic surrogates are keyed by the study key instead of the
+patient, so one value keeps one realistic surrogate across a release.
+
+| Label | `obvious` (default) | `realistic` |
+| --- | --- | --- |
+| MRN, ACCOUNT, ID | `SYN-MRN-393B59E5AB0A` | `MR-004521` → `US-631169`: same length, character class per position and punctuation |
+| SSN | `000-57-9817` | `123-45-6789` → `902-15-1948`: same layout, never-issued area |
+| PHONE | `(202) 555-0169` | `+1 617-555-0193 ext. 22` → `+1 927-555-0158 ext. 95`: same layout, fictional 555-01XX line |
+| EMAIL | `person.f980…@example.invalid` | `mara.calder@example.org` → `mark.lakedale@example.org` |
+| URL | `https://synthetic-68c2….invalid` | `https://portal.northwood.org/patients/4417?view=summary` → `https://portal.millbrook.example.org/account/5193?notes=records` |
+| IP | `192.0.2.75` | IPv4 in one of three documentation /24s; IPv6 in `2001:db8::/32` |
+| LOCATION | `Example City 1589A8` | `Brackenford, NM` → `New Bayland, NM` |
+| ADDRESS | `850 Synthetic Way, Example City, ZZ 00000` | `12 Tessford Lane, Apt 4B, Brackenford, NM 87101` → `55 Pondhaven Road, Apt 8L, New Bayland, NM 87917` |
+| FACILITY | `Synthetic Pediatric Clinic 34E95E` | `Lakeshore Pediatric Clinic` → `Pineview Springs Regional Pediatric Clinic` |
+
+Select the style in the `replacement` object (HTTP API or
+`Deidentifier.deidentify(replacement=...)`), with `style=` on
+`outis.replacement.surrogates.replace`, or with `outis text --mode synthetic
+--style realistic` (add `--replace-region` for `keep_region: false`). Setting
+`--style` sends a replacement object, so the CLI output then has the configured
+response fields, such as entity IDs and processed offsets:
+
+```json
+{
+  "mode": "synthetic",
+  "patient_id": "internal-patient-42",
+  "replacement": {"type": "synthetic", "style": "realistic", "keep_region": true}
+}
+```
+
+### Realistic surrogates
+
+- **MRN, ACCOUNT and ID** keep their length, the class of each character
+  (digit, uppercase or lowercase letter) and every punctuation character in
+  place. The surrogate is a keyed permutation of all strings with that exact
+  format, chosen so that no value maps to itself. Within one secret, patient,
+  label and format, two distinct identifiers never share a surrogate.
+  Non-ASCII letters and digits become ASCII of the same class, from keyed draws
+  that can collide.
+- **SSN** keeps its layout. Nine-digit values use only areas the SSA never
+  issues: `000`, `666` and `900`–`999`. In the 900s, the groups the IRS uses
+  for ITINs (50–65, 70–88, 90–92, 94–99) are avoided, so no output is a valid
+  SSN or ITIN. Partial values, such as `XXX-XX-6789`, keep their mask and
+  replace only the digits.
+- **PHONE** keeps the original punctuation, spacing, `+1` country code,
+  extension and generic words such as `ext` or `Tel`. The number becomes
+  `NXX-555-01XX`. NANP reserves 555-0100 to 555-0199 for fictional use in
+  every area code, so no output can reach a real line. The area code is a
+  keyed choice among 602 well-formed geographic-style codes; the original area
+  code is not kept. This gives 60,200 distinct ten-digit numbers, and only 100
+  seven-digit ones. Numbers that are not NANP-shaped (other country codes,
+  vanity letters, unknown words) become `(NXX) 555-01XX`, because Outis uses no
+  reserved fictional range for other countries.
+- **EMAIL** keeps the local part's shape: letter runs become a fictional first
+  name, surname or initial, digit runs keep their length, and separators stay.
+  The domain is always `example.com`, `example.org` or `example.net`, matching
+  a `.org` or `.net` original. Generic subdomains such as `mail` or `www` are
+  kept; others become keyed words.
+- **URL** keeps the scheme, port, generic subdomains, path depth, punctuation,
+  query layout and a whitelisted file extension. Words become keyed generic
+  words and digit runs keep their length. The site label becomes a keyed
+  fictional name, so the host is always a subdomain of `example.com`,
+  `example.org` or `example.net`, such as `portal.millbrook.example.org`.
+- **IP** uses only documentation ranges: `192.0.2.0/24`, `198.51.100.0/24`,
+  `203.0.113.0/24` and `2001:db8::/32`. A CIDR suffix or port is kept, and an
+  exploded IPv6 address stays exploded. There are only 762 IPv4 surrogates,
+  so many distinct addresses share one.
+- **LOCATION** replaces each locality with a keyed town name such as
+  `Ashford`, `Cedar Falls`, `Ashford Landing` or `New Bayland`. A trailing `County`,
+  `Township`, `Parish` or `Borough` is kept. A trailing state (postal code or
+  full name), ZIP code and country are recognized. With `keep_region: true`,
+  the default, the state and country are kept verbatim. This keeps
+  region-level covariates usable, which HIPAA Safe Harbor allows. With
+  `keep_region: false`, they become a different keyed state or country. A span
+  that is only a state or country is always replaced, because Outis never
+  echoes a detected span.
+- **ADDRESS** keeps the layout: line breaks, commas, a leading or trailing
+  directional (`N.`), unit and box designators (`Apt`, `Unit`, `Suite`, `#`,
+  `PO Box`) and the ZIP+4 shape. The house number keeps its digit count
+  without a leading zero. The street name and suffix are keyed, and an
+  abbreviated suffix stays abbreviated. The locality uses the same keyed town
+  as LOCATION, so `Brackenford` becomes the same town in both labels for one
+  patient. State and country follow `keep_region`.
+- **ZIP codes** in a LOCATION or ADDRESS start with a three-digit prefix
+  allocated to the state that is emitted. With no state, they start with
+  `001`–`004`, prefixes USPS has never allocated. This is the documented
+  placeholder; it looks like a ZIP code but belongs to no place.
+- **FACILITY** becomes a fictional town-style name with an optional generic
+  modifier (`Regional`, `Community`, `Memorial`, `Valley`). It keeps the same
+  whitelisted setting and specialty terms as the obvious style, for example
+  `Pediatric Clinic`, `Dialysis Unit` or `Hospice`.
+- Case follows the original: an all-capitals place, street or facility stays
+  in capitals.
+
+### Why identifiers use a keyed permutation, not FF1 or FF3
+
+Stanford's TIDE 2.0 uses FF3 format-preserving encryption. FF3 needs a minimum
+domain, so it pads short identifiers and truncates the result, and TIDE
+measured 35–37% collisions on three- to five-digit IDs. NIST's second public
+draft of SP 800-38G Rev. 1 drops FF3 and FF3-1. FF1 remains, but its draft
+also requires a domain of at least one million values. A three-digit MRN would
+still need padding and truncation, and many originals would map to one
+surrogate.
+
+Outis therefore builds the permutation directly over the exact format domain.
+It uses a balanced 16-round Feistel network whose round function is the same
+keyed HMAC-SHA256 digest that keys every other surrogate. Cycle walking keeps
+it inside the domain. The emitted value is `P⁻¹(P(x) + 1)`, a single cycle
+through the domain, so it is injective and never returns the original. This
+needs no new dependency. Python FF1 packages exist, but none was a maintained
+dependency we could verify, and FF1 would not fix short domains.
+
+This construction is not a standardized cipher and has no formal security
+proof for small domains. Its security rests on the HMAC round function. As
+with any deterministic mapping, anyone who can submit values to the service
+can build a dictionary of the identifier space. Someone who learns many
+original–surrogate pairs for one patient and format learns which surrogates
+the remaining originals cannot have. Keyed draws, as used for SSNs and
+phones, reveal nothing beyond equality, but they collide.
+
+### Collisions
+
+A collision merges two distinct originals into one surrogate. That loses
+linkage but does not expose either value. The table gives the share of
+distinct invented values whose surrogate is shared with at least one other
+value, all keyed in one study scope: the worst case, where every value must
+stay distinct across a release. It is measured by
+`uv run python scripts/surrogate_collisions.py --sizes 2000 20000 --style realistic`
+(and `--style obvious`). Realistic spaces do not depend on scope, so one
+patient with as many values would collide at the same rates. Real patients
+have few distinct values per label, so collisions within a patient are rare.
+
+| Label | Obvious, 2,000 | Obvious, 20,000 | Realistic, 2,000 | Realistic, 20,000 |
+| --- | ---: | ---: | ---: | ---: |
+| MRN, 3–12 digits; `AA-999999`; ACCOUNT; ID | 0.00% | 0.00% | 0.00% | 0.00% |
+| SSN | 0.20% | 2.01% | 0.00% | 0.04% |
+| ADDRESS | 0.00% | 0.00% | 0.00% | 0.06% |
+| EMAIL | 0.00% | 0.00% | 0.50% | 3.77% |
+| URL | 0.00% | 0.00% | 1.40% | 15.24% |
+| FACILITY | 0.00% | 0.13% | 1.00% | 7.38% |
+| PHONE | 2.50% | 25.25% | 2.90% | 28.17% |
+| LOCATION | 0.00% | 0.11% | 4.10% | 26.36% |
+| IP | 92.50% | 100.00% | 94.25% | 100.00% |
+
+The three-digit MRN row covers the whole 1,000-value domain: every value
+gets its own surrogate, where FF3 with padding and truncation merged more than
+a third. Realistic identifiers never collide within a label and format.
+Identifiers of different labels, such as an MRN and an ACCOUNT with the same
+digits, are permuted independently and can share a surrogate. Realistic SSNs
+collide less than obvious ones because the never-issued space is 58 times
+larger. Phone numbers use 602 area codes against the study scope's 712,
+because realistic style also excludes toll-free, personal-communication and
+other non-geographic codes. Email, URL, facility and place names come from
+vocabularies far smaller than the 24- and 48-bit tokens of the obvious style;
+host-only URLs are limited by about 4,000 site names. Where these merges
+matter, mark those labels with `per_type`, or use keyed `entity_ids` to tell
+identities apart.
+
+### Trade-offs
+
+Realistic output is harder to tell apart from real data, and this cuts both
+ways:
+
+- A missed identifier sits among realistic surrogates instead of next to
+  obvious `SYN-` and `Example City` markers. Prior work cited by TIDE 2.0
+  argues this "hiding in plain sight" makes leaked PHI harder to find. **This
+  project has not tested that claim.** Do not rely on it as a privacy control.
+- Realistic values are more likely to resemble real people, places and
+  records by accident. A format-preserving MRN can be a real MRN of another
+  patient at the same site. A fictional town or street, built from common
+  English words, may be a real place. Names in email local parts may match
+  real people. Kept states and countries are real by design. Downstream
+  systems may wrongly join realistic surrogates with real records. Treat
+  realistic output as de-identified data and never as a source of real
+  identifiers.
+- Reviewers can no longer see at a glance which spans were replaced. Use the
+  returned entities and processed offsets to audit replacements.
+
+The bundled town, street, facility, first-name and URL word lists were
+written for this project and ship under its licence. State names, postal codes
+and ZIP prefix ranges are public USPS facts, transcribed by hand. See
+`src/outis/replacement/realistic_data.py`.

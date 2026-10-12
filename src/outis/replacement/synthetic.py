@@ -18,6 +18,7 @@ from outis.replacement.primitives import (
     safe_label,
     study_digest,
 )
+from outis.replacement.realistic import REALISTIC_LABELS, realistic_value
 
 _FIRST_NAMES = (
     "Avery",
@@ -265,6 +266,8 @@ def synthetic_value(
     *,
     name_binding=None,
     name_warnings=None,
+    style: str = "obvious",
+    keep_region: bool = True,
 ) -> str:
     canonical = canonical_form(value)
     # Opaque identifiers, email local parts and URL paths can distinguish case,
@@ -311,6 +314,25 @@ def synthetic_value(
         return rendered
     if label == "AGE":
         return synthetic_age(value)
+    if style == "realistic" and label in REALISTIC_LABELS:
+
+        def keyed(part_label, part_value, salt):
+            return _digest(secret, patient, part_label, part_value, salt)
+
+        setting = _facility_setting(value) if label == "FACILITY" else ""
+        for salt in range(100):
+            replacement = realistic_value(
+                value,
+                label,
+                identity,
+                keyed,
+                salt,
+                keep_region=keep_region,
+                facility_setting=setting,
+            )
+            if canonical_form(replacement) != canonical:
+                return replacement
+        return f"[{safe_label(label)}]"
     study = patient is None
     for salt in range(100):
         digest = _digest(secret, patient, label, identity, salt)
