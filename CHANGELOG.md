@@ -5,6 +5,29 @@ All notable changes to this project are documented here. The project uses
 from the Conventional Commit messages merged since the previous release; see
 [RELEASING.md](RELEASING.md).
 
+## [0.3.0](https://github.com/ewhauser/outis/compare/v0.2.1...v0.3.0) (2026-10-12)
+
+
+### Features
+
+* default to bf16 inference on bf16-capable GPUs and MPS ([#26](https://github.com/ewhauser/outis/issues/26)) ([09247a5](https://github.com/ewhauser/outis/commit/09247a54e3a6f0496a27f48f630fcf9d84bc0639))
+
+
+### Bug Fixes
+
+* close Office package leaks and harden file and decoder boundaries ([#10](https://github.com/ewhauser/outis/issues/10)) ([18a5d32](https://github.com/ewhauser/outis/commit/18a5d32569cdabe93142b2dd8fe1beecc97dfb97))
+* keep health checks independent of inference capacity ([#12](https://github.com/ewhauser/outis/issues/12)) ([863d030](https://github.com/ewhauser/outis/commit/863d03003cbc70c9d5e585cad394f3614d63ada8))
+* render every replacement through one implementation ([#14](https://github.com/ewhauser/outis/issues/14)) ([b7bb5d4](https://github.com/ewhauser/outis/commit/b7bb5d41b3023e63e9b6c4a680a571198a83ae41))
+* report malformed detector output as a server failure, not 422 ([#17](https://github.com/ewhauser/outis/issues/17)) ([387cf0f](https://github.com/ewhauser/outis/commit/387cf0f268133c111796385c914fe2086919f051))
+
+
+### Performance Improvements
+
+* analyze request identities once and reuse them through rendering ([#15](https://github.com/ewhauser/outis/issues/15)) ([75213e9](https://github.com/ewhauser/outis/commit/75213e9e4d67bba0212cab5d06e159864441ef48))
+* batch encoder windows by length instead of arrival order ([#24](https://github.com/ewhauser/outis/issues/24)) ([c931335](https://github.com/ewhauser/outis/commit/c93133587cfab18b26d84fa4ad48fd70f09e84e7))
+* build BIOES transition constraints once per process ([#19](https://github.com/ewhauser/outis/issues/19)) ([f8f18f5](https://github.com/ewhauser/outis/commit/f8f18f527d973f54f85b4753c463381d4b9396e1))
+* count XLSX shared strings once per workbook ([#18](https://github.com/ewhauser/outis/issues/18)) ([1dcd4a3](https://github.com/ewhauser/outis/commit/1dcd4a3c75bcb0e482a82f90210933ac39f8b93f))
+
 ## [Unreleased]
 
 ### Changed
