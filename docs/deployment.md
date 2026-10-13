@@ -166,6 +166,41 @@ replacement strings, model confidence scores, warnings, and a model version.
 Response metadata contains no original PHI, patient anchor, date offset, or key.
 Scores are model probabilities, not calibrated safety estimates.
 
+## Span review report
+
+`outis review` writes a static HTML page that shows each note's original text,
+with its spans highlighted and labelled, beside the replaced output. It has
+per-label counts, a note index, and previous/next links. A reviewer can click a
+span to remove it, select original text and pick a label to add one, and
+download a corrected span file (`spans.reviewed.jsonl`) that
+`outis spans replace` and `/v1/replace` accept. The output column is not
+updated in the page; run `outis review` again on the corrected file to see it.
+See [supplied spans](api.md#supplied-spans-detect-review-replace) for the
+workflow and span file format.
+
+```sh
+outis review --input notes.jsonl --spans spans.jsonl --output review.html \
+  --mode synthetic --patient-column patient_id
+```
+
+**The report contains PHI by design**: the full original text of every note,
+plus note and patient IDs. Outis therefore:
+
+- prints a warning on stderr and repeats it at the top of the page;
+- creates the file readable and writable by its owner only (mode `0600`,
+  including when it replaces an existing file);
+- keeps the page self-contained, with no external scripts, styles, fonts,
+  images or links. A Content-Security-Policy allows only the page's own inline
+  style and script, by SHA-256 hash, and blocks every network request;
+- builds the page from escaped text, so note contents cannot inject markup.
+
+Handle the report and any downloaded span file like the notes themselves. Write
+them only to approved, access-controlled storage, open them on a machine
+allowed to display PHI, and do not email, upload or commit them. Browsers may
+keep downloaded files and history, so delete the report and the corrected file
+once they have been applied. Without `OUTIS_SECRET`, `outis review` can still
+show redaction output, but it cannot check text fingerprints and says so.
+
 ## Security controls
 
 Request bodies and source PHI are not logged by the application. Validation and
@@ -181,7 +216,8 @@ site dictionary names, counts and fingerprints when configured.
 
 Model-backed routes (`/v1/deidentify`, `/v1/batch`, `/v1/detect`,
 `/v1/detect/batch`, `/v1/analyze`, `/v1/structured`, `/v1/files` and the
-WebSocket) run on a dedicated inference pool, separate from the server's request
+WebSocket) and the replacement-only `/v1/replace` and `/v1/replace/batch` run
+on a dedicated inference pool, separate from the server's request
 threads. `OUTIS_INFERENCE_WORKERS` (default 2) sets its threads and
 `OUTIS_INFERENCE_QUEUE` (default 32) how many further requests may wait. Beyond
 that, requests fail fast with `503` and `Retry-After: 1` instead of queueing

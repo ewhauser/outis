@@ -40,7 +40,13 @@ def main():
         help="Site dictionary manifest or directory "
         "(default: OUTIS_SITE_DICTIONARIES; none when unset)",
     )
+    from outis import spans_cli
+
+    spans_cli.add_parsers(sub)
     args = parser.parse_args()
+    if args.command in {"spans", "review"}:
+        spans_cli.run(args)
+        return
     if args.command == "text" and args.style and args.mode != "synthetic":
         parser.error("--style requires --mode synthetic")
     if args.command == "text" and args.replace_region and args.style != "realistic":

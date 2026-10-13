@@ -140,6 +140,18 @@ Requests then send the key in an `X-API-Key` header. See
 outis text --input note.txt --mode redact
 ```
 
+### Detect, review, then replace
+
+Detection and replacement can run as separate steps, so a person can check the
+spans before any text is released. `outis spans detect` writes a span file
+(offsets and labels, no text). `outis review` writes a local HTML report of
+original and replaced text where spans can be removed or added; it contains PHI
+and is written owner-only. `outis spans replace`, or `POST /v1/replace`, then
+applies the reviewed spans without detecting again, and can re-apply them later
+under another key, project or style. Replacing `/v1/detect` spans gives the
+same output as `/v1/deidentify`. See
+[supplied spans](docs/api.md#supplied-spans-detect-review-replace).
+
 ## How it works
 
 ```
@@ -238,7 +250,7 @@ any output.
 | Guide | Contents |
 |---|---|
 | [Evaluation methodology](docs/evaluation.md) | Targets, any-label masking and how models are compared |
-| [API guide](docs/api.md) | Endpoints, policies, masks, structured data, files, WebSockets |
+| [API guide](docs/api.md) | Endpoints, policies, masks, supplied spans and span files, structured data, files, WebSockets |
 | [Synthetic replacement](docs/replacement.md) | Secrets, patient anchors, date shifting, identity linking, project scope |
 | [Deployment](docs/deployment.md) | Launcher, default model, batch limits, security controls |
 | [Model card](MODEL_CARD.md) | Architecture, training data, evaluation, risks |

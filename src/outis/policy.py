@@ -210,6 +210,11 @@ def _keep_age(text: str, span, ages: str) -> bool:
     return value is None or value > 89
 
 
+def keep_ages(text: str, spans: Iterable, ages: str) -> list:
+    """Drop AGE spans the ages policy leaves in place; other spans are kept."""
+    return [span for span in spans if _keep_age(text, span, ages)]
+
+
 # Context-bound patterns deliberately avoid interpreting arbitrary clinical
 # numbers as credentials or banking details. The captured value is redacted;
 # the public field heading remains outside the entity.
@@ -344,7 +349,7 @@ def apply_policy(
         raise ValueError("Invalid detection output") from None
     if any(span.end > len(text) for span in original):
         raise ValueError("Invalid detection offsets")
-    original = [span for span in original if _keep_age(text, span, policy.ages)]
+    original = keep_ages(text, original, policy.ages)
     if policy == DetectionPolicy() and not selected:
         return original
 
