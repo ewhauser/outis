@@ -6,7 +6,8 @@ the page, and makes no network requests. A Content-Security-Policy that admits
 only the page's own inline style and script (by hash) enforces that.
 
 A reviewer can remove or add spans in the page and download a corrected span
-file that ``outis spans replace`` and ``/v1/replace`` accept. The output column
+file that ``outis batch --spans``, ``outis spans replace`` and ``/v1/replace``
+accept. The output column
 is not re-rendered in the browser; replace again with the corrected file.
 """
 
@@ -82,6 +83,7 @@ mark::after { content: attr(data-label); font: 600 0.65rem/1 system-ui, sans-ser
 mark.removed { text-decoration: line-through; opacity: 0.45; }
 mark.added { outline: 2px dashed currentColor; }
 mark.kept { opacity: 0.6; }
+.failed { color: var(--warn); font-weight: 600; margin: 0; }
 footer { color: var(--muted); font-size: 0.85rem; margin: 24px 0; }
 """
 
@@ -125,6 +127,9 @@ const ReviewModel = (() => {
   const offset = (runStart, textBefore) => runStart + points(textBefore);
 
   function add(note, start, end, label) {
+    if (note.failed) {
+      return "Detection failed for this note; detect it again before reviewing.";
+    }
     const length = points(note.text);
     if (!Number.isInteger(start) || !Number.isInteger(end)
         || start < 0 || end > length || end <= start) {
@@ -351,6 +356,10 @@ def build_report(pairs, results, *, settings: dict | None = None) -> str:
     totals, notes, sections, toc = Counter(), [], [], []
     for n, ((note, record), result) in enumerate(zip(pairs, results)):
         text = note["text"]
+        failed = record.get("error") if result is None else None
+        if failed:
+            # No spans to review: show the text, refuse edits, keep the record.
+            result = {"text": "", "entities": []}
         replaced = {(e["start"], e["end"]) for e in result["entities"]}
         entities = []
         for entity in record["entities"]:
@@ -363,6 +372,7 @@ def build_report(pairs, results, *, settings: dict | None = None) -> str:
                 "text": text,
                 "entities": entities,
                 "record": {k: v for k, v in record.items() if k != "entities"},
+                **({"failed": failed} if failed else {}),
             }
         )
         counts = Counter(entity["label"] for entity in result["entities"])
@@ -383,7 +393,13 @@ def build_report(pairs, results, *, settings: dict | None = None) -> str:
             ],
             label_class,
         )
-        note_id = _text(note["note_id"])
+        note_id = _text(str(note["note_id"]))
+        if failed:
+            output = (
+                '<p class="failed">Detection failed for this note '
+                f"({_text(failed)}), so it has no spans to review. Detect it "
+                "again before release.</p>"
+            )
         previous = f'<a href="#note-{n - 1}">Previous</a>' if n else ""
         following = f'<a href="#note-{n + 1}">Next</a>' if n + 1 < len(pairs) else ""
         kept = len(entities) - len(result["entities"])
@@ -393,7 +409,11 @@ def build_report(pairs, results, *, settings: dict | None = None) -> str:
             f'<span class="note-nav">{previous}{following}<a href="#top">Top</a></span>'
             f"</div>"
             f'<div class="counts">{_chips(counts, label_class)}'
-            f'<span class="meta">{len(result["entities"])} replaced'
+            + (
+                '<span class="meta">detection failed'
+                if failed
+                else f'<span class="meta">{len(result["entities"])} replaced'
+            )
             + (f", {kept} left in place by the ages policy" if kept else "")
             + "</span></div>"
             f'<div class="panes"><div class="pane"><h3>Original (PHI)</h3>'
@@ -404,7 +424,7 @@ def build_report(pairs, results, *, settings: dict | None = None) -> str:
         )
         toc.append(
             f'<tr><td><a href="#note-{n}">{note_id}</a></td>'
-            f'<td class="n">{len(result["entities"])}</td></tr>'
+            f'<td class="n">{"failed" if failed else len(result["entities"])}</td></tr>'
         )
 
     palette = "".join(

@@ -158,12 +158,12 @@ format, resume guarantee, out-of-memory handling and measured throughput.
 ### Detect, review, then replace
 
 Detection and replacement can run as separate steps, so a person can check the
-spans before any text is released. `outis spans detect` writes a span file
-(offsets and labels, no text). `outis review` writes a local HTML report of
+spans before any text is released. `outis batch --detect-only` writes a span
+file (offsets and labels, no text). `outis review` writes a local HTML report of
 original and replaced text where spans can be removed or added; it contains PHI
-and is written owner-only. `outis spans replace`, or `POST /v1/replace`, then
-applies the reviewed spans without detecting again, and can re-apply them later
-under another key, project or style. Replacing `/v1/detect` spans gives the
+and is written owner-only. `outis batch --spans`, or `POST /v1/replace`, then
+applies the reviewed spans without loading the model, and can re-apply them
+later under another key, project or style. Replacing `/v1/detect` spans gives the
 same output as `/v1/deidentify`. See
 [supplied spans](docs/api.md#supplied-spans-detect-review-replace).
 

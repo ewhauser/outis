@@ -174,7 +174,7 @@ with its spans highlighted and labelled, beside the replaced output. It has
 per-label counts, a note index, and previous/next links. A reviewer can click a
 span to remove it, select original text and pick a label to add one, and
 download a corrected span file (`spans.reviewed.jsonl`) that
-`outis spans replace` and `/v1/replace` accept. The output column is not
+`outis batch --spans`, `outis spans replace` and `/v1/replace` accept. The output column is not
 updated in the page; run `outis review` again on the corrected file to see it.
 See [supplied spans](api.md#supplied-spans-detect-review-replace) for the
 workflow and span file format.
@@ -357,6 +357,50 @@ Parquet cannot be appended to, so Parquet output is journalled to
 the journal is then removed. The progress file stays after a run completes, so
 re-running with `--resume` does nothing. With nothing to resume, `--resume`
 starts the run. Without it, the command never overwrites an existing output.
+
+### Detect once, replace later
+
+`--detect-only` runs detection and writes a span file instead of
+de-identified rows. `--spans` then replaces those spans without loading the
+model, as often as needed: under another key, project, style or replacement
+policy, or after a reviewer corrected the file with
+[`outis review`](#span-review-report). The
+[span file format](api.md#span-files) holds offsets and labels, never note text.
+
+```sh
+export OUTIS_FINGERPRINT_SECRET=...   # optional; defaults to OUTIS_SECRET
+outis batch --detect-only --input notes.parquet --output spans.jsonl \
+  --id-column note_id --text-column note_text --patient-column patient_id
+outis batch --spans spans.jsonl --input notes.parquet --output deid.parquet \
+  --id-column note_id --text-column note_text --patient-column patient_id \
+  --mode synthetic --policy policy.json --project-id release-1
+```
+
+- **`--detect-only`** takes the input, columns, `--policy` (its `policy` part),
+  `--project-id`, `--site-dictionaries`, `--batch-size` and model options of a
+  full run, with the same batching, out-of-memory handling and resume. It
+  writes JSONL, one record per input row in input order, readable by its owner
+  only. It takes neither `--pass-through` nor `--include-originals`. A note
+  whose detection fails gets a record with an `error` code and no spans. With
+  a fingerprint secret configured, each record carries a `text_fingerprint`.
+- **`--spans SPAN_FILE`** writes the same output rows as a full run, in JSONL
+  or Parquet, with each entity's `source` set to `supplied` and
+  `model_version` taken from the span record. Only `policy.ages` of `--policy`
+  applies; the other policy fields already acted during detection, and site
+  dictionaries are not loaded. Records must follow the input's row order, so
+  both files are streamed. Before writing anything, it checks every record
+  against its row: the same note ID, the same patient ID if the record has
+  one, valid nonoverlapping spans within the text, and a matching
+  `text_fingerprint`. Errors name the span file line, never values. A record
+  with an `error` fails its row with that code.
+- Replacing the spans of a `--detect-only` run with the same settings gives the
+  same output rows as one full run, apart from each entity's `source`.
+
+If `OUTIS_SECRET` changes between the two runs and fingerprints were made
+under it, set `OUTIS_FINGERPRINT_SECRET` to the key used at detection.
+`--skip-fingerprint-check` replaces without checking fingerprints; use it only
+when the input is known to be the detected text. `--resume` also refuses to
+continue a run whose stage or span file changed.
 
 ### Progress and exit status
 
