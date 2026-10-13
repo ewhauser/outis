@@ -44,9 +44,12 @@ _RECORD_FIELDS = frozenset(
         "policy",
         "text_fingerprint",
         "edited",
+        "error",
     }
 )
 _NOTE_ID = re.compile(r"[^\x00-\x1f\x7f]{1,256}\Z")
+# A detection failure recorded in place of spans, e.g. out_of_memory.
+_ERROR_CODE = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 # Versioned tag; changing it invalidates every fingerprint already issued.
 _FINGERPRINT_DOMAIN = b"outis-text-fingerprint-v1"
 
@@ -194,8 +197,15 @@ def check_fingerprint(secret, text: str, fingerprint) -> None:
 # note and patient IDs can be identifiers, so they are written owner-only.
 
 
+def valid_note_id(note_id) -> bool:
+    """A nonempty printable string of at most 256 characters, or an integer."""
+    if type(note_id) is int:
+        return True
+    return isinstance(note_id, str) and bool(_NOTE_ID.match(note_id))
+
+
 def span_record(
-    note_id: str,
+    note_id: str | int,
     detection: dict,
     *,
     patient_id: str | None = None,
@@ -218,7 +228,16 @@ def span_record(
     return record
 
 
-def _check_record(record, line: int) -> dict:
+def failed_record(note_id: str | int, code: str, *, patient_id=None) -> dict:
+    """A span file record for a note whose detection failed: no spans, a code."""
+    record = {"format": SPAN_FORMAT, "note_id": note_id}
+    if patient_id is not None:
+        record["patient_id"] = patient_id
+    record.update(entities=[], error=code)
+    return record
+
+
+def check_record(record, line: int) -> dict:
     where = f"Span file line {line}"
     if not isinstance(record, dict):
         raise SpanError(f"{where}: expected a JSON object")
@@ -226,8 +245,7 @@ def _check_record(record, line: int) -> dict:
         raise SpanError(f"{where}: unsupported field")
     if record.get("format") != SPAN_FORMAT:
         raise SpanError(f"{where}: format must be {SPAN_FORMAT}")
-    note_id = record.get("note_id")
-    if not isinstance(note_id, str) or not _NOTE_ID.match(note_id):
+    if not valid_note_id(record.get("note_id")):
         raise SpanError(f"{where}: invalid note_id")
     patient = record.get("patient_id")
     if patient is not None and (
@@ -252,12 +270,16 @@ def _check_record(record, line: int) -> dict:
         raise SpanError(f"{where}: invalid policy")
     if record.get("edited") is not None and type(record["edited"]) is not bool:
         raise SpanError(f"{where}: invalid edited flag")
+    error = record.get("error")
+    if error is not None and (
+        not isinstance(error, str) or not _ERROR_CODE.match(error) or entities
+    ):
+        raise SpanError(f"{where}: invalid error")
     return record
 
 
-def read_span_file(path) -> dict[str, dict]:
-    """Read a span file into records keyed by note ID, checking every line."""
-    records = {}
+def iter_span_file(path):
+    """Yield ``(line, record)`` for each record of a span file, checking each."""
     with Path(path).open(encoding="utf-8") as stream:
         for line, raw in enumerate(stream, 1):
             if not raw.strip():
@@ -266,10 +288,16 @@ def read_span_file(path) -> dict[str, dict]:
                 record = json.loads(raw)
             except (ValueError, RecursionError):
                 raise SpanError(f"Span file line {line}: invalid JSON") from None
-            record = _check_record(record, line)
-            if record["note_id"] in records:
-                raise SpanError(f"Span file line {line}: duplicate note_id")
-            records[record["note_id"]] = record
+            yield line, check_record(record, line)
+
+
+def read_span_file(path) -> dict[str, dict]:
+    """Read a span file into records keyed by note ID, checking every line."""
+    records = {}
+    for line, record in iter_span_file(path):
+        if record["note_id"] in records:
+            raise SpanError(f"Span file line {line}: duplicate note_id")
+        records[record["note_id"]] = record
     return records
 
 
@@ -316,7 +344,7 @@ def read_notes(
             if not isinstance(row, dict):
                 raise SpanError(f"{where}: expected a JSON object")
             note_id, text = row.get(id_column), row.get(text_column)
-            if not isinstance(note_id, str) or not _NOTE_ID.match(note_id):
+            if not valid_note_id(note_id):
                 raise SpanError(f"{where}: missing or invalid note ID")
             if note_id in seen:
                 raise SpanError(f"{where}: duplicate note ID")
@@ -334,13 +362,23 @@ def read_notes(
     return notes
 
 
-def pair_notes(notes: list[dict], records: dict[str, dict]) -> list[tuple[dict, dict]]:
-    """Match every note to exactly one span record, and fill in its patient ID."""
+def pair_notes(
+    notes: list[dict], records: dict[str, dict], *, allow_failed: bool = False
+) -> list[tuple[dict, dict]]:
+    """Match every note to exactly one span record, and fill in its patient ID.
+
+    A record whose detection failed is an error unless ``allow_failed``.
+    """
     pairs = []
     for note in notes:
         record = records.get(note["note_id"])
         if record is None:
             raise SpanError(f"Input line {note['line']}: no span record for this note")
+        if record.get("error") and not allow_failed:
+            raise SpanError(
+                f"Input line {note['line']}: detection failed for this note "
+                f"({record['error']})"
+            )
         recorded = record.get("patient_id")
         if note["patient_id"] is None:
             note = {**note, "patient_id": recorded}

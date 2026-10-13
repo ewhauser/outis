@@ -12,6 +12,13 @@ journal to that recorded length and continues from the next batch, so a crash
 mid-write can leave neither a torn nor a duplicated row. JSONL output is the
 journal itself; Parquet output is converted from it once every row is done.
 
+Two modes split detection from replacement. ``--detect-only`` writes a span
+file (``outis-spans-v1`` JSONL, one record per note, no text) instead of
+de-identified rows. ``--spans`` replaces the spans of such a file, read in
+lockstep with the input, without loading the model, so a corpus can be
+detected once and replaced again under another key, project or style. See
+``outis.spans`` for the format.
+
 Nothing here writes note text, note IDs or other input values to stderr.
 """
 
@@ -59,6 +66,10 @@ ERROR_CODES = {
 }
 
 
+# The model_version of rows replaced from a span file without one.
+SUPPLIED = "supplied"
+
+
 class BatchError(Exception):
     """An input or usage error. Messages name rows and columns, never values."""
 
@@ -82,6 +93,9 @@ class BatchConfig:
     summary_json: Path | None = None
     project_id: str | None = None
     site_dictionaries: str | None = None
+    detect_only: bool = False
+    spans: Path | None = None
+    skip_fingerprint_check: bool = False
 
 
 def add_parser(subparsers):
@@ -158,6 +172,26 @@ def add_parser(subparsers):
         type=Path,
         help="Also write the final summary (counts and timings only) to this file",
     )
+    stages = parser.add_mutually_exclusive_group()
+    stages.add_argument(
+        "--detect-only",
+        action="store_true",
+        help="Write a JSONL span file (offsets and labels, no text) instead of "
+        "de-identified rows; replace it later with --spans",
+    )
+    stages.add_argument(
+        "--spans",
+        type=Path,
+        metavar="SPAN_FILE",
+        help="Replace the spans in this span file instead of detecting; its "
+        "records must follow the input's row order. Loads no model",
+    )
+    parser.add_argument(
+        "--skip-fingerprint-check",
+        action="store_true",
+        help="With --spans, do not check span records' text fingerprints. Only "
+        "use this when the input is known to be the detected text",
+    )
     return parser
 
 
@@ -181,6 +215,9 @@ def main(args):
         summary_json=args.summary_json,
         project_id=args.project_id,
         site_dictionaries=args.site_dictionaries,
+        detect_only=args.detect_only,
+        spans=args.spans,
+        skip_fingerprint_check=args.skip_fingerprint_check,
     )
     try:
         summary = run(config)
@@ -468,6 +505,93 @@ def scan_input(config, fmt, requires_patient):
     return scan
 
 
+def scan_spans(config, fmt, fingerprint_secret, check):
+    """Check the span file against the input, row by row, before any output.
+
+    Records must follow the input's row order, as ``--detect-only`` writes
+    them, so replacement can stream both files. Returns how many records carry
+    a text fingerprint.
+    """
+    from itertools import zip_longest
+
+    from outis.spans import (
+        SpanError,
+        check_fingerprint,
+        iter_span_file,
+        supplied_entities,
+    )
+
+    columns = [config.id_column, config.text_column]
+    if config.patient_column:
+        columns.append(config.patient_column)
+    where_row = "Line" if fmt == "jsonl" else "Row"
+    fingerprinted = 0
+    try:
+        pairs = zip_longest(
+            read_rows(config.input, fmt, columns), iter_span_file(config.spans)
+        )
+        for item, entry in pairs:
+            if entry is None:
+                raise BatchError(
+                    "The span file has fewer records than the input has rows"
+                )
+            line, record = entry
+            where = f"Span file line {line}"
+            if item is None:
+                raise BatchError(f"{where}: no matching input row")
+            number, row = item
+            if record["note_id"] != row[config.id_column]:
+                raise BatchError(
+                    f"{where}: note_id differs from input {where_row.lower()} "
+                    f"{number}; records must follow the input order"
+                )
+            patient = _patient(row, config)
+            recorded = record.get("patient_id")
+            if (
+                recorded is not None
+                and patient is not None
+                and recorded != str(patient)
+            ):
+                raise BatchError(f"{where}: patient_id differs from the input")
+            if record.get("error"):
+                continue
+            text = row[config.text_column]
+            try:
+                supplied_entities(text, record["entities"])
+            except SpanError as exc:
+                raise BatchError(f"{where}: {exc}") from None
+            fingerprint = record.get("text_fingerprint")
+            if fingerprint is None:
+                continue
+            fingerprinted += 1
+            if not check:
+                continue
+            if fingerprint_secret is None:
+                raise BatchError(
+                    "Span records carry text fingerprints; set "
+                    "OUTIS_FINGERPRINT_SECRET or OUTIS_SECRET to the key used at "
+                    "detection, or pass --skip-fingerprint-check"
+                )
+            try:
+                check_fingerprint(fingerprint_secret, text, fingerprint)
+            except SpanError:
+                raise BatchError(
+                    f"{where}: text_fingerprint does not match the text; if "
+                    "OUTIS_SECRET changed since detection, set "
+                    "OUTIS_FINGERPRINT_SECRET to the key used then, or pass "
+                    "--skip-fingerprint-check"
+                ) from None
+            except ValueError:
+                raise BatchError(
+                    "OUTIS_FINGERPRINT_SECRET or OUTIS_SECRET must contain at "
+                    "least 32 bytes"
+                ) from None
+    except SpanError as exc:
+        # Malformed span file lines: the message names the line only.
+        raise BatchError(str(exc)) from None
+    return fingerprinted
+
+
 # ---------------------------------------------------------------------------
 # Durable output
 
@@ -710,8 +834,19 @@ def run(config, *, stderr=None, progress_interval=None):
         raise BatchError("--batch-size must be a positive integer")
     if config.mode not in {"redact", "synthetic"}:
         raise BatchError("--mode must be redact or synthetic")
+    if config.detect_only and config.spans is not None:
+        raise BatchError("--detect-only and --spans cannot be combined")
+    if config.skip_fingerprint_check and config.spans is None:
+        raise BatchError("--skip-fingerprint-check needs --spans")
     in_format = table_format(config.input, config.format)
     out_format = table_format(config.output, config.format)
+    if config.detect_only:
+        if out_format != "jsonl":
+            raise BatchError("--detect-only writes a JSONL span file")
+        if config.pass_through or config.include_originals:
+            raise BatchError(
+                "--detect-only takes neither --pass-through nor --include-originals"
+            )
     if in_format == "parquet" or out_format == "parquet":
         _pyarrow()
     names = [config.id_column, config.text_column, *config.pass_through]
@@ -722,8 +857,12 @@ def run(config, *, stderr=None, progress_interval=None):
     if set(names) & set(OUTPUT_FIELDS):
         raise BatchError("Column names may not be any of " + ", ".join(OUTPUT_FIELDS))
     policy, replacement = load_policy(config.policy_file)
-    requires_patient = _needs_patient(config.mode, replacement)
+    requires_patient = not config.detect_only and _needs_patient(
+        config.mode, replacement
+    )
     secret = os.environ.get("OUTIS_SECRET") or None
+    # Fingerprints have their own key, so OUTIS_SECRET can be rotated.
+    fingerprint_secret = os.environ.get("OUTIS_FINGERPRINT_SECRET") or secret
     if requires_patient:
         if not config.patient_column:
             raise BatchError("Synthetic and keyed replacement need --patient-column")
@@ -735,9 +874,16 @@ def run(config, *, stderr=None, progress_interval=None):
             ) from None
     if not config.input.is_file():
         raise BatchError("Input file not found")
+    if config.spans is not None and not config.spans.is_file():
+        raise BatchError("Span file not found")
     try:
-        # Messages name dictionaries and limits, never terms.
-        dictionaries = load_site_dictionaries(config.site_dictionaries)
+        # Messages name dictionaries and limits, never terms. Supplied spans
+        # were found with any dictionaries already, so --spans loads none.
+        dictionaries = (
+            None
+            if config.spans is not None
+            else load_site_dictionaries(config.site_dictionaries)
+        )
     except ValueError as exc:
         raise BatchError(str(exc)) from None
     output = config.output
@@ -749,6 +895,8 @@ def run(config, *, stderr=None, progress_interval=None):
     )
     if output.resolve() == config.input.resolve():
         raise BatchError("Output must not overwrite the input")
+    if config.spans is not None and output.resolve() == config.spans.resolve():
+        raise BatchError("Output must not overwrite the span file")
     if not config.resume and any(
         path.exists() for path in (output, progress_path, journal)
     ):
@@ -764,34 +912,89 @@ def run(config, *, stderr=None, progress_interval=None):
     print("outis batch: validating input", file=stderr)
     scan_started = time.monotonic()
     scan = scan_input(config, in_format, requires_patient)
+    check = config.spans is not None and not config.skip_fingerprint_check
+    if config.spans is not None:
+        fingerprinted = scan_spans(config, in_format, fingerprint_secret, check)
+        if fingerprinted and not check:
+            print("outis batch: text fingerprints were not checked", file=stderr)
     scan_seconds = time.monotonic() - scan_started
-    print("outis batch: loading model", file=stderr)
+    fingerprints = False
+    if config.detect_only and fingerprint_secret is not None:
+        from outis.spans import text_fingerprint
+
+        try:
+            text_fingerprint(fingerprint_secret, "")
+        except ValueError:
+            raise BatchError(
+                "OUTIS_FINGERPRINT_SECRET or OUTIS_SECRET must contain at least "
+                "32 bytes to fingerprint span records"
+            ) from None
+        fingerprints = True
+    elif config.detect_only:
+        print(
+            "outis batch: neither OUTIS_FINGERPRINT_SECRET nor OUTIS_SECRET is "
+            "set, so span records carry no text fingerprint",
+            file=stderr,
+        )
     load_started = time.monotonic()
-    detector = PrefetchedDetector(_load_detector(config))
-    deid = Deidentifier(
-        config.model_dir,
-        secret=secret,
-        detector=detector,
-        site_dictionaries=dictionaries,
-    )
+    if config.spans is not None:
+        detector = None
+        deid = Deidentifier.for_replacement(
+            secret=secret, fingerprint_secret=fingerprint_secret
+        )
+    else:
+        print("outis batch: loading model", file=stderr)
+        detector = PrefetchedDetector(_load_detector(config))
+        deid = Deidentifier(
+            config.model_dir,
+            secret=secret,
+            detector=detector,
+            site_dictionaries=dictionaries,
+            fingerprint_secret=fingerprint_secret,
+        )
     load_seconds = time.monotonic() - load_started
-    # The per-note arguments of Deidentifier.deidentify that every note shares.
-    request = {"mode": config.mode, "policy": policy, "replacement": replacement}
-    if config.project_id is not None:
-        request["project_id"] = config.project_id
+    # The per-note arguments that every note shares.
+    if config.detect_only:
+        request = {"policy": policy, "project_id": config.project_id or "main"}
+        if fingerprints:
+            request["include_fingerprint"] = True
+    else:
+        request = {"mode": config.mode, "replacement": replacement}
+        if config.spans is not None:
+            # Only ages acts on supplied spans; any policy keeps the response
+            # shape a policy gives /v1/deidentify.
+            request["policy"] = (
+                None
+                if policy is None
+                else ({"ages": policy["ages"]} if "ages" in policy else {})
+            )
+        else:
+            request["policy"] = policy
+        if config.project_id is not None:
+            request["project_id"] = config.project_id
     # Validate the policy, replacement, scope and site dictionary selection as
     # the service will apply them, on an empty note that skips the model.
-    detector.results = {"": []}
+    anchor = "outis-batch-check" if requires_patient else None
     try:
-        deid.deidentify(
-            "", patient_id="outis-batch-check" if requires_patient else None, **request
-        )
+        if config.spans is not None:
+            deid.replace("", [], patient_id=anchor, **request)
+        else:
+            detector.results = {"": []}
+            if config.detect_only:
+                deid.detect("", **request)
+            else:
+                deid.deidentify("", patient_id=anchor, **request)
     except ValueError as exc:
         raise BatchError(str(exc)) from None
     finally:
-        detector.results = {}
-    batch_size = detector.batch_size or config.batch_size or 8
+        if detector is not None:
+            detector.results = {}
+    if detector is None:
+        batch_size = config.batch_size or 64
+    else:
+        batch_size = detector.batch_size or config.batch_size or 8
     device = getattr(detector, "device", None)
+    version = SUPPLIED if config.spans is not None else deid.version
 
     settings = {
         "input_sha256": file_digest(config.input),
@@ -809,7 +1012,7 @@ def run(config, *, stderr=None, progress_interval=None):
         "project_id": config.project_id,
         "site_dictionaries": getattr(dictionaries, "digest", None),
         "batch_size": batch_size,
-        "model_version": deid.version,
+        "model_version": version,
         "device": None if device is None else str(device),
         "precision": getattr(detector, "precision", None),
         # A keyed digest: identifies the secret without revealing it.
@@ -819,10 +1022,26 @@ def run(config, *, stderr=None, progress_interval=None):
         if requires_patient
         else None,
     }
+    # Only the split stages add settings, so earlier progress files still match.
+    if config.detect_only:
+        settings["stage"] = "detect"
+        settings["fingerprint"] = (
+            hmac.new(
+                fingerprint_secret.encode(), b"outis batch fingerprint", "sha256"
+            ).hexdigest()[:16]
+            if fingerprints
+            else None
+        )
+    elif config.spans is not None:
+        settings["stage"] = "replace"
+        settings["spans_sha256"] = file_digest(config.spans)
+        settings["skip_fingerprint_check"] = config.skip_fingerprint_check
     if resuming:
         state = read_state(progress_path)
         changed = sorted(
-            key for key in settings if state["settings"].get(key) != settings[key]
+            key
+            for key in set(settings) | set(state["settings"])
+            if state["settings"].get(key) != settings.get(key)
         )
         if changed:
             raise BatchError(
@@ -845,6 +1064,9 @@ def run(config, *, stderr=None, progress_interval=None):
         }
         output.parent.mkdir(parents=True, exist_ok=True)
         journal.touch()
+        if config.detect_only:
+            # Span files carry note and patient IDs: owner-only, like spans.py.
+            os.chmod(journal, 0o600)
         write_state(progress_path, state)
 
     skipped = state["rows_done"]
@@ -861,36 +1083,44 @@ def run(config, *, stderr=None, progress_interval=None):
     started = time.monotonic()
     if not state["complete"]:
         rows = (row for _, row in read_rows(config.input, in_format, _columns(config)))
+        if config.spans is not None:
+            # Records follow the input order, checked by scan_spans: stream them.
+            from outis.spans import iter_span_file
+
+            records = (record for _, record in iter_span_file(config.spans))
+
+            def process(batch):
+                pairs = [(row, next(records)) for row in batch]
+                return _replace(pairs, config, deid, request, check, totals, timing)
+
+        elif config.detect_only:
+
+            def process(batch):
+                return _detect(batch, config, deid, detector, request, totals, timing)
+
+        else:
+
+            def process(batch):
+                return _process(batch, config, deid, detector, request, totals, timing)
+
         with open(journal, "r+b") as sink:
             sink.truncate(state["output_bytes"])
             sink.seek(state["output_bytes"])
             for _ in range(skipped):
                 next(rows)
+                if config.spans is not None:
+                    next(records)
             batch = []
             for row in rows:
                 batch.append(row)
                 if len(batch) == batch_size:
-                    _commit(
-                        _process(
-                            batch, config, deid, detector, request, totals, timing
-                        ),
-                        sink,
-                        state,
-                        progress_path,
-                        totals,
-                    )
+                    _commit(process(batch), sink, state, progress_path, totals)
                     batch = []
                     progress.update(
                         totals["processed"], totals["failed"], totals["tokens"]
                     )
             if batch:
-                _commit(
-                    _process(batch, config, deid, detector, request, totals, timing),
-                    sink,
-                    state,
-                    progress_path,
-                    totals,
-                )
+                _commit(process(batch), sink, state, progress_path, totals)
         if out_format == "parquet":
             pa = _pyarrow()
             schema = parquet_schema(
@@ -934,11 +1164,11 @@ def run(config, *, stderr=None, progress_interval=None):
             "replacement": round(timing["replacement"], 3),
             "end_to_end": round(elapsed, 3),
         },
-        "oom_retries": detector.oom_retries,
+        "oom_retries": 0 if detector is None else detector.oom_retries,
         "batch_size": batch_size,
         "device": settings["device"],
         "precision": settings["precision"],
-        "model_version": deid.version,
+        "model_version": version,
         "mode": config.mode,
     }
     codes = ", ".join(
@@ -972,21 +1202,67 @@ def _columns(config):
     return columns + list(config.pass_through)
 
 
-def _process(batch, config, deid, detector, request, totals, timing):
-    """De-identify one batch of rows; return their output rows in input order."""
-    texts = [row[config.text_column] for row in batch]
+def _prefetch(texts, detector, totals, timing):
+    """Detect a batch's notes; overlong notes fail without reaching the model."""
     eligible = [i for i, text in enumerate(texts) if len(text) <= MAX_NOTE_CHARS]
     started = time.monotonic()
     found = detector.prefetch([texts[i] for i in eligible])
     timing["detection"] += time.monotonic() - started
-    outcomes = [Failed("text_too_long")] * len(batch)
+    outcomes = [Failed("text_too_long")] * len(texts)
     for i, outcome in zip(eligible, found):
         outcomes[i] = outcome
     totals["tokens"] += count_tokens(detector, [texts[i] for i in eligible])
+    return outcomes
+
+
+def _patient(row, config):
+    return row.get(config.patient_column) if config.patient_column else None
+
+
+def _output_row(config, row, text, result, code, model_version, totals):
+    """One de-identified output row, or a failed row carrying ``code``."""
+    patient = _patient(row, config)
+    out = {config.id_column: row[config.id_column]}
+    if config.patient_column:
+        out[config.patient_column] = patient
+    for column in config.pass_through:
+        out[column] = row[column]
+    if result is None:
+        out.update(
+            {
+                config.text_column: None,
+                "status": "failed",
+                "error": code,
+                "entities": [],
+                "warnings": [],
+                "model_version": model_version,
+            }
+        )
+        totals["codes"][code] = totals["codes"].get(code, 0) + 1
+    else:
+        out.update(
+            {
+                config.text_column: result["text"],
+                "status": "ok",
+                "error": None,
+                "entities": _entities(result, text, config.include_originals),
+                "warnings": result["warnings"],
+                "model_version": model_version,
+            }
+        )
+        if "mappings" in result:
+            out["mappings"] = result["mappings"]
+    return out
+
+
+def _process(batch, config, deid, detector, request, totals, timing):
+    """De-identify one batch of rows; return their output rows in input order."""
+    texts = [row[config.text_column] for row in batch]
+    outcomes = _prefetch(texts, detector, totals, timing)
     started = time.monotonic()
     rows = []
     for row, text, outcome in zip(batch, texts, outcomes):
-        patient = row.get(config.patient_column) if config.patient_column else None
+        patient = _patient(row, config)
         result = None
         if not isinstance(outcome, Failed):
             try:
@@ -997,39 +1273,68 @@ def _process(batch, config, deid, detector, request, totals, timing):
                 )
             except Exception as exc:
                 outcome = Failed(_failure_code(exc))
-        out = {config.id_column: row[config.id_column]}
-        if config.patient_column:
-            out[config.patient_column] = patient
-        for column in config.pass_through:
-            out[column] = row[column]
-        if result is None:
-            out.update(
-                {
-                    config.text_column: None,
-                    "status": "failed",
-                    "error": outcome.code,
-                    "entities": [],
-                    "warnings": [],
-                    "model_version": deid.version,
-                }
-            )
-            totals["codes"][outcome.code] = totals["codes"].get(outcome.code, 0) + 1
-        else:
-            out.update(
-                {
-                    config.text_column: result["text"],
-                    "status": "ok",
-                    "error": None,
-                    "entities": _entities(result, text, config.include_originals),
-                    "warnings": result["warnings"],
-                    "model_version": deid.version,
-                }
-            )
-            if "mappings" in result:
-                out["mappings"] = result["mappings"]
-        rows.append(out)
+        code = None if result is not None else outcome.code
+        rows.append(_output_row(config, row, text, result, code, deid.version, totals))
     timing["replacement"] += time.monotonic() - started
     detector.results = {}
+    return rows
+
+
+def _detect(batch, config, deid, detector, request, totals, timing):
+    """Detect one batch of rows; return their span records in input order."""
+    from outis.spans import failed_record, span_record
+
+    texts = [row[config.text_column] for row in batch]
+    outcomes = _prefetch(texts, detector, totals, timing)
+    started = time.monotonic()
+    records = []
+    for row, text, outcome in zip(batch, texts, outcomes):
+        patient = _patient(row, config)
+        patient = None if patient is None else str(patient)
+        note_id = row[config.id_column]
+        if not isinstance(outcome, Failed):
+            try:
+                records.append(
+                    span_record(
+                        note_id, deid.detect(text, **request), patient_id=patient
+                    )
+                )
+                continue
+            except Exception as exc:
+                outcome = Failed(_failure_code(exc))
+        totals["codes"][outcome.code] = totals["codes"].get(outcome.code, 0) + 1
+        records.append(failed_record(note_id, outcome.code, patient_id=patient))
+    timing["replacement"] += time.monotonic() - started
+    detector.results = {}
+    return records
+
+
+def _replace(pairs, config, deid, request, check, totals, timing):
+    """Replace one batch's supplied spans; return output rows in input order."""
+    texts = [row[config.text_column] for row, _ in pairs]
+    totals["tokens"] += count_tokens(None, texts)
+    started = time.monotonic()
+    rows = []
+    for (row, record), text in zip(pairs, texts):
+        patient = _patient(row, config)
+        result, code = None, record.get("error")
+        if code is None:
+            extra = {}
+            if check and record.get("text_fingerprint"):
+                extra["text_fingerprint"] = record["text_fingerprint"]
+            try:
+                result = deid.replace(
+                    text,
+                    record["entities"],
+                    patient_id=None if patient is None else str(patient),
+                    **request,
+                    **extra,
+                )
+            except Exception as exc:
+                code = _failure_code(exc)
+        version = record.get("model_version") or SUPPLIED
+        rows.append(_output_row(config, row, text, result, code, version, totals))
+    timing["replacement"] += time.monotonic() - started
     return rows
 
 
@@ -1043,7 +1348,8 @@ def _commit(rows, sink, state, progress_path, totals):
     sink.write(payload)
     sink.flush()
     os.fsync(sink.fileno())
-    failed = [row["error"] for row in rows if row["status"] == "failed"]
+    # Failed rows and failed span records both carry an error code.
+    failed = [row["error"] for row in rows if row.get("error")]
     state["rows_done"] += len(rows)
     state["output_bytes"] += len(payload)
     state["ok"] += len(rows) - len(failed)

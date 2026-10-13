@@ -355,9 +355,11 @@ fingerprinted earlier. Without either, fingerprints are unavailable.
 
 ### Span files
 
-A span file is JSONL with one record per note. `outis spans detect` writes
-it; `outis spans replace`, `outis review` and the review report's download
-read or write it. A record from `/v1/detect` output works too.
+A span file is JSONL with one record per note.
+[`outis batch --detect-only`](deployment.md#detect-once-replace-later) writes
+it, in input order. `outis batch --spans`, `outis spans replace`, `outis review`
+and the review report's download read or write it. A record built from
+`/v1/detect` output works too.
 
 ```json
 {"format": "outis-spans-v1", "note_id": "note-1", "patient_id": "internal-patient-42", "entities": [{"start": 4, "end": 15, "label": "NAME", "score": 0.998}], "model_version": "3f9c0a1b2c3d4e5f", "policy": {"profile": "clinical_default", "version": "1", "ages": "over_89"}, "text_fingerprint": "tf1-0f3a..."}
@@ -366,13 +368,14 @@ read or write it. A record from `/v1/detect` output works too.
 | Field | Meaning |
 | --- | --- |
 | `format` | Required: `outis-spans-v1`. |
-| `note_id` | Required, unique in the file: the note's ID in the input table. |
+| `note_id` | Required, unique in the file: the note's ID in the input table, a string or an integer. |
 | `patient_id` | Optional patient anchor for synthetic or keyed replacement. |
 | `entities` | Required: `{start, end, label}` with optional `score` and `source`, as above. |
 | `model_version` | Optional: the detector version that produced the spans. |
 | `policy` | Optional: the detection policy metadata. |
 | `text_fingerprint` | Optional: checked against the note text before replacing. |
 | `edited` | Optional: `true` when a reviewer changed the record. |
+| `error` | Optional: why detection failed for this note, such as `out_of_memory`; `entities` is then empty. Replacing it fails that note with the same code. |
 
 Span files hold no note text, but note and patient IDs can be identifiers, so
 the commands write them readable by the owner only. Store them like the notes.
@@ -381,23 +384,28 @@ Errors name a file line, never its contents.
 ```sh
 export OUTIS_SECRET=...               # synthetic replacement
 export OUTIS_FINGERPRINT_SECRET=...   # optional; defaults to OUTIS_SECRET
-outis spans detect --input notes.jsonl --output spans.jsonl \
+outis batch --detect-only --input notes.jsonl --output spans.jsonl \
   --text-column text --patient-column patient_id
 outis review --input notes.jsonl --spans spans.jsonl --output review.html
-outis spans replace --input notes.jsonl --spans spans.jsonl --output deid.jsonl \
-  --mode synthetic --policy replace.json --project-id release-1
+outis batch --spans spans.jsonl --input notes.jsonl --output deid.jsonl \
+  --patient-column patient_id --mode synthetic --policy replace.json \
+  --project-id release-1
 ```
 
-Notes are JSONL rows with `--id-column` (default `note_id`), `--text-column`
-(default `text`) and an optional `--patient-column`; a record's `patient_id`
-is used when there is no column. Every note needs exactly one span record and
-every record a note. `--policy` is a JSON file
-`{"policy": {"ages": ...}, "replacement": {...}}`; other detection policy
-fields are ignored at this step. `outis spans detect` runs one note at a time
-and does not resume an interrupted run.
+`outis batch --spans` is the corpus-scale way to replace: it streams the span
+file alongside the input, resumes, and writes JSONL or Parquet. `outis spans
+replace` takes the same options for a small JSONL table, matching notes to
+records by ID in any order.
 
-`outis spans replace` and `outis review` check every record's
-`text_fingerprint`. A mismatch stops the run, naming only the input line. If
+For `outis spans replace` and `outis review`, notes are JSONL rows with
+`--id-column` (default `note_id`), `--text-column` (default `text`) and an
+optional `--patient-column`; a record's `patient_id` is used when there is no
+column. Every note needs exactly one span record and every record a note.
+`--policy` is a JSON file `{"policy": {"ages": ...}, "replacement": {...}}`;
+other detection policy fields are ignored at this step.
+
+`outis batch --spans`, `outis spans replace` and `outis review` check every
+record's `text_fingerprint`. A mismatch stops the run, naming only the input line. If
 `OUTIS_SECRET` was rotated after detection and the fingerprints were made
 under it, set `OUTIS_FINGERPRINT_SECRET` to the key used at detection. Records
 with fingerprints and no fingerprint secret configured are refused. In either

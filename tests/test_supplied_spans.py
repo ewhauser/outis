@@ -17,8 +17,7 @@ from contextlib import ExitStack
 import pytest
 from fastapi.testclient import TestClient
 
-import outis.service
-from outis import cli
+from outis import batch, cli
 from outis.api import create_app
 from outis.review import MODEL_SCRIPT, build_report
 from outis.service import Deidentifier
@@ -620,7 +619,12 @@ def test_duplicate_and_unmatched_records_are_rejected(tmp_path):
 def _run(monkeypatch, capsys, *args):
     monkeypatch.setattr(sys, "argv", ["outis", *args])
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))
-    cli.main()
+    try:
+        cli.main()
+    except SystemExit as exit:
+        # outis batch exits explicitly, with 0 when every row succeeded.
+        if exit.code not in (0, None):
+            raise
     return capsys.readouterr()
 
 
@@ -628,24 +632,8 @@ def _run(monkeypatch, capsys, *args):
 def corpus(tmp_path, monkeypatch):
     for name in ("OUTIS_SECRET", "OUTIS_SITE_DICTIONARIES", "OUTIS_FINGERPRINT_SECRET"):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setattr(
-        outis.service,
-        "Deidentifier",
-        type(
-            "Patched",
-            (Deidentifier,),
-            {
-                "__init__": lambda self, model_dir=None, **kwargs: (
-                    Deidentifier.__init__(
-                        self,
-                        detector=Detector(),
-                        secret=kwargs.get("secret"),
-                        fingerprint_secret=kwargs.get("fingerprint_secret"),
-                    )
-                )
-            },
-        ),
-    )
+    # outis batch --detect-only loads this detector instead of the model.
+    monkeypatch.setattr(batch, "_load_detector", lambda config: Detector())
     notes = tmp_path / "notes.jsonl"
     _write_notes(notes, NOTES)
     return tmp_path, notes
@@ -663,13 +651,11 @@ def test_cli_detect_replace_round_trip(corpus, monkeypatch, capsys):
     tmp_path, notes = corpus
     monkeypatch.setenv("OUTIS_SECRET", SECRET.decode())
     spans = tmp_path / "spans.jsonl"
-    spans.write_text("stale")
-    os.chmod(spans, 0o644)
     detect = _run(
         monkeypatch,
         capsys,
-        "spans",
-        "detect",
+        "batch",
+        "--detect-only",
         "--input",
         str(notes),
         "--output",
@@ -738,8 +724,8 @@ def test_cli_rejects_spans_for_edited_text(corpus, monkeypatch, capsys):
     _run(
         monkeypatch,
         capsys,
-        "spans",
-        "detect",
+        "batch",
+        "--detect-only",
         "--input",
         str(notes),
         "--output",
@@ -774,8 +760,8 @@ def test_review_report_is_private_offline_and_marked_phi(corpus, monkeypatch, ca
     _run(
         monkeypatch,
         capsys,
-        "spans",
-        "detect",
+        "batch",
+        "--detect-only",
         "--input",
         str(notes),
         "--output",
@@ -920,11 +906,13 @@ def test_review_label_picker_offers_every_supported_label():
 NODE = shutil.which("node")
 
 
-def _run_model(text, entities, steps):
+def _run_model(text, entities, steps, *, failed=None):
     """Run the report's editing model under Node, as the page would."""
     harness = r"""
 const input = JSON.parse(require("fs").readFileSync(0, "utf8"));
-const note = { text: input.text, entities: input.entities, record: input.record };
+const note = {
+  text: input.text, entities: input.entities, record: input.record, failed: input.failed,
+};
 const log = [];
 function check() {
   const runs = ReviewModel.runs(note);
@@ -974,6 +962,7 @@ process.stdout.write(JSON.stringify({ log, exported: ReviewModel.exportLines([no
         "entities": entities,
         "record": {"format": SPAN_FORMAT, "note_id": "note-1"},
         "steps": steps,
+        "failed": failed,
     }
     completed = subprocess.run(
         [NODE, "-e", MODEL_SCRIPT + harness],
@@ -1066,7 +1055,7 @@ def test_cli_reapplies_fingerprinted_spans_after_key_rotation(
     tmp_path, notes = corpus
     spans = tmp_path / "spans.jsonl"
     _rotation_env(monkeypatch, SECRET)
-    _run(monkeypatch, capsys, "spans", "detect", "--input", str(notes),
+    _run(monkeypatch, capsys, "batch", "--detect-only", "--input", str(notes),
          "--output", str(spans), *_columns())  # fmt: skip
     assert all(r.get("text_fingerprint") for r in read_span_file(spans).values())
     out = tmp_path / "out.jsonl"
@@ -1117,7 +1106,7 @@ def test_separate_fingerprint_key_survives_surrogate_rotation(
     spans, out = tmp_path / "spans.jsonl", tmp_path / "out.jsonl"
     fingerprint_key = b"outis-fingerprint-only-test-key-0123456789"
     _rotation_env(monkeypatch, SECRET, fingerprint=fingerprint_key)
-    _run(monkeypatch, capsys, "spans", "detect", "--input", str(notes),
+    _run(monkeypatch, capsys, "batch", "--detect-only", "--input", str(notes),
          "--output", str(spans), *_columns())  # fmt: skip
     record = read_span_file(spans)["note-1"]
     assert record["text_fingerprint"] == text_fingerprint(fingerprint_key, TEXT)
@@ -1135,3 +1124,46 @@ def test_separate_fingerprint_key_survives_surrogate_rotation(
         Deidentifier.for_replacement(secret=fingerprint_key).replace(
             TEXT, [], text_fingerprint=text_fingerprint(OTHER_SECRET, TEXT)
         )
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is not installed")
+def test_review_editor_refuses_edits_to_notes_whose_detection_failed():
+    outcome = _run_model(
+        "Mara Calder was seen.", [], [["add", "Mara", "NAME"]], failed="out_of_memory"
+    )
+    assert outcome["log"] == [
+        "Detection failed for this note; detect it again before reviewing."
+    ]
+    assert json.loads(outcome["exported"])["entities"] == []
+
+
+def test_review_shows_failed_detections_and_replace_refuses_them(
+    corpus, monkeypatch, capsys
+):
+    tmp_path, notes = corpus
+    spans = tmp_path / "spans.jsonl"
+    records = [
+        span_record(1, service().detect(TEXT)),
+        {"format": SPAN_FORMAT, "note_id": 2, "entities": [], "error": "out_of_memory"},
+    ]
+    spans.write_text("".join(json.dumps(r) + "\n" for r in records))
+    notes.write_text(
+        json.dumps({"note_id": 1, "text": TEXT})
+        + "\n"
+        + json.dumps({"note_id": 2, "text": SECOND})
+        + "\n"
+    )
+    report = tmp_path / "report.html"
+    _run(monkeypatch, capsys, "review", "--input", str(notes), "--spans", str(spans),
+         "--output", str(report))  # fmt: skip
+    page = report.read_text(encoding="utf-8")
+    assert "Detection failed for this note (out_of_memory)" in page
+    assert '<td class="n">failed</td>' in page
+    data = json.loads(re.search(r'id="review-data">(.*?)</script>', page, re.S)[1])
+    assert data["notes"][1]["failed"] == "out_of_memory"
+    assert data["notes"][1]["record"]["error"] == "out_of_memory"
+    with pytest.raises(SystemExit):
+        _run(monkeypatch, capsys, "spans", "replace", "--input", str(notes),
+             "--spans", str(spans), "--output", str(tmp_path / "o.jsonl"))  # fmt: skip
+    err = capsys.readouterr().err
+    assert "Input line 2: detection failed for this note (out_of_memory)" in err
