@@ -198,8 +198,13 @@ Handle the report and any downloaded span file like the notes themselves. Write
 them only to approved, access-controlled storage, open them on a machine
 allowed to display PHI, and do not email, upload or commit them. Browsers may
 keep downloaded files and history, so delete the report and the corrected file
-once they have been applied. Without `OUTIS_SECRET`, `outis review` can still
-show redaction output, but it cannot check text fingerprints and says so.
+once they have been applied. Without `OUTIS_SECRET`, `outis review` still
+shows redaction output. Fingerprinted span files then need
+`OUTIS_FINGERPRINT_SECRET` or an explicit `--skip-fingerprint-check`.
+
+The reviewer can add a span with any supported label, or any custom label the
+span file uses, even when detection found none of that type. Added spans carry
+source `review`, so the ages policy never drops them.
 
 ## Security controls
 

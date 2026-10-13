@@ -41,6 +41,13 @@ def _replacement_options(parser):
         help='JSON file {"policy": {"ages": ...}, "replacement": {...}}; other '
         "detection policy fields already acted when the spans were detected",
     )
+    parser.add_argument(
+        "--skip-fingerprint-check",
+        action="store_true",
+        help="Apply span records without checking their text fingerprints, for "
+        "example when the fingerprint key is unavailable. Only use this when the "
+        "notes are known to be the detected text",
+    )
 
 
 def add_parsers(sub):
@@ -100,6 +107,17 @@ def _secret():
     return os.environ.get("OUTIS_SECRET")
 
 
+def _fingerprint_secret():
+    """The fingerprint key: OUTIS_FINGERPRINT_SECRET, else OUTIS_SECRET."""
+    return os.environ.get("OUTIS_FINGERPRINT_SECRET") or _secret()
+
+
+_ROTATION_HINT = (
+    "; if OUTIS_SECRET changed since detection, set OUTIS_FINGERPRINT_SECRET to "
+    "the key used then, or pass --skip-fingerprint-check"
+)
+
+
 def detect(args):
     from outis.service import Deidentifier
 
@@ -108,11 +126,15 @@ def detect(args):
     options = {}
     if args.site_dictionaries:
         options["site_dictionaries"] = args.site_dictionaries
+    if os.environ.get("OUTIS_FINGERPRINT_SECRET"):
+        options["fingerprint_secret"] = os.environ["OUTIS_FINGERPRINT_SECRET"]
     deid = Deidentifier(args.model_dir, secret=_secret(), device=args.device, **options)
-    fingerprint = len((_secret() or "").encode("utf-8", "surrogatepass")) >= 32
+    key = (_fingerprint_secret() or "").encode("utf-8", "surrogatepass")
+    fingerprint = len(key) >= 32
     if not fingerprint:
         print(
-            "Note: OUTIS_SECRET is not set, so span records carry no text fingerprint.",
+            "Note: neither OUTIS_FINGERPRINT_SECRET nor OUTIS_SECRET is set, so "
+            "span records carry no text fingerprint.",
             file=sys.stderr,
         )
     records = []
@@ -151,13 +173,19 @@ def _replaced(args, *, extended):
         # The review needs output offsets; these options render legacy output.
         replacement = legacy_options(args.mode).model_dump()
     pairs = pair_notes(_notes(args), read_span_file(args.spans))
-    secret = _secret()
-    if not secret and any(record.get("text_fingerprint") for _, record in pairs):
-        print(
-            "Warning: OUTIS_SECRET is not set, so text fingerprints were not checked.",
-            file=sys.stderr,
+    fingerprinted = any(record.get("text_fingerprint") for _, record in pairs)
+    check = fingerprinted and not args.skip_fingerprint_check
+    if check and not _fingerprint_secret():
+        raise SpanError(
+            "Span records carry text fingerprints; set OUTIS_FINGERPRINT_SECRET "
+            "or OUTIS_SECRET to the key used at detection, or pass "
+            "--skip-fingerprint-check"
         )
-    deid = Deidentifier.for_replacement(secret=secret)
+    if fingerprinted and not check:
+        print("Warning: text fingerprints were not checked.", file=sys.stderr)
+    deid = Deidentifier.for_replacement(
+        secret=_secret(), fingerprint_secret=_fingerprint_secret()
+    )
     results = []
     for note, record in pairs:
         request = {
@@ -168,12 +196,17 @@ def _replaced(args, *, extended):
         }
         if args.project_id:
             request["project_id"] = args.project_id
-        if secret and record.get("text_fingerprint"):
+        if check and record.get("text_fingerprint"):
             request["text_fingerprint"] = record["text_fingerprint"]
         try:
             results.append(deid.replace(note["text"], record["entities"], **request))
         except SpanError as error:
-            raise SpanError(f"Input line {note['line']}: {error}") from None
+            hint = (
+                _ROTATION_HINT
+                if "text_fingerprint does not match" in str(error)
+                else ""
+            )
+            raise SpanError(f"Input line {note['line']}: {error}{hint}") from None
         except ValueError:
             raise SpanError(
                 f"Input line {note['line']}: the replacement options cannot process "

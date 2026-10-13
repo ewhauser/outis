@@ -90,7 +90,7 @@ class DetectRequest(_DetectFields):
     include_fingerprint: bool = Field(
         default=False,
         description="Also return text_fingerprint, a keyed HMAC of the text that "
-        "/v1/replace can check. Requires a configured OUTIS_SECRET.",
+        "/v1/replace can check. Requires OUTIS_FINGERPRINT_SECRET or OUTIS_SECRET.",
     )
 
 
@@ -130,7 +130,13 @@ class SuppliedEntity(SafeModel):
     label: str = Field(pattern=r"^[A-Z][A-Z0-9_]{0,47}$")
     # Accepted so /v1/detect entities can be sent back unchanged.
     score: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
-    source: str | None = Field(default=None, max_length=128, description="Ignored")
+    source: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="The detect source; decides only whether the ages policy "
+        "applies. policy:*, site_dictionary:* and review spans are always replaced",
+    )
     entity_id: str | None = Field(default=None, max_length=64, description="Ignored")
 
 
@@ -505,6 +511,8 @@ def create_app(
         options = {}
         if site_dictionaries := os.environ.get("OUTIS_SITE_DICTIONARIES"):
             options["site_dictionaries"] = site_dictionaries
+        if fingerprint_secret := os.environ.get("OUTIS_FINGERPRINT_SECRET"):
+            options["fingerprint_secret"] = fingerprint_secret
         app.state.service = service_arg or Deidentifier(
             os.environ.get("OUTIS_MODEL_DIR") or None,
             secret=os.environ.get("OUTIS_SECRET"),

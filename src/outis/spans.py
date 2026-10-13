@@ -15,6 +15,7 @@ import math
 import os
 import re
 from collections.abc import Iterable
+from dataclasses import replace as replace_entity
 from pathlib import Path
 from typing import Literal
 
@@ -25,6 +26,9 @@ from outis.replacement.primitives import validated_secret
 
 SPAN_FORMAT = "outis-spans-v1"
 SUPPLIED_SOURCE = "supplied"
+# Spans a reviewer added. Like policy rules and site dictionaries, they are an
+# explicit choice, so the ages policy never drops them.
+REVIEW_SOURCE = "review"
 # Same rule as policy custom_entities labels; every clinical label matches it.
 LABEL = re.compile(r"[A-Z][A-Z0-9_]{0,47}\Z")
 FINGERPRINT = re.compile(r"tf1-[0-9a-f]{32}\Z")
@@ -85,11 +89,12 @@ def _field(entity, name):
 
 
 def supplied_entities(text: str, entities) -> list[Entity]:
-    """Validate supplied spans and return them sorted, with source ``supplied``.
+    """Validate supplied spans and return them sorted.
 
-    Offsets are zero-based Unicode code points with an exclusive end. Only
-    start, end and label affect replacement; a valid score is carried through
-    and any entity_id or source is ignored.
+    Offsets are zero-based Unicode code points with an exclusive end. Start, end
+    and label drive replacement. A valid score is carried through, entity_id is
+    ignored, and source is kept only for ``filter_ages``; it defaults to
+    ``supplied``.
     """
     if not isinstance(text, str):
         raise SpanError("Text must be a string")
@@ -103,6 +108,7 @@ def supplied_entities(text: str, entities) -> list[Entity]:
             raise SpanError(f"Entity {index}: unsupported field")
         start, end = _field(entity, "start"), _field(entity, "end")
         label, score = _field(entity, "label"), _field(entity, "score")
+        source = _field(entity, "source")
         if type(start) is not int or type(end) is not int:
             raise SpanError(f"Entity {index}: start and end must be integers")
         if not 0 <= start < end <= len(text):
@@ -117,14 +123,43 @@ def supplied_entities(text: str, entities) -> list[Entity]:
             or not 0 <= score <= 1
         ):
             raise SpanError(f"Entity {index}: score must be between 0 and 1")
-        checked.append(
-            (start, end, index, Entity(start, end, label, score, SUPPLIED_SOURCE))
-        )
+        if source is None:
+            source = SUPPLIED_SOURCE
+        elif not isinstance(source, str) or not 1 <= len(source) <= 128:
+            raise SpanError(f"Entity {index}: invalid source")
+        checked.append((start, end, index, Entity(start, end, label, score, source)))
     checked.sort(key=lambda item: item[:2])
     for previous, current in zip(checked, checked[1:]):
         if current[0] < previous[1]:
             raise SpanError(f"Entity {current[2]}: overlaps another entity")
     return [item[3] for item in checked]
+
+
+def _ages_apply(source: str) -> bool:
+    # Detection applies the ages policy to detector spans only, before policy
+    # rules and site dictionaries add theirs; reviewer additions are explicit.
+    from outis.site_dictionaries import SOURCE_PREFIX
+
+    return not (
+        source.startswith(("policy:", SOURCE_PREFIX)) or source == REVIEW_SOURCE
+    )
+
+
+def filter_ages(text: str, entities: list[Entity], ages: str) -> list[Entity]:
+    """Apply the ages policy as detection does, then mark every span supplied.
+
+    AGE spans from a detector (source ``model``, any other source, or none) of
+    89 and under are left in place under ``over_89``. Spans a policy rule, a
+    site dictionary or a reviewer chose are always replaced, so replacing the
+    spans ``/v1/detect`` returned matches ``/v1/deidentify``.
+    """
+    from outis.policy import keep_ages
+
+    return [
+        replace_entity(entity, source=SUPPLIED_SOURCE)
+        for entity in entities
+        if not _ages_apply(entity.source) or keep_ages(text, [entity], ages)
+    ]
 
 
 def text_fingerprint(secret, text: str) -> str:
@@ -172,7 +207,7 @@ def span_record(
     record["entities"] = [
         {
             key: entity[key]
-            for key in ("start", "end", "label", "score")
+            for key in ("start", "end", "label", "score", "source")
             if key in entity
         }
         for entity in detection["entities"]

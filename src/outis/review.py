@@ -35,7 +35,7 @@ _PALETTE = (
     ("#f1d9cf", "#7a3416"),
     ("#dde3ea", "#33475b"),
 )
-_CHANGE_FIELDS = ("start", "end", "label", "score")
+_CHANGE_FIELDS = ("start", "end", "label", "score", "source")
 
 _STYLE = """
 :root { color-scheme: light; --fg: #1b1f24; --muted: #5b6573; --line: #d6dbe1;
@@ -85,48 +85,137 @@ mark.kept { opacity: 0.6; }
 footer { color: var(--muted); font-size: 0.85rem; margin: 24px 0; }
 """
 
-_SCRIPT = """
+# The editing model is pure (no DOM), so tests can run it under Node. Every
+# rendered character maps to exactly one source code point: runs never overlap,
+# and each run records its source start offset.
+MODEL_SCRIPT = """
+const ReviewModel = (() => {
+  "use strict";
+  const points = (value) => Array.from(value).length;
+  const overlaps = (a, start, end) => a.start < end && start < a.end;
+
+  /* Display runs covering the text exactly once, in order. */
+  function runs(note) {
+    const chars = Array.from(note.text);
+    const order = note.entities.map((entity, index) => [entity, index])
+      .sort((a, b) => a[0].start - b[0].start || a[0].end - b[0].end);
+    const result = [];
+    let at = 0;
+    const plain = (end) => {
+      if (end > at) {
+        result.push({ start: at, end, text: chars.slice(at, end).join(""), index: null });
+      }
+    };
+    for (const [entity, index] of order) {
+      if (entity.start < at) continue; /* never show a character twice */
+      plain(entity.start);
+      result.push({
+        start: entity.start,
+        end: entity.end,
+        text: chars.slice(entity.start, entity.end).join(""),
+        index,
+      });
+      at = entity.end;
+    }
+    plain(chars.length);
+    return result;
+  }
+
+  /* A source offset from a run start and the run text before the boundary. */
+  const offset = (runStart, textBefore) => runStart + points(textBefore);
+
+  function add(note, start, end, label) {
+    const length = points(note.text);
+    if (!Number.isInteger(start) || !Number.isInteger(end)
+        || start < 0 || end > length || end <= start) {
+      return "Select at least one character.";
+    }
+    if (note.entities.some((e) => !e.removed && overlaps(e, start, end))) {
+      return "The selection overlaps a span; remove that span first.";
+    }
+    /* A removed span under the new one can no longer be restored. */
+    note.entities = note.entities.filter((e) => !(e.removed && overlaps(e, start, end)));
+    note.entities.push({ start, end, label, source: "review", added: true });
+    note.changed = true;
+    return null;
+  }
+
+  function toggle(note, index) {
+    const entity = note.entities[index];
+    if (entity.added) {
+      note.entities.splice(index, 1);
+      note.changed = true;
+      return ["Removed an added span.", true];
+    }
+    if (entity.removed && note.entities.some(
+      (e, i) => i !== index && !e.removed && overlaps(e, entity.start, entity.end))) {
+      return ["Another span now covers this text.", false];
+    }
+    entity.removed = !entity.removed;
+    note.changed = true;
+    return [entity.removed ? "Span marked for removal." : "Span restored.", true];
+  }
+
+  function exportLines(notes) {
+    return notes.map((note) => {
+      const record = Object.assign({}, note.record);
+      record.entities = note.entities.filter((e) => !e.removed)
+        .sort((a, b) => a.start - b.start)
+        .map((e) => {
+          const entity = { start: e.start, end: e.end, label: e.label };
+          if (e.score !== undefined) entity.score = e.score;
+          if (e.source !== undefined) entity.source = e.source;
+          return entity;
+        });
+      if (note.changed) record.edited = true;
+      return JSON.stringify(record) + "\\n";
+    }).join("");
+  }
+
+  return { runs, offset, add, toggle, exportLines };
+})();
+"""
+
+_DOM_SCRIPT = """
 (() => {
   "use strict";
+  const model = ReviewModel;
   const data = JSON.parse(document.getElementById("review-data").textContent);
   const status = document.getElementById("status");
   const labelSelect = document.getElementById("label");
   let edits = 0;
-  const points = (value) => Array.from(value).length;
   const say = (message) => { status.textContent = message; };
 
   function render(n) {
     const note = data.notes[n];
     const box = document.getElementById("original-" + n);
-    const chars = Array.from(note.text);
-    const order = note.entities.map((entity, i) => [entity, i])
-      .sort((a, b) => a[0].start - b[0].start);
     box.replaceChildren();
-    let at = 0;
-    for (const [entity, i] of order) {
-      if (entity.start > at) {
-        box.append(document.createTextNode(chars.slice(at, entity.start).join("")));
+    for (const run of model.runs(note)) {
+      let element;
+      if (run.index === null) {
+        element = document.createElement("span");
+      } else {
+        const entity = note.entities[run.index];
+        element = document.createElement("mark");
+        element.className = [
+          "l" + (data.labels.indexOf(entity.label) % data.palette),
+          entity.removed ? "removed" : "",
+          entity.added ? "added" : "",
+          entity.kept ? "kept" : "",
+        ].join(" ").trim();
+        element.dataset.i = String(run.index);
+        element.dataset.label = entity.label;
+        element.title = entity.label
+          + (entity.kept ? " (left in place by the ages policy)" : "")
+          + " - click to " + (entity.removed ? "restore" : "remove");
       }
-      const mark = document.createElement("mark");
-      mark.className = [
-        "l" + (data.labels.indexOf(entity.label) % data.palette),
-        entity.removed ? "removed" : "",
-        entity.added ? "added" : "",
-        entity.kept ? "kept" : "",
-      ].join(" ").trim();
-      mark.dataset.i = String(i);
-      mark.dataset.label = entity.label;
-      mark.title = entity.label + (entity.kept ? " (left in place by the ages policy)" : "")
-        + " - click to " + (entity.removed ? "restore" : "remove");
-      mark.append(document.createTextNode(chars.slice(entity.start, entity.end).join("")));
-      box.append(mark);
-      at = entity.end;
+      element.dataset.s = String(run.start);
+      element.append(document.createTextNode(run.text));
+      box.append(element);
     }
-    if (at < chars.length) box.append(document.createTextNode(chars.slice(at).join("")));
   }
 
   function changed(n) {
-    data.notes[n].changed = true;
     edits += 1;
     document.getElementById("download").disabled = false;
     render(n);
@@ -136,23 +225,21 @@ _SCRIPT = """
     const mark = event.target.closest(".original mark");
     if (!mark) return;
     const n = Number(mark.parentElement.dataset.note);
-    const entities = data.notes[n].entities;
-    const i = Number(mark.dataset.i);
-    if (entities[i].added) {
-      entities.splice(i, 1);
-      say("Removed an added span.");
-    } else {
-      entities[i].removed = !entities[i].removed;
-      say(entities[i].removed ? "Span marked for removal." : "Span restored.");
-    }
-    changed(n);
+    const [message, edited] = model.toggle(data.notes[n], Number(mark.dataset.i));
+    say(message);
+    if (edited) changed(n);
   });
 
-  function offset(box, node, at) {
-    const range = document.createRange();
-    range.selectNodeContents(box);
-    range.setEnd(node, at);
-    return points(range.toString());
+  /* Source offset of a selection boundary, from the run that contains it. */
+  function boundary(box, node, at) {
+    if (node === box) {
+      const run = box.childNodes[at];
+      return run ? Number(run.dataset.s) : Array.from(data.notes[Number(box.dataset.note)].text).length;
+    }
+    const run = node.nodeType === 3 ? node.parentElement : node;
+    const text = run.textContent;
+    const before = node.nodeType === 3 ? node.data.slice(0, at) : at ? text : "";
+    return model.offset(Number(run.dataset.s), before);
   }
 
   document.getElementById("add").addEventListener("click", () => {
@@ -162,46 +249,28 @@ _SCRIPT = """
       return;
     }
     const range = selection.getRangeAt(0);
-    const startBox = (range.startContainer.nodeType === 1
-      ? range.startContainer : range.startContainer.parentElement).closest(".original");
-    const endBox = (range.endContainer.nodeType === 1
-      ? range.endContainer : range.endContainer.parentElement).closest(".original");
-    if (!startBox || startBox !== endBox) {
+    const container = (node) => (node.nodeType === 1 ? node : node.parentElement).closest(".original");
+    const box = container(range.startContainer);
+    if (!box || box !== container(range.endContainer)) {
       say("Select text inside one original note.");
       return;
     }
-    const n = Number(startBox.dataset.note);
-    const start = offset(startBox, range.startContainer, range.startOffset);
-    const end = offset(startBox, range.endContainer, range.endOffset);
-    const note = data.notes[n];
-    if (end <= start) {
-      say("Select at least one character.");
+    const n = Number(box.dataset.note);
+    const start = boundary(box, range.startContainer, range.startOffset);
+    const end = boundary(box, range.endContainer, range.endOffset);
+    const label = labelSelect.value;
+    const error = model.add(data.notes[n], start, end, label);
+    if (error) {
+      say(error);
       return;
     }
-    if (note.entities.some((e) => !e.removed && e.start < end && start < e.end)) {
-      say("The selection overlaps a span; remove that span first.");
-      return;
-    }
-    note.entities.push({ start, end, label: labelSelect.value, added: true });
     selection.removeAllRanges();
-    say("Added a span labelled " + labelSelect.value + ".");
+    say("Added a span labelled " + label + ".");
     changed(n);
   });
 
   document.getElementById("download").addEventListener("click", () => {
-    const lines = data.notes.map((note) => {
-      const record = Object.assign({}, note.record);
-      record.entities = note.entities.filter((e) => !e.removed)
-        .sort((a, b) => a.start - b.start)
-        .map((e) => {
-          const entity = { start: e.start, end: e.end, label: e.label };
-          if (e.score !== undefined) entity.score = e.score;
-          return entity;
-        });
-      if (note.changed) record.edited = true;
-      return JSON.stringify(record);
-    });
-    const blob = new Blob([lines.join("\\n") + "\\n"], { type: "application/x-ndjson" });
+    const blob = new Blob([model.exportLines(data.notes)], { type: "application/x-ndjson" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "spans.reviewed.jsonl";
@@ -215,6 +284,7 @@ _SCRIPT = """
   data.notes.forEach((_, n) => render(n));
 })();
 """
+_SCRIPT = MODEL_SCRIPT + _DOM_SCRIPT
 
 
 def _csp_hash(source: str) -> str:
@@ -264,10 +334,15 @@ def build_report(pairs, results, *, settings: dict | None = None) -> str:
     Results must use the extended response shape (with output offsets), which
     any request that sets ``replacement`` returns.
     """
-    labels = sorted(
+    from outis.policy import EXTENDED_TYPES, KNOWN_LABELS, MEDICAL_TYPES
+    from outis.types import ENTITY_TYPES
+
+    # Every supported label, so a reviewer can add a type detection missed
+    # entirely, then any custom labels the records use.
+    labels = [*ENTITY_TYPES, *EXTENDED_TYPES, *MEDICAL_TYPES]
+    labels += sorted(
         {entity["label"] for _, record in pairs for entity in record["entities"]}
-        | {entity["label"] for result in results for entity in result["entities"]}
-        | {"NAME", "DATE", "ID", "LOCATION", "FACILITY", "AGE", "PHONE"}
+        - KNOWN_LABELS
     )
 
     def label_class(label):

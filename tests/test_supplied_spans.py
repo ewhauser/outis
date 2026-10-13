@@ -8,7 +8,9 @@ import io
 import json
 import os
 import re
+import shutil
 import stat
+import subprocess
 import sys
 from contextlib import ExitStack
 
@@ -18,7 +20,7 @@ from fastapi.testclient import TestClient
 import outis.service
 from outis import cli
 from outis.api import create_app
-from outis.review import build_report
+from outis.review import MODEL_SCRIPT, build_report
 from outis.service import Deidentifier
 from outis.spans import (
     SPAN_FORMAT,
@@ -480,7 +482,7 @@ def test_replace_only_instance_cannot_detect():
         deid.deidentify(TEXT)
 
 
-def test_supplied_entities_accepts_objects_and_ignores_ids():
+def test_supplied_entities_accepts_objects_and_keeps_only_sources():
     spans = supplied_entities(
         "Mara Calder",
         [
@@ -494,10 +496,18 @@ def test_supplied_entities_accepts_objects_and_ignores_ids():
             },
         ],
     )
+    # The source decides whether the ages policy applies; IDs are reassigned.
     assert [(s.start, s.end, s.score, s.source, s.entity_id) for s in spans] == [
-        (0, 4, 0.5, "supplied", None),
-        (5, 11, 1.0, "supplied", None),
+        (0, 4, 0.5, "model", None),
+        (5, 11, 1.0, "model", None),
     ]
+    unsourced = supplied_entities("Mara", [{"start": 0, "end": 4, "label": "NAME"}])
+    assert unsourced[0].source == "supplied"
+    for source in ("", 7, "x" * 129):
+        with pytest.raises(SpanError, match="^Entity 0: invalid source$"):
+            supplied_entities(
+                "Mara", [{"start": 0, "end": 4, "label": "NAME", "source": source}]
+            )
 
 
 # Span files.
@@ -530,7 +540,7 @@ def test_span_record_round_trip(tmp_path):
         "text_fingerprint",
     }
     assert all(
-        set(entity) == {"start", "end", "label", "score"}
+        set(entity) == {"start", "end", "label", "score", "source"}
         for entity in record["entities"]
     )
     # The review report's corrected records add an edited flag.
@@ -616,7 +626,7 @@ def _run(monkeypatch, capsys, *args):
 
 @pytest.fixture
 def corpus(tmp_path, monkeypatch):
-    for name in ("OUTIS_SECRET", "OUTIS_SITE_DICTIONARIES"):
+    for name in ("OUTIS_SECRET", "OUTIS_SITE_DICTIONARIES", "OUTIS_FINGERPRINT_SECRET"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(
         outis.service,
@@ -627,7 +637,10 @@ def corpus(tmp_path, monkeypatch):
             {
                 "__init__": lambda self, model_dir=None, **kwargs: (
                     Deidentifier.__init__(
-                        self, detector=Detector(), secret=kwargs.get("secret")
+                        self,
+                        detector=Detector(),
+                        secret=kwargs.get("secret"),
+                        fingerprint_secret=kwargs.get("fingerprint_secret"),
                     )
                 )
             },
@@ -835,3 +848,290 @@ def test_review_report_escapes_note_text():
         source = re.search(body, page, re.S)[1]
         digest = base64.b64encode(hashlib.sha256(source.encode()).digest()).decode()
         assert f"{kind}-src 'sha256-{digest}'" in page
+
+
+# Review findings: policy-added AGE parity, the label picker, the in-page
+# editor's offsets, and fingerprints across a surrogate key rotation.
+
+
+class EmptyDetector:
+    def detect_batch(self, texts):
+        return [[] for _ in texts]
+
+
+@pytest.mark.parametrize("ages", ["over_89", "all"])
+def test_policy_added_ages_keep_detect_replace_parity(ages):
+    text = "Age 45. Badge AGE-77. Mother age 93."
+    policy = {
+        "ages": ages,
+        "custom_entities": [{"label": "AGE", "pattern": r"\b45\b"}],
+        "blocklist": ["AGE-77"],
+    }
+    deid = Deidentifier(secret=SECRET, detector=EmptyDetector())
+    detected = deid.detect(text, policy=policy)
+    assert [e["source"] for e in detected["entities"]] == [
+        "policy:custom",
+        "policy:blocklist",
+    ]
+    for options in ({"mode": "synthetic", "patient_id": "patient-a"}, {}):
+        expected = deid.deidentify(text, policy=policy, **options)
+        result = deid.replace(
+            text, detected["entities"], policy={"ages": ages}, **options
+        )
+        assert _comparable(result) == _comparable(expected)
+    # Content a policy rule selected never reappears.
+    assert result["text"] == "Age [AGE]. Badge [ID]. Mother age 93."
+
+
+def test_ages_policy_spares_explicitly_chosen_ages():
+    text = "Age 45. Sister age 52. Brother age 61."
+    entities = [
+        {"start": 4, "end": 6, "label": "AGE", "source": "model"},
+        {"start": 19, "end": 21, "label": "AGE", "source": "review"},
+        {"start": 35, "end": 37, "label": "AGE", "source": "site_dictionary:ages"},
+    ]
+    result = Deidentifier.for_replacement().replace(text, entities)
+    # The detector's young age stays, as detection would leave it; the
+    # reviewer's and the dictionary's choices are replaced.
+    assert result["text"] == "Age 45. Sister age [AGE]. Brother age [AGE]."
+    assert {e["source"] for e in result["entities"]} == {"supplied"}
+
+
+def test_review_label_picker_offers_every_supported_label():
+    text = "Seen by Mara Calder."
+    entities = [{"start": 8, "end": 19, "label": "NAME"}]
+    custom = [{"start": 0, "end": 4, "label": "BADGE"}]
+    result = Deidentifier.for_replacement().replace(
+        text, entities + custom, replacement={"pattern": "[{label}]"}
+    )
+    note = {"note_id": "n1", "text": text, "patient_id": None}
+    record = {"format": SPAN_FORMAT, "note_id": "n1", "entities": entities + custom}
+    page = build_report([(note, record)], [result])
+    picker = re.search(r'<select id="label">(.*?)</select>', page, re.S)[1]
+    options = re.findall(r'<option value="([A-Z0-9_]+)">', picker)
+    from outis.policy import KNOWN_LABELS
+
+    # No EMAIL, MRN or SSN was detected, yet each can still be added.
+    assert set(options) == KNOWN_LABELS | {"BADGE"}
+    assert options[:3] == ["NAME", "DATE", "ADDRESS"]
+    assert options[-1] == "BADGE"
+
+
+NODE = shutil.which("node")
+
+
+def _run_model(text, entities, steps):
+    """Run the report's editing model under Node, as the page would."""
+    harness = r"""
+const input = JSON.parse(require("fs").readFileSync(0, "utf8"));
+const note = { text: input.text, entities: input.entities, record: input.record };
+const log = [];
+function check() {
+  const runs = ReviewModel.runs(note);
+  let at = 0;
+  for (const run of runs) {
+    if (run.start !== at) throw new Error("runs are not contiguous");
+    at = run.end;
+  }
+  if (runs.map((run) => run.text).join("") !== note.text) {
+    throw new Error("runs do not show the text exactly once");
+  }
+  return runs;
+}
+// Select `needle` in the displayed text. Each boundary is measured from the
+// run that contains it, as the page's boundary() does.
+function select(needle) {
+  const runs = check();
+  const shown = runs.map((run) => run.text).join("");
+  const from = shown.indexOf(needle);
+  if (from < 0) throw new Error("selection not displayed");
+  const point = (index, atEnd) => {
+    let seen = 0;
+    for (const run of runs) {
+      const next = seen + run.text.length;
+      if (index < next || (atEnd && index === next)) {
+        return ReviewModel.offset(run.start, run.text.slice(0, index - seen));
+      }
+      seen = next;
+    }
+    return ReviewModel.offset(runs[runs.length - 1].end, "");
+  };
+  return [point(from, false), point(from + needle.length, true)];
+}
+for (const step of input.steps) {
+  if (step[0] === "toggle") {
+    log.push(ReviewModel.toggle(note, step[1]));
+  } else {
+    const [start, end] = select(step[1]);
+    log.push(ReviewModel.add(note, start, end, step[2]));
+  }
+  check();
+}
+process.stdout.write(JSON.stringify({ log, exported: ReviewModel.exportLines([note]) }));
+"""
+    payload = {
+        "text": text,
+        "entities": entities,
+        "record": {"format": SPAN_FORMAT, "note_id": "note-1"},
+        "steps": steps,
+    }
+    completed = subprocess.run(
+        [NODE, "-e", MODEL_SCRIPT + harness],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    )
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is not installed")
+def test_review_editor_multi_edit_round_trip(tmp_path):
+    # An astral character before the edits makes UTF-16 and code point
+    # offsets differ.
+    text = "Mara Calder \U0001f642 called Nora with a long follow-up."
+    entities = [
+        {"start": 0, "end": 11, "label": "NAME", "score": 0.9, "source": "model"}
+    ]
+    outcome = _run_model(
+        text,
+        entities,
+        [
+            ["toggle", 0],  # remove "Mara Calder"
+            ["add", "Mara", "NAME"],  # replace it with a shorter span
+            ["add", "Nora", "NAME"],  # then select later text
+            ["add", "long", "ID"],
+            ["toggle", 2],  # remove the added "long" again
+        ],
+    )
+    assert outcome["log"] == [
+        ["Span marked for removal.", True],
+        None,
+        None,
+        None,
+        ["Removed an added span.", True],
+    ]
+    record = json.loads(outcome["exported"])
+    nora = text.index("Nora")
+    assert record["entities"] == [
+        {"start": 0, "end": 4, "label": "NAME", "source": "review"},
+        {"start": nora, "end": nora + 4, "label": "NAME", "source": "review"},
+    ]
+    assert record["edited"] is True
+    path = tmp_path / "spans.reviewed.jsonl"
+    path.write_text(outcome["exported"], encoding="utf-8")
+    applied = read_span_file(path)["note-1"]
+    result = Deidentifier.for_replacement().replace(text, applied["entities"])
+    assert (
+        result["text"]
+        == "[NAME] Calder \U0001f642 called [NAME] with a long follow-up."
+    )
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is not installed")
+def test_review_editor_refuses_overlaps_and_hidden_restores():
+    text = "Mara Calder and Nora Vale."
+    entities = [{"start": 0, "end": 11, "label": "NAME"}]
+    outcome = _run_model(
+        text,
+        entities,
+        [
+            ["add", "Calder and", "NAME"],  # overlaps an active span
+            ["toggle", 0],
+            ["add", "Calder", "NAME"],  # drops the removed span it covers
+            ["toggle", 0],  # the added span: deleted
+        ],
+    )
+    assert outcome["log"] == [
+        "The selection overlaps a span; remove that span first.",
+        ["Span marked for removal.", True],
+        None,
+        ["Removed an added span.", True],
+    ]
+    assert json.loads(outcome["exported"])["entities"] == []
+
+
+def _rotation_env(monkeypatch, secret, fingerprint=None):
+    monkeypatch.setenv("OUTIS_SECRET", secret.decode())
+    if fingerprint is None:
+        monkeypatch.delenv("OUTIS_FINGERPRINT_SECRET", raising=False)
+    else:
+        monkeypatch.setenv("OUTIS_FINGERPRINT_SECRET", fingerprint.decode())
+
+
+def test_cli_reapplies_fingerprinted_spans_after_key_rotation(
+    corpus, monkeypatch, capsys
+):
+    tmp_path, notes = corpus
+    spans = tmp_path / "spans.jsonl"
+    _rotation_env(monkeypatch, SECRET)
+    _run(monkeypatch, capsys, "spans", "detect", "--input", str(notes),
+         "--output", str(spans), *_columns())  # fmt: skip
+    assert all(r.get("text_fingerprint") for r in read_span_file(spans).values())
+    out = tmp_path / "out.jsonl"
+    replace = ("spans", "replace", "--input", str(notes), "--spans", str(spans),
+               "--output", str(out), "--mode", "synthetic", *_columns())  # fmt: skip
+
+    # Rotated surrogate key, fingerprints still under the old one: explained.
+    _rotation_env(monkeypatch, OTHER_SECRET)
+    with pytest.raises(SystemExit):
+        _run(monkeypatch, capsys, *replace)
+    err = capsys.readouterr().err
+    assert "text_fingerprint does not match the text" in err
+    assert "OUTIS_FINGERPRINT_SECRET" in err and "--skip-fingerprint-check" in err
+    _assert_no_content(err)
+
+    # Keeping the detection key for fingerprints only verifies and re-keys.
+    _rotation_env(monkeypatch, OTHER_SECRET, fingerprint=SECRET)
+    _run(monkeypatch, capsys, *replace)
+    rotated = [json.loads(line)["text"] for line in out.read_text().splitlines()]
+    expected = [
+        Deidentifier(secret=OTHER_SECRET, detector=Detector()).deidentify(
+            note["body"], mode="synthetic", patient_id=note["patient"]
+        )["text"]
+        for note in NOTES
+    ]
+    assert rotated == expected
+
+    # Or skip the check explicitly, which is reported.
+    _rotation_env(monkeypatch, OTHER_SECRET)
+    skipped = _run(monkeypatch, capsys, *replace, "--skip-fingerprint-check")
+    assert "not checked" in skipped.err
+    assert [json.loads(line)["text"] for line in out.read_text().splitlines()] == (
+        expected
+    )
+
+    # Without any key, fingerprinted records need the explicit skip.
+    monkeypatch.delenv("OUTIS_SECRET")
+    with pytest.raises(SystemExit):
+        _run(monkeypatch, capsys, "spans", "replace", "--input", str(notes),
+             "--spans", str(spans), "--output", str(out), *_columns())  # fmt: skip
+    assert "--skip-fingerprint-check" in capsys.readouterr().err
+
+
+def test_separate_fingerprint_key_survives_surrogate_rotation(
+    corpus, monkeypatch, capsys
+):
+    tmp_path, notes = corpus
+    spans, out = tmp_path / "spans.jsonl", tmp_path / "out.jsonl"
+    fingerprint_key = b"outis-fingerprint-only-test-key-0123456789"
+    _rotation_env(monkeypatch, SECRET, fingerprint=fingerprint_key)
+    _run(monkeypatch, capsys, "spans", "detect", "--input", str(notes),
+         "--output", str(spans), *_columns())  # fmt: skip
+    record = read_span_file(spans)["note-1"]
+    assert record["text_fingerprint"] == text_fingerprint(fingerprint_key, TEXT)
+    for secret in (SECRET, OTHER_SECRET):
+        _rotation_env(monkeypatch, secret, fingerprint=fingerprint_key)
+        _run(monkeypatch, capsys, "spans", "replace", "--input", str(notes),
+             "--spans", str(spans), "--output", str(out), "--mode", "synthetic",
+             *_columns())  # fmt: skip
+    # The library and API take the same separate key.
+    deid = Deidentifier.for_replacement(
+        secret=OTHER_SECRET, fingerprint_secret=fingerprint_key
+    )
+    deid.replace(TEXT, [], text_fingerprint=record["text_fingerprint"])
+    with pytest.raises(SpanError):
+        Deidentifier.for_replacement(secret=fingerprint_key).replace(
+            TEXT, [], text_fingerprint=text_fingerprint(OTHER_SECRET, TEXT)
+        )

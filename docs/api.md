@@ -316,12 +316,17 @@ Each entity needs `start`, `end` and `label`. Offsets are zero-based Unicode
 code points with an exclusive end, as `/v1/detect` returns them. A label is a
 clinical label or any custom label (uppercase letters, digits and
 underscores, starting with a letter, at most 48 characters). `score` is
-optional and carried into the response. `source` and `entity_id` are accepted
-so detect entities can be sent back unchanged, and are ignored: identities are
-assigned exactly as `/v1/deidentify` assigns them. Spans must lie inside the
-text and must not overlap; there are at most 20,000. `replacement.per_type`
-may name any valid label. Under the default `ages: "over_89"`, supplied AGE
-spans of 89 and under are left in place, as detection would leave them.
+optional and carried into the response. `entity_id` is accepted so detect
+entities can be sent back unchanged, and is ignored: identities are assigned
+exactly as `/v1/deidentify` assigns them. Spans must lie inside the text and
+must not overlap; there are at most 20,000. `replacement.per_type` may name any
+valid label.
+
+`source` is optional and only decides whether the ages policy applies. As in
+detection, `ages: "over_89"` (the default) leaves detector AGE spans of 89 and
+under in place: spans with source `model`, any other source, or none. Spans a
+policy rule (`policy:*`), a site dictionary (`site_dictionary:*`) or a reviewer
+(`review`) chose are always replaced, because detection keeps those too.
 
 Invalid entities return 422 with a fixed reason and the entity's index, for
 example `Entity 3: overlaps another entity`. The text and span values are
@@ -338,11 +343,15 @@ on the other messages. Pass the same `policy.ages` to both steps.
 `/v1/detect/batch` item) to also receive `text_fingerprint`, and send it back
 with the spans. `/v1/replace` then rejects the request unless the text is
 exactly the text that was detected. The fingerprint is
-`tf1-` plus 128 bits of an HMAC-SHA256 under a key derived from `OUTIS_SECRET`
-(tag `outis-text-fingerprint-v1`). It is never a bare hash, which would let
-anyone confirm a guessed short note. Both steps need the secret; without it the
-fingerprint is unavailable. It is optional, and responses are unchanged when it
-is not requested.
+`tf1-` plus 128 bits of an HMAC-SHA256 under a key derived from the
+fingerprint secret (tag `outis-text-fingerprint-v1`). It is never a bare hash,
+which would let anyone confirm a guessed short note. It is optional, and
+responses are unchanged when it is not requested.
+
+The fingerprint secret is `OUTIS_FINGERPRINT_SECRET` when set (at least 32
+bytes), and otherwise `OUTIS_SECRET`. Set it separately to rotate
+`OUTIS_SECRET`, the surrogate key, without invalidating span files that were
+fingerprinted earlier. Without either, fingerprints are unavailable.
 
 ### Span files
 
@@ -359,10 +368,10 @@ read or write it. A record from `/v1/detect` output works too.
 | `format` | Required: `outis-spans-v1`. |
 | `note_id` | Required, unique in the file: the note's ID in the input table. |
 | `patient_id` | Optional patient anchor for synthetic or keyed replacement. |
-| `entities` | Required: `{start, end, label}` with optional `score`, as above. |
+| `entities` | Required: `{start, end, label}` with optional `score` and `source`, as above. |
 | `model_version` | Optional: the detector version that produced the spans. |
 | `policy` | Optional: the detection policy metadata. |
-| `text_fingerprint` | Optional: checked when `OUTIS_SECRET` is set. |
+| `text_fingerprint` | Optional: checked against the note text before replacing. |
 | `edited` | Optional: `true` when a reviewer changed the record. |
 
 Span files hold no note text, but note and patient IDs can be identifiers, so
@@ -370,7 +379,8 @@ the commands write them readable by the owner only. Store them like the notes.
 Errors name a file line, never its contents.
 
 ```sh
-export OUTIS_SECRET=...   # fingerprints and synthetic replacement
+export OUTIS_SECRET=...               # synthetic replacement
+export OUTIS_FINGERPRINT_SECRET=...   # optional; defaults to OUTIS_SECRET
 outis spans detect --input notes.jsonl --output spans.jsonl \
   --text-column text --patient-column patient_id
 outis review --input notes.jsonl --spans spans.jsonl --output review.html
@@ -384,7 +394,15 @@ is used when there is no column. Every note needs exactly one span record and
 every record a note. `--policy` is a JSON file
 `{"policy": {"ages": ...}, "replacement": {...}}`; other detection policy
 fields are ignored at this step. `outis spans detect` runs one note at a time
-and does not resume an interrupted run. See
+and does not resume an interrupted run.
+
+`outis spans replace` and `outis review` check every record's
+`text_fingerprint`. A mismatch stops the run, naming only the input line. If
+`OUTIS_SECRET` was rotated after detection and the fingerprints were made
+under it, set `OUTIS_FINGERPRINT_SECRET` to the key used at detection. Records
+with fingerprints and no fingerprint secret configured are refused. In either
+case `--skip-fingerprint-check` applies the records unchecked and says so; use
+it only when the notes are known to be the detected text. See
 [deployment](deployment.md#span-review-report) for the review report.
 
 ## Related messages and identities

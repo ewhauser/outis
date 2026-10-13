@@ -61,6 +61,7 @@ class Deidentifier:
         device="auto",
         detector=None,
         site_dictionaries=None,
+        fingerprint_secret=None,
     ):
         # Validate operator configuration before any model load.
         if site_dictionaries is not None:
@@ -74,15 +75,22 @@ class Deidentifier:
             detector = load_detector(model_dir, device=device)
         self.detector = detector
         self.secret = secret
+        # Text fingerprints have their own key so the surrogate key can be
+        # rotated without invalidating span files; it defaults to the secret.
+        self.fingerprint_secret = (
+            secret if fingerprint_secret is None else fingerprint_secret
+        )
         self.lock = Lock()
         self.usage = Usage()
         self.version = _model_version(model_dir, detector)
         self.site_dictionaries = site_dictionaries
 
     @classmethod
-    def for_replacement(cls, *, secret=None):
+    def for_replacement(cls, *, secret=None, fingerprint_secret=None):
         """An instance that only replaces supplied spans and loads no model."""
-        return cls(secret=secret, detector=_NoDetector())
+        return cls(
+            secret=secret, fingerprint_secret=fingerprint_secret, detector=_NoDetector()
+        )
 
     def _requests(self, requests, *, detect=False, limit=16, supplied=False):
         from outis.policy import KNOWN_LABELS, site_selection, validate_policy
@@ -136,11 +144,13 @@ class Deidentifier:
                 raise ValueError("include_fingerprint must be a boolean")
             if detect and req.get("include_fingerprint"):
                 # Fail before detection runs, not after.
-                text_fingerprint(self.secret, "")
+                text_fingerprint(self.fingerprint_secret, "")
             if supplied:
                 item["entities"] = supplied_entities(text, req.get("entities"))
                 if req.get("text_fingerprint") is not None:
-                    check_fingerprint(self.secret, text, req["text_fingerprint"])
+                    check_fingerprint(
+                        self.fingerprint_secret, text, req["text_fingerprint"]
+                    )
             if not detect:
                 mode = req.get("mode", "redact")
                 if mode not in {"redact", "synthetic"}:
@@ -341,10 +351,10 @@ class Deidentifier:
 
     def _supplied(self, requests):
         """Prepare supplied spans exactly as _detect prepares detected ones."""
-        from outis.policy import keep_ages
+        from outis.spans import filter_ages
 
         spans = [
-            keep_ages(req["text"], req["entities"], req["policy"].ages)
+            filter_ages(req["text"], req["entities"], req["policy"].ages)
             for req in requests
         ]
         predictions, prepared = self._prepare(requests, spans)
@@ -381,7 +391,7 @@ class Deidentifier:
                 }
                 if req.get("include_fingerprint"):
                     result["text_fingerprint"] = text_fingerprint(
-                        self.secret, req["text"]
+                        self.fingerprint_secret, req["text"]
                     )
                 results.append(result)
             return results
