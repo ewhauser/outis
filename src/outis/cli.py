@@ -4,6 +4,8 @@ import os
 import sys
 from pathlib import Path
 
+from outis import batch
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -40,10 +42,13 @@ def main():
         help="Site dictionary manifest or directory "
         "(default: OUTIS_SITE_DICTIONARIES; none when unset)",
     )
+    batch.add_parser(sub)
     from outis import spans_cli
 
     spans_cli.add_parsers(sub)
     args = parser.parse_args()
+    if args.command == "batch":
+        sys.exit(batch.main(args))
     if args.command in {"spans", "review"}:
         spans_cli.run(args)
         return

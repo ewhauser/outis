@@ -160,7 +160,8 @@ use sealed or blind evaluation banks.
 ## Batch limits and response contents
 
 `POST /v1/batch` accepts `{"items":[...requests...]}`. There are at most 16
-requests and 100,000 total characters per batch. Responses include transformed
+requests and 100,000 total characters per batch. To de-identify a whole note
+table, use [`outis batch`](#batch-processing) instead. Responses include transformed
 text, original **character offsets** of detected entities, entity types,
 replacement strings, model confidence scores, warnings, and a model version.
 Response metadata contains no original PHI, patient anchor, date offset, or key.
@@ -230,3 +231,201 @@ without bound. Detector calls are serialized one model batch (16 texts) at a
 time, so a large structured request interleaves with other work rather than
 holding the model throughout. `/health` and `/ready` never wait on inference
 capacity, so liveness probes stay accurate under load.
+
+## Batch processing
+
+`outis batch` de-identifies a table of notes in one process on one machine,
+reading and writing as it goes so memory stays flat however large the table.
+It loads the model once and uses the same detection, policy and replacement
+code as the library.
+
+```sh
+export OUTIS_SECRET=...   # synthetic mode only; at least 32 bytes
+outis batch --input notes.jsonl --output deid.jsonl \
+  --id-column note_id --text-column text --patient-column patient_id \
+  --mode synthetic --policy policy.json --pass-through encounter_id
+```
+
+### Input
+
+JSONL input has one JSON object per line; blank lines are skipped. Parquet
+input and output need the `parquet` extra (`pip install 'outis[parquet]'`);
+without it the command stops and names the extra. Each file's format follows
+its extension (`.parquet` and `.pq` are Parquet, anything else JSONL), or
+`--format` sets both.
+
+Every row is checked before any output is written. A note ID must be a
+nonempty string or an integer, the same kind in every row, and unique. The
+text must be a string. When synthetic replacement or keyed entity IDs are
+used, every row also needs a patient ID: a nonempty string or an integer of at
+most 256 characters (integers anchor as their decimal string). Errors name the
+line or row number and the problem, never the value.
+
+`--policy` reads a JSON object with an optional `policy` (the
+[detection policy](api.md#detection-and-policies)) and an optional
+`replacement` (the [replacement controls](api.md#replacement-controls-and-output-offsets)):
+
+```json
+{
+  "policy": {"profile": "extended", "ages": "all"},
+  "replacement": {"type": "synthetic", "entity_ids": "keyed"}
+}
+```
+
+`--project-id` sets one `project_id` for every note; [project
+scope](replacement.md#patient-and-project-scope) requires it. [Site
+dictionaries](#site-dictionaries) load from `--site-dictionaries` or
+`OUTIS_SITE_DICTIONARIES`, as for the server. The policy, replacement options, scope and dictionary selection are
+checked before the first note, and an invalid combination stops the run with
+the service's error.
+
+Each note is processed as `Deidentifier.deidentify(text, mode=..., patient_id=...,
+policy=..., replacement=..., project_id=...)` would process it, with its own
+row's patient ID as the anchor. All notes of a patient therefore share one date shift and one
+synthetic identity mapping, whatever batch they fall in. Batching only groups
+encoder windows; tests check that each note's output equals the library's
+per-note output.
+
+### Output
+
+The output has one row per input row, in input order:
+
+| Field | Contents |
+| --- | --- |
+| ID column | The note ID, as read |
+| patient column | The patient ID, as read, when `--patient-column` is given |
+| `--pass-through` columns | Copied unchanged. They are not de-identified |
+| text column | The de-identified text; null for a failed row |
+| `status` | `ok` or `failed` |
+| `error` | For a failed row, a code from the table below |
+| `entities` | `start`, `end` (offsets in the original note), `label`, `score` and `source`; with a policy file also `entity_id`, `processed_start` and `processed_end`. `original` is added only with `--include-originals` |
+| `warnings` | Replacement warnings, such as unsupported dates that were redacted |
+| `model_version` | The loaded checkpoint's digest |
+| `mappings` | Only when the policy file sets `replacement.include_mapping`; holds original values |
+
+Original values reach the output only through `--include-originals`,
+`include_mapping`, a `keep` replacement or a pass-through column. The text
+column keeps its input name and holds de-identified text.
+
+In Parquet output the ID column is `int64` or `string`. Patient and
+pass-through columns are `bool`, `int64`, `float64` or `string`, as their
+values allow; Parquet dates, timestamps and decimals become ISO or decimal
+strings, and mixed or nested values become JSON text.
+
+| Error code | Meaning |
+| --- | --- |
+| `text_too_long` | The note exceeds the 100,000-character per-text limit; it is not truncated |
+| `out_of_memory` | The note did not fit in memory even alone (see below) |
+| `detector_error` | The detector raised an error or returned invalid output for this note |
+| `policy_budget_exceeded`, `too_many_entities` | A policy limit from the [API guide](api.md#detection-and-policies) |
+| `output_too_large`, `marker_collision` | A replacement limit |
+| `rejected`, `internal_error` | Any other rejection or failure |
+
+### Batches and out-of-memory errors
+
+`--batch-size N` sets both the notes sent to the detector at once and the
+encoder windows in one forward pass (the encoder's `batch_size`; default 8).
+Raise it on a GPU with memory to spare. On a CUDA or MPS out-of-memory error,
+the runner releases cached memory, halves the notes and the window batch, and
+retries each half, down to one note in one-window passes. A note that still
+does not fit becomes a failed row with `out_of_memory`, and the run continues.
+The next batch starts again at `N`. An error other than out-of-memory is
+retried note by note, so it fails only the note that raises it.
+
+### Resume
+
+Rows are appended to the output a whole batch at a time and flushed to disk.
+Only then is `<output>.progress.json` replaced, atomically, with the number of
+input rows and output bytes now complete. When re-run with `--resume`, the
+command truncates the output to the recorded length, so any partly written
+batch is dropped, and continues with the next batch.
+
+**Guarantee.** With the same input and settings, an interrupted run continued
+with `--resume` produces exactly the output of an uninterrupted run: the same
+JSONL bytes, or the same Parquet table. No row is lost, duplicated or torn,
+whether the run was interrupted or killed or the machine went down (provided
+the storage honours `fsync`). This assumes
+deterministic detection, which holds on CPU; on a GPU the results are as
+deterministic as its kernels, and an out-of-memory split changes how notes are
+batched. `--resume` refuses to continue if the input's SHA-256, the columns,
+mode, policy file contents, project ID, site dictionaries, batch size, model,
+device, precision or replacement secret differ from the interrupted run's (the secret is compared through a
+keyed digest, never stored).
+
+Parquet cannot be appended to, so Parquet output is journalled to
+`<output>.partial.jsonl` and converted to Parquet once every row is complete;
+the journal is then removed. The progress file stays after a run completes, so
+re-running with `--resume` does nothing. With nothing to resume, `--resume`
+starts the run. Without it, the command never overwrites an existing output.
+
+### Progress and exit status
+
+Progress goes to stderr: notes done, percentage, content tokens per second,
+the estimated time remaining and the failed count, every 2 seconds on a
+terminal and every 30 seconds otherwise. A summary follows with counts of
+processed, skipped (completed by an earlier run) and failed notes, and
+throughput per stage. `--summary-json` also writes the summary to a file.
+Neither contains note text, note IDs or patient IDs.
+
+The exit status is 0 when every row in the output succeeded, 1 when any row
+failed, 2 for an input or usage error (nothing is processed), and 130 after an
+interruption.
+
+### Throughput
+
+[`scripts/benchmark_batch.py`](../scripts/benchmark_batch.py) runs
+`outis batch` on synthetic notes only and reports throughput with its
+hardware, dtype, batch size and model revision. By default it joins the first
+4,000 rows of the public
+[`ewhauser/outis-synthetic-phi`](https://huggingface.co/datasets/ewhauser/outis-synthetic-phi)
+validation split, four rows per note, into 1,000 notes; `--source generated`
+uses fictional templates and needs no download. It never reads real or
+restricted corpora.
+
+A **content token** is one token of note text under the encoder's tokenizer
+(the DeBERTa-v3 SentencePiece tokenizer for the default model), without
+special tokens, counted once per note however many overlapping windows read
+it. Each stage divides the run's content tokens by that stage's wall time:
+
+- **Detection**: tokenization, encoder forward passes and BIOES decoding,
+  for whole batches.
+- **Replacement**: per-note policy, identity analysis and rendering in
+  `Deidentifier.deidentify`.
+- **End to end**: from reading the first row to the finished output,
+  including token counting, writing and the per-batch `fsync`. It excludes
+  loading the model (about 5 seconds) and the up-front input check.
+
+Measured on 2026-10-12 on an Apple M3 Max laptop (12 performance and 4
+efficiency cores, 64 GB, macOS 26.5), PyTorch 2.14.1 with 12 CPU threads,
+model `ewhauser/outis-deberta-v3-base` at revision `11019035`, default batch
+size 8, dataset revision `46b09a63`. The 1,000 notes average 1,465 content
+tokens (1,462,474 in all); two joined notes exceed the 100,000-character limit
+and are failed rows (`text_too_long`) in every run.
+
+| Device | dtype | Mode | Detection | Replacement | End to end |
+| --- | --- | --- | ---: | ---: | ---: |
+| CPU | fp32 | redact | 1,764 | 676,811 | 1,758 |
+| CPU | fp32 | synthetic | 1,778 | 602,025 | 1,771 |
+| Apple MPS | bf16 | redact | 6,891 | 653,340 | 6,792 |
+| Apple MPS | bf16 | synthetic | 6,941 | 620,100 | 6,838 |
+
+Content tokens per second. **These are single runs and indicative only.**
+Detection dominates; replacement takes about 1% of the time or less. On this laptop
+the GPU slows under sustained load: the MPS rows were measured after the
+machine had idled, while MPS runs started straight after another long run
+measured as low as 3,459 tokens per second end to end. Throughput
+also depends on note length, the batch size and other load on the machine.
+These figures say nothing about detection accuracy, and other projects'
+throughput figures use other models, hardware and token definitions.
+
+No NVIDIA GPU figures have been measured yet. To measure one, run from a
+checkout on the GPU host:
+
+```sh
+uv run --extra parquet scripts/benchmark_batch.py --device cuda --report gpu-bs8.json
+uv run --extra parquet scripts/benchmark_batch.py --device cuda --batch-size 32 --report gpu-bs32.json
+```
+
+The report records the GPU name, dtype (bf16 where the GPU supports it),
+batch size and timings per stage. Add `--mode synthetic` for synthetic
+replacement.
