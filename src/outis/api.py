@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from outis.policy import DetectionPolicy
 from outis.replacement.transform import ReidentifyRequest, ReplacementOptions
 from outis.service import Deidentifier
+from outis.spans import ReplacePolicy, SpanError
 
 MAX_REQUEST_BYTES = 16 * 1024 * 1024
 _FAILURE = "Deidentification failed; no output released"
@@ -77,7 +78,7 @@ class DeidentifyRequest(DeidentifyOptions):
     )
 
 
-class DetectRequest(SafeModel):
+class _DetectFields(SafeModel):
     text: str = Field(max_length=100_000)
     policy: DetectionPolicy | None = None
     project_id: str = Field(
@@ -85,7 +86,15 @@ class DetectRequest(SafeModel):
     )
 
 
-class AnalyzeRequest(DetectRequest):
+class DetectRequest(_DetectFields):
+    include_fingerprint: bool = Field(
+        default=False,
+        description="Also return text_fingerprint, a keyed HMAC of the text that "
+        "/v1/replace can check. Requires OUTIS_FINGERPRINT_SECRET or OUTIS_SECRET.",
+    )
+
+
+class AnalyzeRequest(_DetectFields):
     locale: Literal["en-US", "en-GB"] = "en-US"
     include_sensitive: bool = False
 
@@ -106,6 +115,49 @@ class DetectBatchRequest(SafeModel):
     items: list[DetectRequest] = Field(min_length=1, max_length=16)
     link_batch: bool = False
     shared_entities: bool = False
+
+    @model_validator(mode="after")
+    def limit_total(self):
+        if sum(len(item.text) for item in self.items) > 100_000:
+            raise ValueError("A batch may contain at most 100000 characters")
+        return self
+
+
+class SuppliedEntity(SafeModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True, strict=True)
+    start: int = Field(ge=0, description="Zero-based Unicode code point offset")
+    end: int = Field(gt=0, description="Exclusive end offset")
+    label: str = Field(pattern=r"^[A-Z][A-Z0-9_]{0,47}$")
+    # Accepted so /v1/detect entities can be sent back unchanged.
+    score: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+    source: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="The detect source; decides only whether the ages policy "
+        "applies. policy:*, site_dictionary:* and review spans are always replaced",
+    )
+    entity_id: str | None = Field(default=None, max_length=64, description="Ignored")
+
+
+class ReplaceRequest(DeidentifyOptions):
+    text: str = Field(
+        max_length=100_000, description="Clinical plain text; Unicode character offsets"
+    )
+    entities: list[SuppliedEntity] = Field(
+        max_length=20_000, description="Nonoverlapping spans to replace"
+    )
+    policy: ReplacePolicy | None = None
+    text_fingerprint: str | None = Field(
+        default=None,
+        pattern=r"^tf1-[0-9a-f]{32}$",
+        description="Optional text_fingerprint from /v1/detect; the request "
+        "fails unless it matches the text",
+    )
+
+
+class ReplaceBatchRequest(SafeModel):
+    items: list[ReplaceRequest] = Field(min_length=1, max_length=16)
 
     @model_validator(mode="after")
     def limit_total(self):
@@ -199,6 +251,7 @@ class DetectResponse(SafeModel):
     model_version: str
     entity_count: int = Field(ge=0)
     policy: dict[str, Any] | None = None
+    text_fingerprint: str | None = None
 
 
 class AnalyzedEntityResponse(DetectedEntityResponse):
@@ -256,7 +309,7 @@ class FileResponse(SafeModel):
 
 
 class WebSocketRequest(SafeModel):
-    operation: Literal["detect", "deidentify", "analyze", "reidentify"]
+    operation: Literal["detect", "deidentify", "analyze", "reidentify", "replace"]
     payload: dict[str, Any]
 
 
@@ -309,6 +362,9 @@ def _safe_call(function):
         return function()
     except ValidationError:
         raise HTTPException(status_code=500, detail=_FAILURE) from None
+    except SpanError as exc:
+        # Fixed reasons naming at most an entity index; never span contents.
+        raise HTTPException(status_code=422, detail=str(exc)) from None
     except ValueError:
         raise HTTPException(
             status_code=422, detail="Replacement policy cannot process this request"
@@ -455,6 +511,8 @@ def create_app(
         options = {}
         if site_dictionaries := os.environ.get("OUTIS_SITE_DICTIONARIES"):
             options["site_dictionaries"] = site_dictionaries
+        if fingerprint_secret := os.environ.get("OUTIS_FINGERPRINT_SECRET"):
+            options["fingerprint_secret"] = fingerprint_secret
         app.state.service = service_arg or Deidentifier(
             os.environ.get("OUTIS_MODEL_DIR") or None,
             secret=os.environ.get("OUTIS_SECRET"),
@@ -524,6 +582,9 @@ def create_app(
             "allowed_types",
             "restore_sensitive",
             "site_dictionaries",
+            "entities",
+            "include_fingerprint",
+            "text_fingerprint",
         }
         errors = [
             {
@@ -583,6 +644,7 @@ def create_app(
             )
         model = {
             "deidentify": DeidentifyResponse,
+            "replace": DeidentifyResponse,
             "detect": DetectResponse,
             "analyze": AnalyzeResponse,
         }[operation]
@@ -594,7 +656,7 @@ def create_app(
         options = {
             name: True
             for name in ("link_batch", "shared_entities")
-            if getattr(payload, name)
+            if getattr(payload, name, False)
         }
         values = getattr(instance, operation)(
             [_payload(item) for item in payload.items], **options
@@ -626,6 +688,36 @@ def create_app(
             lambda: multiple(
                 request.app.state.service,
                 "deidentify_batch",
+                payload,
+                DeidentifyResponse,
+            ),
+        )
+
+    # Replacement only, but bounded like deidentify: rendering many synthetic
+    # surrogates is CPU work, so it shares the admission-controlled workers.
+    @app.post(
+        "/v1/replace",
+        response_model=DeidentifyResponse,
+        response_model_exclude_none=True,
+        dependencies=[Depends(authorize)],
+    )
+    async def replace(payload: ReplaceRequest, request: Request):
+        return await infer(
+            request, lambda: single(request.app.state.service, "replace", payload)
+        )
+
+    @app.post(
+        "/v1/replace/batch",
+        response_model=list[DeidentifyResponse],
+        response_model_exclude_none=True,
+        dependencies=[Depends(authorize)],
+    )
+    async def replace_batch(payload: ReplaceBatchRequest, request: Request):
+        return await infer(
+            request,
+            lambda: multiple(
+                request.app.state.service,
+                "replace_batch",
                 payload,
                 DeidentifyResponse,
             ),
@@ -797,6 +889,7 @@ def create_app(
             "detect": DetectRequest,
             "analyze": AnalyzeRequest,
             "reidentify": ReidentifyRequest,
+            "replace": ReplaceRequest,
         }
         while True:
             try:

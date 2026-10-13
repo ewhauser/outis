@@ -20,6 +20,8 @@ requests. `/health` is public. HTTP responses use `Cache-Control: no-store`.
 | `POST /v1/detect/batch` | Detect in up to 16 messages. |
 | `POST /v1/deidentify` | Replace detected spans in one text. |
 | `POST /v1/batch` | Replace spans in up to 16 messages. |
+| `POST /v1/replace` | Replace caller-supplied spans in one text; no detection runs. See [supplied spans](#supplied-spans-detect-review-replace). |
+| `POST /v1/replace/batch` | Replace caller-supplied spans in up to 16 texts. |
 | `POST /v1/analyze` | Detect, parse supported entity values, and identify explicit relationship templates. |
 | `POST /v1/reidentify` | Restore values from caller-supplied literal mappings. |
 | `POST /v1/structured` | Transform selected JSON, CSV, or XML text fields. |
@@ -29,7 +31,7 @@ requests. `/health` is public. HTTP responses use `Cache-Control: no-store`.
 | `GET /metrics` | Read Prometheus counters and the active-request gauge. |
 | `GET /diagnostics` | Read API/model version, device, platform, and supported language scope. |
 | `GET /health`, `GET /ready` | Check liveness or loaded-model readiness; `/ready` also summarizes any loaded [site dictionaries](#site-dictionaries). |
-| WebSocket `/v1/ws` | Reuse a connection for individual detect, deidentify, analyze, and reidentify requests. |
+| WebSocket `/v1/ws` | Reuse a connection for individual detect, deidentify, replace, analyze, and reidentify requests. |
 
 Text inputs are at most 100,000 Unicode characters. A public batch has at most
 16 items and 100,000 total characters; linked context includes the inserted
@@ -277,6 +279,131 @@ merge: among 2,000 and 20,000 distinct invented values, 1.4% and 14.3% of names,
 surrogate, while MRN, ACCOUNT, ID, EMAIL and URL surrogates did not collide. The
 full table and mitigations are in
 [replacement.md](replacement.md#surrogate-collisions).
+
+## Supplied spans: detect, review, replace
+
+Detection and replacement can run as separate steps. `/v1/detect` finds spans
+without altering text; a reviewer can inspect and correct them; `/v1/replace`
+then applies them. The same spans can be replaced again later under another
+key, project, style or replacement policy without detecting again, and spans
+from any other detector can be replaced the same way.
+
+`/v1/replace` takes the `/v1/deidentify` request fields (`text`, `mode`,
+`patient_id`, `project_id`, `date_shift_days`, `replacement`) plus `entities`
+and an optional `text_fingerprint`. Its `policy` accepts only `ages`, because
+every other policy field acts while detecting and has already shaped the
+spans. It runs no detection. Its response has the `/v1/deidentify` shape: the
+legacy shape when neither `policy` nor `replacement` is set, otherwise the
+extended one. Each entity's `source` is `supplied`, `model_version` is
+`supplied`, and the `policy` metadata is `{"version": "1", "ages": ...}`.
+`/v1/replace/batch` takes `{"items": [...]}` with up to 16 requests and
+100,000 total characters. It has no `link_batch` or `shared_entities`.
+
+```json
+{
+  "text": "Dr. Mara Calder saw the patient on 03/02/2024.",
+  "entities": [
+    {"start": 4, "end": 15, "label": "NAME"},
+    {"start": 35, "end": 45, "label": "DATE"}
+  ],
+  "mode": "synthetic",
+  "patient_id": "internal-patient-42",
+  "replacement": {"type": "synthetic", "style": "realistic"}
+}
+```
+
+Each entity needs `start`, `end` and `label`. Offsets are zero-based Unicode
+code points with an exclusive end, as `/v1/detect` returns them. A label is a
+clinical label or any custom label (uppercase letters, digits and
+underscores, starting with a letter, at most 48 characters). `score` is
+optional and carried into the response. `entity_id` is accepted so detect
+entities can be sent back unchanged, and is ignored: identities are assigned
+exactly as `/v1/deidentify` assigns them. Spans must lie inside the text and
+must not overlap; there are at most 20,000. `replacement.per_type` may name any
+valid label.
+
+`source` is optional and only decides whether the ages policy applies. As in
+detection, `ages: "over_89"` (the default) leaves detector AGE spans of 89 and
+under in place: spans with source `model`, any other source, or none. Spans a
+policy rule (`policy:*`), a site dictionary (`site_dictionary:*`) or a reviewer
+(`review`) chose are always replaced, because detection keeps those too.
+
+Invalid entities return 422 with a fixed reason and the entity's index, for
+example `Entity 3: overlaps another entity`. The text and span values are
+never echoed.
+
+**Parity.** Replacing the spans `/v1/detect` returned, with the same text,
+options and server secret, gives the same `text`, `warnings`, `preservation`
+and `mappings` as `/v1/deidentify`, and the same entities apart from `source`.
+This holds for every mode, type, scope and style. It does not hold for spans
+from a `link_batch` or `shared_entities` detect batch, whose identities depend
+on the other messages. Pass the same `policy.ages` to both steps.
+
+**Text fingerprints.** Set `include_fingerprint: true` on `/v1/detect` (or a
+`/v1/detect/batch` item) to also receive `text_fingerprint`, and send it back
+with the spans. `/v1/replace` then rejects the request unless the text is
+exactly the text that was detected. The fingerprint is
+`tf1-` plus 128 bits of an HMAC-SHA256 under a key derived from the
+fingerprint secret (tag `outis-text-fingerprint-v1`). It is never a bare hash,
+which would let anyone confirm a guessed short note. It is optional, and
+responses are unchanged when it is not requested.
+
+The fingerprint secret is `OUTIS_FINGERPRINT_SECRET` when set (at least 32
+bytes), and otherwise `OUTIS_SECRET`. Set it separately to rotate
+`OUTIS_SECRET`, the surrogate key, without invalidating span files that were
+fingerprinted earlier. Without either, fingerprints are unavailable.
+
+### Span files
+
+A span file is JSONL with one record per note. `outis spans detect` writes
+it; `outis spans replace`, `outis review` and the review report's download
+read or write it. A record from `/v1/detect` output works too.
+
+```json
+{"format": "outis-spans-v1", "note_id": "note-1", "patient_id": "internal-patient-42", "entities": [{"start": 4, "end": 15, "label": "NAME", "score": 0.998}], "model_version": "3f9c0a1b2c3d4e5f", "policy": {"profile": "clinical_default", "version": "1", "ages": "over_89"}, "text_fingerprint": "tf1-0f3a..."}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `format` | Required: `outis-spans-v1`. |
+| `note_id` | Required, unique in the file: the note's ID in the input table. |
+| `patient_id` | Optional patient anchor for synthetic or keyed replacement. |
+| `entities` | Required: `{start, end, label}` with optional `score` and `source`, as above. |
+| `model_version` | Optional: the detector version that produced the spans. |
+| `policy` | Optional: the detection policy metadata. |
+| `text_fingerprint` | Optional: checked against the note text before replacing. |
+| `edited` | Optional: `true` when a reviewer changed the record. |
+
+Span files hold no note text, but note and patient IDs can be identifiers, so
+the commands write them readable by the owner only. Store them like the notes.
+Errors name a file line, never its contents.
+
+```sh
+export OUTIS_SECRET=...               # synthetic replacement
+export OUTIS_FINGERPRINT_SECRET=...   # optional; defaults to OUTIS_SECRET
+outis spans detect --input notes.jsonl --output spans.jsonl \
+  --text-column text --patient-column patient_id
+outis review --input notes.jsonl --spans spans.jsonl --output review.html
+outis spans replace --input notes.jsonl --spans spans.jsonl --output deid.jsonl \
+  --mode synthetic --policy replace.json --project-id release-1
+```
+
+Notes are JSONL rows with `--id-column` (default `note_id`), `--text-column`
+(default `text`) and an optional `--patient-column`; a record's `patient_id`
+is used when there is no column. Every note needs exactly one span record and
+every record a note. `--policy` is a JSON file
+`{"policy": {"ages": ...}, "replacement": {...}}`; other detection policy
+fields are ignored at this step. `outis spans detect` runs one note at a time
+and does not resume an interrupted run.
+
+`outis spans replace` and `outis review` check every record's
+`text_fingerprint`. A mismatch stops the run, naming only the input line. If
+`OUTIS_SECRET` was rotated after detection and the fingerprints were made
+under it, set `OUTIS_FINGERPRINT_SECRET` to the key used at detection. Records
+with fingerprints and no fingerprint secret configured are refused. In either
+case `--skip-fingerprint-check` applies the records unchecked and says so; use
+it only when the notes are known to be the detected text. See
+[deployment](deployment.md#span-review-report) for the review report.
 
 ## Related messages and identities
 
