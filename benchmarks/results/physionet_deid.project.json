@@ -1,0 +1,615 @@
+{
+  "benchmark": "physionet_deid",
+  "coarse_typed": {
+    "backend": "model",
+    "character": {
+      "f1": 0.46241434905280127,
+      "false_negatives": 3402,
+      "false_positives": 17938,
+      "precision": 0.3384717509957221,
+      "recall": 0.729570747217806,
+      "support": 12580,
+      "true_positives": 9178
+    },
+    "document_leak_free": {
+      "count": 1965,
+      "rate": 0.8073130649137222,
+      "wilson_lower_95": 0.7911649045489408
+    },
+    "documents": 2434,
+    "duplicate_predictions_removed": 0,
+    "elapsed_seconds": 0.35444091699901037,
+    "failures": [],
+    "failures_truncated": true,
+    "negative_documents": {
+      "clean_count": 863,
+      "clean_rate": 0.587874659400545,
+      "count": 1468
+    },
+    "per_family": {
+      "hard_negative": {
+        "documents": 1468,
+        "f1": 0.0,
+        "false_negatives": 0,
+        "false_positives": 1384,
+        "leak_free_rate": 1.0,
+        "precision": 0.0,
+        "recall": 1.0,
+        "support": 0,
+        "true_positives": 0
+      },
+      "phi": {
+        "documents": 966,
+        "f1": 0.4302514193025142,
+        "false_negatives": 1103,
+        "false_positives": 1707,
+        "leak_free_rate": 0.5144927536231884,
+        "precision": 0.3833092485549133,
+        "recall": 0.49029574861367836,
+        "support": 2164,
+        "true_positives": 1061
+      }
+    },
+    "per_label": {
+      "ACCOUNT": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "ADDRESS": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "AGE": {
+        "f1": 0.038461538461538464,
+        "false_negatives": 2,
+        "false_positives": 148,
+        "precision": 0.019867549668874173,
+        "recall": 0.6,
+        "recall_wilson_lower_95": 0.23072428127601285,
+        "sufficient_support": false,
+        "support": 5,
+        "true_positives": 3
+      },
+      "DATE": {
+        "f1": 0.7363872082973206,
+        "false_negatives": 238,
+        "false_positives": 67,
+        "precision": 0.8640973630831643,
+        "recall": 0.641566265060241,
+        "recall_wilson_lower_95": 0.6043734148332174,
+        "sufficient_support": true,
+        "support": 664,
+        "true_positives": 426
+      },
+      "EMAIL": {
+        "f1": 0.0,
+        "false_negatives": 1,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 0.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 1,
+        "true_positives": 0
+      },
+      "FACILITY": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "ID": {
+        "f1": 0.0,
+        "false_negatives": 2,
+        "false_positives": 74,
+        "precision": 0.0,
+        "recall": 0.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 2,
+        "true_positives": 0
+      },
+      "IP": {
+        "f1": 0.0,
+        "false_negatives": 0,
+        "false_positives": 1,
+        "precision": 0.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "LOCATION": {
+        "f1": 0.2835130970724191,
+        "false_negatives": 227,
+        "false_positives": 238,
+        "precision": 0.2787878787878788,
+        "recall": 0.2884012539184953,
+        "recall_wilson_lower_95": 0.24143871765160982,
+        "sufficient_support": true,
+        "support": 319,
+        "true_positives": 92
+      },
+      "MRN": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "NAME": {
+        "f1": 0.24863323033040174,
+        "false_negatives": 601,
+        "false_positives": 2560,
+        "precision": 0.16963996107687318,
+        "recall": 0.4653024911032028,
+        "recall_wilson_lower_95": 0.4363101887421645,
+        "sufficient_support": true,
+        "support": 1124,
+        "true_positives": 523
+      },
+      "PHONE": {
+        "f1": 0.49275362318840576,
+        "false_negatives": 32,
+        "false_positives": 3,
+        "precision": 0.85,
+        "recall": 0.3469387755102041,
+        "recall_wilson_lower_95": 0.2292439283453895,
+        "sufficient_support": true,
+        "support": 49,
+        "true_positives": 17
+      },
+      "SSN": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "URL": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      }
+    },
+    "per_label_character_exposure": {
+      "ACCOUNT": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "ADDRESS": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "AGE": {
+        "covered_characters": 6,
+        "exposed_characters": 6,
+        "recall": 0.5,
+        "support": 12
+      },
+      "DATE": {
+        "covered_characters": 1994,
+        "exposed_characters": 815,
+        "recall": 0.7098611605553578,
+        "support": 2809
+      },
+      "EMAIL": {
+        "covered_characters": 0,
+        "exposed_characters": 12,
+        "recall": 0.0,
+        "support": 12
+      },
+      "FACILITY": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "ID": {
+        "covered_characters": 3,
+        "exposed_characters": 13,
+        "recall": 0.1875,
+        "support": 16
+      },
+      "IP": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "LOCATION": {
+        "covered_characters": 1612,
+        "exposed_characters": 1184,
+        "recall": 0.5765379113018598,
+        "support": 2796
+      },
+      "MRN": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "NAME": {
+        "covered_characters": 5135,
+        "exposed_characters": 1311,
+        "recall": 0.7966180577102079,
+        "support": 6446
+      },
+      "PHONE": {
+        "covered_characters": 428,
+        "exposed_characters": 61,
+        "recall": 0.8752556237218814,
+        "support": 489
+      },
+      "SSN": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "URL": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      }
+    },
+    "phi_bearing_documents": {
+      "count": 966,
+      "leak_free_count": 497,
+      "leak_free_rate": 0.5144927536231884,
+      "wilson_lower_95": 0.4829806213004228
+    },
+    "phi_bearing_documents_excluding_ages_89_and_under": {
+      "count": 966,
+      "leak_free_count": 497,
+      "leak_free_rate": 0.5144927536231884,
+      "wilson_lower_95": 0.4829806213004228
+    },
+    "privacy": {
+      "any_label_precision": {
+        "overlapping_gold_phi": 1349,
+        "precision": 0.32490366088631983,
+        "predicted_spans": 4152
+      },
+      "checks": {
+        "any_label_precision_at_least_90_percent": false,
+        "direct_any_label_recall_at_least_99_percent": false,
+        "indirect_any_label_recall_at_least_97_percent": false,
+        "name_recall_cluster_lower_95_at_least_98_percent": false,
+        "typed_span_f1_at_least_95_percent": false
+      },
+      "definition": "A gold span is masked when every one of its characters lies inside some predicted span, whatever the predicted label. A predicted span counts toward any-label precision when it overlaps at least one gold PHI character. Lower bounds resample whole documents.",
+      "direct": {
+        "labels": [
+          "NAME",
+          "SSN",
+          "MRN",
+          "ACCOUNT",
+          "ID",
+          "PHONE",
+          "EMAIL",
+          "ADDRESS",
+          "URL",
+          "IP"
+        ],
+        "masked": 888,
+        "recall": 0.7551020408163265,
+        "recall_cluster_lower_95": 0.7199297629499561,
+        "support": 1176
+      },
+      "indirect": {
+        "labels": [
+          "DATE",
+          "AGE",
+          "LOCATION",
+          "FACILITY"
+        ],
+        "masked": 605,
+        "recall": 0.6123481781376519,
+        "recall_cluster_lower_95": 0.5722222222222222,
+        "support": 988
+      },
+      "name_recall_cluster_lower_95": 0.7216940363007779,
+      "passed": false,
+      "per_label": {
+        "ACCOUNT": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "ADDRESS": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "AGE": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 2,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 3,
+          "recall": 0.6,
+          "support": 5
+        },
+        "AGE_89_AND_UNDER": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "DATE": {
+          "exact_misses": {
+            "boundary_differs": 11,
+            "not_detected": 224,
+            "partly_covered": 3,
+            "wrong_type": 0
+          },
+          "masked": 437,
+          "recall": 0.6581325301204819,
+          "support": 664
+        },
+        "EMAIL": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 1,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": 0.0,
+          "support": 1
+        },
+        "FACILITY": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "ID": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 1,
+            "partly_covered": 1,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": 0.0,
+          "support": 2
+        },
+        "IP": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "LOCATION": {
+          "exact_misses": {
+            "boundary_differs": 71,
+            "not_detected": 151,
+            "partly_covered": 3,
+            "wrong_type": 2
+          },
+          "masked": 165,
+          "recall": 0.5172413793103449,
+          "support": 319
+        },
+        "MRN": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "NAME": {
+          "exact_misses": {
+            "boundary_differs": 321,
+            "not_detected": 272,
+            "partly_covered": 4,
+            "wrong_type": 4
+          },
+          "masked": 848,
+          "recall": 0.7544483985765125,
+          "support": 1124
+        },
+        "PHONE": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 8,
+            "partly_covered": 1,
+            "wrong_type": 23
+          },
+          "masked": 40,
+          "recall": 0.8163265306122449,
+          "support": 49
+        },
+        "SSN": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "URL": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        }
+      },
+      "scope": "GOALS.md targets apply to hand-annotated real notes. On a synthetic bank these checks are development evidence only.",
+      "targets": {
+        "any_label_precision": 0.9,
+        "direct_any_label_recall": 0.99,
+        "indirect_any_label_recall": 0.97,
+        "name_recall_cluster_lower_95": 0.98,
+        "typed_span_f1": 0.95
+      }
+    },
+    "recall_wilson_lower_95": 0.4692692172656916,
+    "schema_version": 1,
+    "scope": "External benchmark physionet_deid; coarse label groups; not a clinical accuracy claim.",
+    "typed_character": {
+      "f1": 0.4441253526803708,
+      "false_negatives": 3765,
+      "false_positives": 18301,
+      "precision": 0.3250848207700251,
+      "recall": 0.7007154213036566,
+      "support": 12580,
+      "true_positives": 8815
+    },
+    "typed_span": {
+      "f1": 0.3359721342621913,
+      "false_negatives": 1103,
+      "false_positives": 3091,
+      "precision": 0.2555394990366089,
+      "recall": 0.49029574861367836,
+      "support": 2164,
+      "true_positives": 1061
+    }
+  },
+  "corpus_manifest_sha256": "37fa29c824bc93ddcb2086fd01178d250ad175d7f2a44998902f42ae51117c7a",
+  "label_agnostic": {
+    "character_recall": 0.729570747217806,
+    "character_recall_wilson_lower_95": 0.7217396299765764,
+    "exact_span": {
+      "f1": 0.34515516149461684,
+      "fn": 1074,
+      "fp": 3062,
+      "precision": 0.26252408477842004,
+      "recall": 0.5036968576709797,
+      "tp": 1090
+    },
+    "explicit_age_characters_redacted": 229,
+    "gold_characters": 12580,
+    "hard_negatives_clean": {
+      "count": 863,
+      "documents": 1468,
+      "rate": 0.587874659400545
+    },
+    "non_pii_characters": 2027150,
+    "non_pii_redacted_characters": 17938,
+    "non_pii_redaction": 0.008848876501492242,
+    "non_pii_redaction_age_adjusted": 0.008735910021458699,
+    "phi_documents_leak_free": {
+      "count": 497,
+      "documents": 966,
+      "rate": 0.5144927536231884
+    }
+  },
+  "prediction_receipt": {
+    "benchmark": "physionet_deid",
+    "completed_at": "2026-10-17T19:57:47.769174+00:00",
+    "configuration": {
+      "backend": "model",
+      "batch_size": 8,
+      "detector_sources": {
+        "detection/deberta_attention.py": "de82e91afc6e166d79b29741abac341085c7c3375c9521b39f96454a514fbfda",
+        "detection/decoding.py": "eac03da663f150f40a8a3b1eb0e30d776bd753a40935af8e0a406f42d771524e",
+        "detection/hf_encoder.py": "788ac16f1d3392c210e994b16eeb37130366b4db1c79c0ec329a1b146240610a",
+        "types.py": "bf909164e71f5175b579bcaa9e61085688c66fade060b76bae1d120f74072ff2"
+      },
+      "device": "mps",
+      "model_artifacts": {
+        "config.json": "9d295c200c3d811ae17aeb862a89cf99d9330c27c50ea961a246236fc16d8793",
+        "hf/config.json": "cad3bc4cd92b32cb85f1b99dd2d78cc3b12eaabfe1bd6ba5d65d419114ec8fe5",
+        "hf/model.safetensors": "2443b72d83eb95a9163fcea0895f474631aaa4a839d27a902a87473ead696ae4",
+        "hf/tokenizer.json": "e9ddd853a4a31023721c993458663f2019e3154a05dacf0d2b3c217e53d9bdc8",
+        "hf/tokenizer_config.json": "56f16a46b18f056e6e6e5a9192b44caf890b1d5f10a726ec1107e8014770472d"
+      }
+    },
+    "corpus_sha256": "c2da1e53a38f6ada62726740c77dc30f0b5e479410796b690a364781f7db08fe",
+    "documents": 2434,
+    "elapsed_seconds": 86.669,
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "predicted_spans": 4167,
+    "predictions_sha256": "ed1a59b7879f416fce52d060e44ca83196c311d07b008c00894b07a05cffc564",
+    "python": "3.13.14",
+    "runner_sha256": "07f8232b2c50f8b9d1f4972b6495435cdbbdacdb3c3beaae23d2ece7202185ac",
+    "system": "project"
+  },
+  "published_reference": null,
+  "scorer_sha256": "4e651237676e12423e0abf186dfe2ad551325300165e7a6e10d801de649002f7",
+  "system": "project",
+  "unmapped_prediction_labels": {}
+}

@@ -1,0 +1,586 @@
+[
+  {
+    "benchmark": "physionet_deid",
+    "corpus_manifest_sha256": "37fa29c824bc93ddcb2086fd01178d250ad175d7f2a44998902f42ae51117c7a",
+    "direct": {
+      "masked": 891,
+      "recall": 0.7506318449873631,
+      "recall_cluster_lower_95": 0.7207207207207207,
+      "support": 1187
+    },
+    "gold_spans_entirely_neutral": 112,
+    "hard_negatives_clean": {
+      "count": 884,
+      "documents": 1502,
+      "rate": 0.5885486018641811
+    },
+    "indirect": {
+      "masked": 564,
+      "recall": 0.6520231213872832,
+      "recall_cluster_lower_95": 0.6106870229007634,
+      "support": 865
+    },
+    "misses": {
+      "ADDRESS": {
+        "not_detected": 9,
+        "partial_shapes": {
+          "leading:lowercase_words": 1,
+          "trailing:other": 1
+        },
+        "partly_covered": 2
+      },
+      "AGE": {
+        "not_detected": 2,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "DATE": {
+        "not_detected": 224,
+        "partial_shapes": {
+          "trailing:digits": 2
+        },
+        "partly_covered": 2
+      },
+      "EMAIL": {
+        "not_detected": 1,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "FACILITY": {
+        "not_detected": 60,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "LOCATION": {
+        "not_detected": 13,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "NAME": {
+        "not_detected": 272,
+        "partial_shapes": {
+          "trailing:lowercase_words": 4
+        },
+        "partly_covered": 4
+      },
+      "PHONE": {
+        "not_detected": 8,
+        "partial_shapes": {},
+        "partly_covered": 0
+      }
+    },
+    "name": {
+      "masked": 848,
+      "recall": 0.7544483985765125,
+      "recall_cluster_lower_95": 0.7216940363007779,
+      "support": 1124
+    },
+    "non_phi_redaction": 0.010571031432716635,
+    "non_phi_value_characters": 1512246,
+    "per_label": {
+      "ADDRESS": {
+        "masked": 1,
+        "recall": 0.08333333333333333,
+        "support": 12
+      },
+      "AGE": {
+        "masked": 3,
+        "recall": 0.6,
+        "support": 5
+      },
+      "DATE": {
+        "masked": 438,
+        "recall": 0.6596385542168675,
+        "support": 664
+      },
+      "EMAIL": {
+        "masked": 0,
+        "recall": 0.0,
+        "support": 1
+      },
+      "FACILITY": {
+        "masked": 89,
+        "recall": 0.5973154362416108,
+        "support": 149
+      },
+      "ID": {
+        "masked": 1,
+        "recall": 1.0,
+        "support": 1
+      },
+      "LOCATION": {
+        "masked": 34,
+        "recall": 0.723404255319149,
+        "support": 47
+      },
+      "NAME": {
+        "masked": 848,
+        "recall": 0.7544483985765125,
+        "support": 1124
+      },
+      "PHONE": {
+        "masked": 41,
+        "recall": 0.8367346938775511,
+        "support": 49
+      }
+    },
+    "phi_documents_leak_free": {
+      "count": 512,
+      "documents": 932,
+      "rate": 0.5493562231759657
+    },
+    "prediction_receipt_sha256": "ed1a59b7879f416fce52d060e44ca83196c311d07b008c00894b07a05cffc564",
+    "scorer_sha256": "d272f23d3e5705c0ff73a84cf632fbd677029c780ef1b6421da1918fec2e0e0c",
+    "system": "project",
+    "uncovered_fragments": "not reported: benchmark is uninspected or restricted",
+    "value_character_recall": 0.772960915527107,
+    "value_character_recall_wilson_lower_95": 0.7647742555399711,
+    "value_characters": 10311,
+    "view": "policy-aligned (aligned3); see score_aligned.py docstring"
+  },
+  {
+    "benchmark": "physionet_deid",
+    "corpus_manifest_sha256": "37fa29c824bc93ddcb2086fd01178d250ad175d7f2a44998902f42ae51117c7a",
+    "direct": {
+      "masked": 854,
+      "recall": 0.7194608256107835,
+      "recall_cluster_lower_95": 0.6845637583892618,
+      "support": 1187
+    },
+    "gold_spans_entirely_neutral": 112,
+    "hard_negatives_clean": {
+      "count": 647,
+      "documents": 1502,
+      "rate": 0.43075898801597867
+    },
+    "indirect": {
+      "masked": 233,
+      "recall": 0.26936416184971096,
+      "recall_cluster_lower_95": 0.2343921139101862,
+      "support": 865
+    },
+    "misses": {
+      "ADDRESS": {
+        "not_detected": 9,
+        "partial_shapes": {
+          "leading:other": 1
+        },
+        "partly_covered": 1
+      },
+      "AGE": {
+        "not_detected": 2,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "DATE": {
+        "not_detected": 570,
+        "partial_shapes": {
+          "trailing:digits": 2
+        },
+        "partly_covered": 2
+      },
+      "EMAIL": {
+        "not_detected": 1,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "FACILITY": {
+        "not_detected": 49,
+        "partial_shapes": {
+          "leading:title_like_word": 1
+        },
+        "partly_covered": 1
+      },
+      "ID": {
+        "not_detected": 1,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "LOCATION": {
+        "not_detected": 6,
+        "partial_shapes": {
+          "leading:title_like_word": 2
+        },
+        "partly_covered": 2
+      },
+      "NAME": {
+        "not_detected": 290,
+        "partial_shapes": {
+          "leading:lowercase_words": 2,
+          "leading:title_like_word": 14,
+          "trailing:lowercase_words": 5,
+          "trailing:other": 8
+        },
+        "partly_covered": 24
+      },
+      "PHONE": {
+        "not_detected": 6,
+        "partial_shapes": {
+          "trailing:lowercase_words": 1
+        },
+        "partly_covered": 1
+      }
+    },
+    "name": {
+      "masked": 810,
+      "recall": 0.7206405693950177,
+      "recall_cluster_lower_95": 0.6854838709677419,
+      "support": 1124
+    },
+    "non_phi_redaction": 0.03910011995402864,
+    "non_phi_value_characters": 1512246,
+    "per_label": {
+      "ADDRESS": {
+        "masked": 2,
+        "recall": 0.16666666666666666,
+        "support": 12
+      },
+      "AGE": {
+        "masked": 3,
+        "recall": 0.6,
+        "support": 5
+      },
+      "DATE": {
+        "masked": 92,
+        "recall": 0.13855421686746988,
+        "support": 664
+      },
+      "EMAIL": {
+        "masked": 0,
+        "recall": 0.0,
+        "support": 1
+      },
+      "FACILITY": {
+        "masked": 99,
+        "recall": 0.6644295302013423,
+        "support": 149
+      },
+      "ID": {
+        "masked": 0,
+        "recall": 0.0,
+        "support": 1
+      },
+      "LOCATION": {
+        "masked": 39,
+        "recall": 0.8297872340425532,
+        "support": 47
+      },
+      "NAME": {
+        "masked": 810,
+        "recall": 0.7206405693950177,
+        "support": 1124
+      },
+      "PHONE": {
+        "masked": 42,
+        "recall": 0.8571428571428571,
+        "support": 49
+      }
+    },
+    "phi_documents_leak_free": {
+      "count": 371,
+      "documents": 932,
+      "rate": 0.398068669527897
+    },
+    "prediction_receipt_sha256": "6a02fad32e771bb58d8279e5570470205bb851917f709bc4bd74406f5a37d47b",
+    "scorer_sha256": "d272f23d3e5705c0ff73a84cf632fbd677029c780ef1b6421da1918fec2e0e0c",
+    "system": "meddeid",
+    "uncovered_fragments": "not reported: benchmark is uninspected or restricted",
+    "value_character_recall": 0.6654058772185045,
+    "value_character_recall_wilson_lower_95": 0.6562382436644411,
+    "value_characters": 10311,
+    "view": "policy-aligned (aligned3); see score_aligned.py docstring"
+  },
+  {
+    "benchmark": "physionet_deid",
+    "corpus_manifest_sha256": "37fa29c824bc93ddcb2086fd01178d250ad175d7f2a44998902f42ae51117c7a",
+    "direct": {
+      "masked": 825,
+      "recall": 0.6950294860994103,
+      "recall_cluster_lower_95": 0.6624579124579124,
+      "support": 1187
+    },
+    "gold_spans_entirely_neutral": 112,
+    "hard_negatives_clean": {
+      "count": 603,
+      "documents": 1502,
+      "rate": 0.4014647137150466
+    },
+    "indirect": {
+      "masked": 513,
+      "recall": 0.5930635838150289,
+      "recall_cluster_lower_95": 0.5533249686323714,
+      "support": 865
+    },
+    "misses": {
+      "ADDRESS": {
+        "not_detected": 8,
+        "partial_shapes": {
+          "trailing:other": 2
+        },
+        "partly_covered": 2
+      },
+      "AGE": {
+        "not_detected": 2,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "DATE": {
+        "not_detected": 228,
+        "partial_shapes": {
+          "leading:digits": 2,
+          "leading:lowercase_words": 1,
+          "trailing:digits": 2
+        },
+        "partly_covered": 4
+      },
+      "EMAIL": {
+        "not_detected": 1,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "FACILITY": {
+        "not_detected": 88,
+        "partial_shapes": {
+          "leading:title_like_word": 8,
+          "trailing:other": 9
+        },
+        "partly_covered": 17
+      },
+      "LOCATION": {
+        "not_detected": 12,
+        "partial_shapes": {
+          "leading:other": 1
+        },
+        "partly_covered": 1
+      },
+      "NAME": {
+        "not_detected": 317,
+        "partial_shapes": {
+          "leading:lowercase_words": 3,
+          "leading:title_like_word": 9,
+          "trailing:lowercase_words": 4
+        },
+        "partly_covered": 16
+      },
+      "PHONE": {
+        "not_detected": 18,
+        "partial_shapes": {},
+        "partly_covered": 0
+      }
+    },
+    "name": {
+      "masked": 791,
+      "recall": 0.7037366548042705,
+      "recall_cluster_lower_95": 0.6627056672760512,
+      "support": 1124
+    },
+    "non_phi_redaction": 0.010370005938187305,
+    "non_phi_value_characters": 1512246,
+    "per_label": {
+      "ADDRESS": {
+        "masked": 2,
+        "recall": 0.16666666666666666,
+        "support": 12
+      },
+      "AGE": {
+        "masked": 3,
+        "recall": 0.6,
+        "support": 5
+      },
+      "DATE": {
+        "masked": 432,
+        "recall": 0.6506024096385542,
+        "support": 664
+      },
+      "EMAIL": {
+        "masked": 0,
+        "recall": 0.0,
+        "support": 1
+      },
+      "FACILITY": {
+        "masked": 44,
+        "recall": 0.2953020134228188,
+        "support": 149
+      },
+      "ID": {
+        "masked": 1,
+        "recall": 1.0,
+        "support": 1
+      },
+      "LOCATION": {
+        "masked": 34,
+        "recall": 0.723404255319149,
+        "support": 47
+      },
+      "NAME": {
+        "masked": 791,
+        "recall": 0.7037366548042705,
+        "support": 1124
+      },
+      "PHONE": {
+        "masked": 31,
+        "recall": 0.6326530612244898,
+        "support": 49
+      }
+    },
+    "phi_documents_leak_free": {
+      "count": 461,
+      "documents": 932,
+      "rate": 0.4946351931330472
+    },
+    "prediction_receipt_sha256": "ee67704c649b5c98c7e327b21d7a4b9c2391db1cfc027d8bf6c5c5cda720f256",
+    "scorer_sha256": "d272f23d3e5705c0ff73a84cf632fbd677029c780ef1b6421da1918fec2e0e0c",
+    "system": "gliner-trained",
+    "uncovered_fragments": "not reported: benchmark is uninspected or restricted",
+    "value_character_recall": 0.7169042769857433,
+    "value_character_recall_wilson_lower_95": 0.7081292338795845,
+    "value_characters": 10311,
+    "view": "policy-aligned (aligned3); see score_aligned.py docstring"
+  },
+  {
+    "benchmark": "physionet_deid",
+    "corpus_manifest_sha256": "37fa29c824bc93ddcb2086fd01178d250ad175d7f2a44998902f42ae51117c7a",
+    "direct": {
+      "masked": 825,
+      "recall": 0.6950294860994103,
+      "recall_cluster_lower_95": 0.663527397260274,
+      "support": 1187
+    },
+    "gold_spans_entirely_neutral": 112,
+    "hard_negatives_clean": {
+      "count": 482,
+      "documents": 1502,
+      "rate": 0.3209054593874834
+    },
+    "indirect": {
+      "masked": 566,
+      "recall": 0.6543352601156069,
+      "recall_cluster_lower_95": 0.6146341463414634,
+      "support": 865
+    },
+    "misses": {
+      "ADDRESS": {
+        "not_detected": 8,
+        "partial_shapes": {
+          "trailing:other": 2
+        },
+        "partly_covered": 2
+      },
+      "AGE": {
+        "not_detected": 2,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "DATE": {
+        "not_detected": 229,
+        "partial_shapes": {
+          "leading:digits": 2,
+          "trailing:digits": 2
+        },
+        "partly_covered": 3
+      },
+      "EMAIL": {
+        "not_detected": 1,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "FACILITY": {
+        "not_detected": 50,
+        "partial_shapes": {
+          "leading:title_like_word": 6,
+          "trailing:other": 1
+        },
+        "partly_covered": 7
+      },
+      "LOCATION": {
+        "not_detected": 8,
+        "partial_shapes": {},
+        "partly_covered": 0
+      },
+      "NAME": {
+        "not_detected": 316,
+        "partial_shapes": {
+          "leading:lowercase_words": 3,
+          "leading:title_like_word": 9,
+          "trailing:lowercase_words": 4
+        },
+        "partly_covered": 16
+      },
+      "PHONE": {
+        "not_detected": 18,
+        "partial_shapes": {
+          "leading:digits": 1
+        },
+        "partly_covered": 1
+      }
+    },
+    "name": {
+      "masked": 792,
+      "recall": 0.7046263345195729,
+      "recall_cluster_lower_95": 0.665098777046096,
+      "support": 1124
+    },
+    "non_phi_redaction": 0.013458127844279303,
+    "non_phi_value_characters": 1512246,
+    "per_label": {
+      "ADDRESS": {
+        "masked": 2,
+        "recall": 0.16666666666666666,
+        "support": 12
+      },
+      "AGE": {
+        "masked": 3,
+        "recall": 0.6,
+        "support": 5
+      },
+      "DATE": {
+        "masked": 432,
+        "recall": 0.6506024096385542,
+        "support": 664
+      },
+      "EMAIL": {
+        "masked": 0,
+        "recall": 0.0,
+        "support": 1
+      },
+      "FACILITY": {
+        "masked": 92,
+        "recall": 0.6174496644295302,
+        "support": 149
+      },
+      "ID": {
+        "masked": 1,
+        "recall": 1.0,
+        "support": 1
+      },
+      "LOCATION": {
+        "masked": 39,
+        "recall": 0.8297872340425532,
+        "support": 47
+      },
+      "NAME": {
+        "masked": 792,
+        "recall": 0.7046263345195729,
+        "support": 1124
+      },
+      "PHONE": {
+        "masked": 30,
+        "recall": 0.6122448979591837,
+        "support": 49
+      }
+    },
+    "phi_documents_leak_free": {
+      "count": 480,
+      "documents": 932,
+      "rate": 0.5150214592274678
+    },
+    "prediction_receipt_sha256": "533f9285529f0412e075e635607e1e5990c6b7107edca754893a1985be017786",
+    "scorer_sha256": "d272f23d3e5705c0ff73a84cf632fbd677029c780ef1b6421da1918fec2e0e0c",
+    "system": "gliner-facility",
+    "uncovered_fragments": "not reported: benchmark is uninspected or restricted",
+    "value_character_recall": 0.7532732033750363,
+    "value_character_recall_wilson_lower_95": 0.7448587678114413,
+    "value_characters": 10311,
+    "view": "policy-aligned (aligned3); see score_aligned.py docstring"
+  }
+]

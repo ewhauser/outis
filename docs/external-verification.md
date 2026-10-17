@@ -51,7 +51,7 @@ These rules hold for every benchmark and every system.
 | [SPY](https://huggingface.co/datasets/mks-logic/SPY) medical | 4,491 synthetic medical consultations, 7 PII types | CC BY 4.0 | Yes, with attribution | Planned |
 | [n2c2 2014](https://portal.dbmi.hms.harvard.edu/projects/n2c2-2014/) de-identification | Real clinical notes with surrogate PHI | Harvard DBMI data use agreement | Evaluation only, under the commercial agreement | Planned; access required |
 | [SHIELD](https://stanford.redivis.com/datasets/ee4n-6gv2f84et) | 1,381 Stanford notes, 9 PHI categories | Stanford DRUA | Unconfirmed | Blocked on licence review |
-| PhysioNet deidentified medical text | 2,434 MIMIC-II nursing notes | PhysioNet credentialed licence | No; research only | Excluded |
+| [PhysioNet Deidentified Medical Text](https://physionet.org/content/deidentifiedmedicaltext/1.0/) v1.0 | 2,434 MIMIC-II nursing notes with surrogate PHI | PhysioNet Credentialed Health Data License 1.5.0 | No; research evaluation only | Scored; restricted, uninspected |
 
 Do not use n2c2 2014 until the agreement is signed. Its terms forbid putting
 the data into a product, which rules 1 and 5 already respect. Check the
@@ -261,7 +261,70 @@ one table per benchmark, with the policy-aligned view first and the
 as-published numbers beside it. On the aligned view the default model masks
 99.94% of PHI value characters on ASQ-PHI (MedDeID 99.66%), 99.27% on MedDeID
 English (MedDeID 99.19%) and 99.65% on the Technetium-I sample (MedDeID
-99.65%), with less non-PHI redaction than MedDeID on all three.
+99.65%), with less non-PHI redaction than MedDeID on all three. On real nursing
+notes (PhysioNet Deidentified Medical Text) every system drops sharply: the
+default model masks 77.30% (MedDeID 66.54%, GLiNER 71.69–75.33%).
+
+### Against published figures
+
+Each system's own published figures, beside what this harness measured on the
+same or the nearest benchmark. Published figures were read from the cited
+sources on 2026-10-17. Metric definitions differ between sources, so compare
+within a row group only with the caveats stated. "Harness" figures are the
+as-published view (each benchmark's own gold) unless marked aligned.
+
+**Real notes: PhysioNet Deidentified Medical Text v1.0.** The only published
+figures on this corpus are from PhysioNet's own rule-based `deid` tool
+([Neamatullah et al. 2008](https://doi.org/10.1186/1472-6947-8-32);
+[deid 1.1 README](https://physionet.org/files/deid/1.1/README.txt)), which this
+harness has not run.
+
+| System | Source | Recall | Precision | Basis |
+|---|---|---:|---:|---|
+| `deid` 1.1 (rules and lookup lists) | published | 96.7% | 74.9% | PHI instances (1,720 TP, 546 FP, 59 FN); run on the original notes with real PHI; this corpus was its development set |
+| `deid` 1.1 | published | ≈94.3% | – | estimated on a separate 1,836-note held-out set |
+| Individual clinicians, by hand | published | 63–94% | – | same paper |
+| project | harness | 72.96% char (77.30% aligned); 50.37% exact span | 26.25% exact span | surrogate text; 2,164 gold tags |
+| gliner-facility | harness | 71.73% char (75.33% aligned); 48.20% exact span | 16.19% exact span | as above |
+| gliner-trained | harness | 65.81% char (71.69% aligned); 47.23% exact span | 18.22% exact span | as above |
+| meddeid | harness | 63.93% char (66.54% aligned); 14.28% exact span | 3.37% exact span | as above |
+
+The `deid` figures favour `deid`: it was tuned on this corpus and matched real
+names against MIMIC patient and staff lists, which the surrogate text no longer
+contains. Even so, every model-based system here is roughly 20 points of recall
+behind it. Precision is not comparable: `deid` counts instances, the harness
+counts exact spans, and the harness's character-level over-redaction is
+0.9–3.3%.
+
+**MedDeID** ([model card](https://huggingface.co/stighellemans/meddeid-english-synth);
+synthetic benchmarks only, no metadata unless noted).
+
+| Benchmark | Published recall | Published non-PII redaction | Harness recall | Harness non-PII redaction |
+|---|---:|---:|---:|---:|
+| ASQ-PHI | 98.90% | 6.21% | 99.14% | 6.33% |
+| Technetium-I | 99.73% (test split) | 1.61% | 99.70% (5,000-note sample) | 1.61% |
+| 300-note English synthetic | 99.96% | 0.009% (with metadata) | 99.16% (`meddeid_en`, no metadata) | 0.14% |
+| PhysioNet (real notes) | not published | – | 63.93% | 3.33% |
+
+The card's 300-note set is its internal benchmark; `meddeid_en` is the public
+300-note release, not confirmed to be identical, and the card counts recall
+over "identifying annotation characters". The card's GLiNER rows are GLiNER
+Multilingual PII, a different model from `nvidia/gliner-PII`.
+
+**nvidia/gliner-PII** ([model card](https://huggingface.co/nvidia/gliner-PII);
+threshold 0.3, general PII rather than clinical text).
+
+| Benchmark | Published strict F1 | Harness typed exact-span F1 |
+|---|---:|---:|
+| Argilla PII | 0.70 | – |
+| AI4Privacy | 0.64 | – |
+| Nemotron-PII (also its training source) | 0.87 | – |
+| PhysioNet (real notes) | not published | 0.256 (trained arm); 0.237 (facility arm) |
+
+**This project** publishes no external figures beyond this harness. Its
+synthetic results above (99.27–99.94% aligned value-character recall) fall to
+77.30% on PhysioNet, the same pattern as MedDeID: synthetic-only training and
+evaluation overstate accuracy on real notes.
 
 ## Restricted benchmark: n2c2 2014
 
@@ -287,6 +350,34 @@ It is used for evaluation only.
   spans, token or entity level, the full PHI set or a HIPAA subset). Match the
   metric exactly before comparing with any paper.
 
+## Restricted benchmark: PhysioNet Deidentified Medical Text
+
+PhysioNet's Deidentified Medical Text v1.0 is 2,434 real MIMIC-II nursing notes
+in which every gold PHI instance has been replaced by a realistic surrogate.
+It is distributed under the PhysioNet Credentialed Health Data License 1.5.0,
+which allows scientific research use only and forbids sharing access. It is
+used for research evaluation only, never in a product, training set or tuning
+decision.
+
+- Each person obtains it under their own credentialed access and signed data
+  use agreement. Keep the raw files outside every git repository.
+- Process it only locally. Do not send note text, predictions or failure
+  examples to an LLM or any online service unless that use complies with
+  PhysioNet's guidance, [Use of MIMIC Data with Large Language Models and Online
+  Services](https://physionet.org/news/post/llm-responsible-use/).
+  Models run with `HF_HUB_OFFLINE=1` from cached, pinned revisions.
+- `physionet_deid.py --raw <folder holding id.text and id.res>` writes
+  `$OUTIS_RESTRICTED_DIR/corpora/physionet_deid.jsonl`. Gold spans come from
+  aligning `id.text` (surrogates) with `id.res` (`[**category**]` tags);
+  conversion fails unless every record aligns. Only counts are printed.
+- Tag categories map to project types (`physionet_deid.CATEGORY_RULES`). Ward
+  names, states and countries are treated as out of policy, like n2c2's
+  DEPARTMENT, STATE and COUNTRY. One release tag has no category and is
+  neutral.
+- Scoring writes no failure examples; results files hold aggregate scores only.
+  Before publishing results that name the corpus, check the licence's
+  publication terms (clause 2) and cite the dataset.
+
 ## Reading results
 
 - **Compare systems on `results/COMPARISON.md`.** Lead with the policy-aligned
@@ -300,8 +391,9 @@ It is used for evaluation only.
   convention: fix the rules in a new view, do not compare under the old one.
 - **Lead with character recall and non-PII redaction together.** Either can be
   maximised alone; the pair shows the actual trade-off.
-- **Check the scope.** ASQ-PHI and SPY are short synthetic texts. Only n2c2 2014
-  (and SHIELD, if licensed) approach real clinical notes.
+- **Check the scope.** ASQ-PHI and SPY are short synthetic texts. PhysioNet
+  Deidentified Medical Text is real nursing notes; n2c2 2014 (and SHIELD, if
+  licensed) would add other real note types.
 - **Expect convention differences.** The project policy excludes honorifics
   from NAME spans and treats ages up to 89 and bare years as hard negatives. A
   benchmark that includes "Dr." in gold names or never annotates years will

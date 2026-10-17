@@ -10,12 +10,16 @@ benchmark or a system are in
 **Results: [results/COMPARISON.md](results/COMPARISON.md).** One table per
 benchmark, with the policy-aligned view first and each benchmark's
 as-published scoring beside it.
+Each system's own published figures, including PhysioNet `deid` on the
+PhysioNet corpus, are set beside these in
+[external verification](../docs/external-verification.md#against-published-figures).
 
 | Benchmark | Content | Licence | Status |
 |---|---|---|---|
 | [ASQ-PHI](https://doi.org/10.17632/csz5dzp7nx.1) | 1,051 synthetic clinical search queries | MIT | Development evidence |
 | [MedDeID English](https://huggingface.co/datasets/stighellemans/meddeid-english-synthetic-benchmark) | 300 synthetic notes | CC BY 4.0, final evaluation only | Development evidence |
 | [Technetium-I](https://huggingface.co/datasets/temlm-foundation/Technetium-I) | fixed 5,000-note sample of the test split | EUPL-1.2 | Uninspected |
+| [PhysioNet Deidentified Medical Text](https://physionet.org/content/deidentifiedmedicaltext/1.0/) v1.0 | 2,434 real nursing notes with surrogate PHI | PhysioNet Credentialed Health Data License 1.5.0, research only | Restricted; uninspected |
 
 "Development evidence" means failures on that benchmark have been inspected,
 so it is no longer an independent test.
@@ -54,8 +58,10 @@ the scorers refuse predictions whose receipt does not match.
 
 ## Caveats
 
-- All three benchmarks are synthetic. ASQ-PHI is short search queries, not
-  notes.
+- ASQ-PHI, MedDeID English and Technetium-I are synthetic; ASQ-PHI is short
+  search queries, not notes. PhysioNet Deidentified Medical Text is real
+  nursing notes with surrogate PHI, under a research-only licence; it is run
+  locally and only aggregate scores are kept.
 - Benchmarks differ from this project's annotation policy (for example
   titles inside names, unannotated ages and years). The aligned view
   neutralises those differences; the as-published columns do not.
