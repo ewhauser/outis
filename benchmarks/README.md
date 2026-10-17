@@ -10,6 +10,9 @@ benchmark or a system are in
 **Results: [results/COMPARISON.md](results/COMPARISON.md).** One table per
 benchmark, with the policy-aligned view first and each benchmark's
 as-published scoring beside it.
+Each system's own published figures, including PhysioNet `deid` on the
+PhysioNet corpus, are set beside these in
+[external verification](../docs/external-verification.md#against-published-figures).
 
 | Benchmark | Content | Licence | Status |
 |---|---|---|---|
