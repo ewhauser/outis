@@ -91,6 +91,14 @@ the [annotation policy](docs/annotation-policy-v2.md).
 
 One benchmark is real clinical text (PhysioNet); every other number comes from
 synthetic text.
+
+Among the open models we evaluated (MedDeID and GLiNER-PII), Outis had the
+highest or equal PHI recall on all four external benchmarks, including real
+nursing notes, and the lowest over-redaction on the three synthetic ones. On
+the real notes GLiNER-PII's default configuration removed slightly less
+non-PHI text (1.04% against 1.06%). This is not a state-of-the-art claim:
+other open and commercial tools have not been compared, and the n2c2 2014
+benchmark most published results use is not yet accessible.
 "Masked" means every character of an identifier is covered by some detected
 span, whatever type it was given.
 
