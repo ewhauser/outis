@@ -50,11 +50,14 @@ These rules hold for every benchmark and every system.
 | [MedDeID English](https://huggingface.co/datasets/stighellemans/meddeid-english-synthetic-benchmark) synthetic benchmark | 300 synthetic notes | CC BY 4.0; final evaluation only | Yes, with attribution | Scored; development evidence |
 | [Technetium-I](https://huggingface.co/datasets/temlm-foundation/Technetium-I) test split | 74,700 synthetic notes; a fixed 5,000-note sample is scored | EUPL-1.2 | Yes | Scored; uninspected |
 | [SPY](https://huggingface.co/datasets/mks-logic/SPY) medical | 4,491 synthetic medical consultations, 7 PII types | CC BY 4.0 | Yes, with attribution | Planned |
-| [n2c2 2014](https://portal.dbmi.hms.harvard.edu/projects/n2c2-2014/) de-identification | Real clinical notes with surrogate PHI | Harvard DBMI data use agreement | Evaluation only, under the commercial agreement | Planned; access required |
+| [n2c2 2014](https://portal.dbmi.hms.harvard.edu/projects/n2c2-2014/) de-identification | Real clinical notes with surrogate PHI | Harvard DBMI data use agreement | Evaluation only, under the commercial agreement | Blocked: the DBMI portal was not accepting new registrations (October 2026) |
 | [SHIELD](https://stanford.redivis.com/datasets/ee4n-6gv2f84et) | 1,381 Stanford notes, 9 PHI categories | Stanford DRUA | Unconfirmed | Blocked on licence review |
 | [PhysioNet Deidentified Medical Text](https://physionet.org/content/deidentifiedmedicaltext/1.0/) v1.0 | 2,434 MIMIC-II nursing notes with surrogate PHI | PhysioNet Credentialed Health Data License 1.5.0 | No; research evaluation only | Scored; restricted, uninspected |
 
-Do not use n2c2 2014 until the agreement is signed. Its terms forbid putting
+Do not use n2c2 2014 until the agreement is signed. As of October 2026 the
+DBMI portal was not accepting new registrations, so the many published
+results on this benchmark cannot yet be compared with this project's model
+directly. Its terms forbid putting
 the data into a product, which rules 1 and 5 already respect. Check the
 agreement's publication clause before quoting results that name it.
 
