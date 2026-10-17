@@ -23,6 +23,17 @@ Convention flags: none.
 
 Convention flags: none.
 
+## physionet_deid
+
+| System | Value-char recall | Non-PHI redaction | Direct | NAME (doc 95% lb) | Indirect | Leak-free PHI docs | Char recall (published) | Non-PII redaction (published) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| project | 77.30% | 1.06% | 75.06% | 75.44% (72.17%) | 65.20% | 54.94% | 72.96% | 0.88% |
+| gliner-facility | 75.33% | 1.35% | 69.50% | 70.46% (66.51%) | 65.43% | 51.50% | 71.73% | 1.13% |
+| gliner-trained | 71.69% | 1.04% | 69.50% | 70.37% (66.27%) | 59.31% | 49.46% | 65.81% | 0.88% |
+| meddeid | 66.54% | 3.91% | 71.95% | 72.06% (68.55%) | 26.94% | 39.81% | 63.93% | 3.33% |
+
+Convention flags: NAME `leading:title_like_word`.
+
 ## technetium_test5k
 
 | System | Value-char recall | Non-PHI redaction | Direct | NAME (doc 95% lb) | Indirect | Leak-free PHI docs | Char recall (published) | Non-PII redaction (published) |

@@ -1,0 +1,608 @@
+{
+  "benchmark": "physionet_deid",
+  "coarse_typed": {
+    "backend": "model",
+    "character": {
+      "f1": 0.18248067471083013,
+      "false_negatives": 4542,
+      "false_positives": 67479,
+      "precision": 0.106439609624323,
+      "recall": 0.6389507154213037,
+      "support": 12580,
+      "true_positives": 8038
+    },
+    "document_leak_free": {
+      "count": 1845,
+      "rate": 0.758011503697617,
+      "wilson_lower_95": 0.7405988374401706
+    },
+    "documents": 2434,
+    "duplicate_predictions_removed": 0,
+    "elapsed_seconds": 0.1971638749964768,
+    "failures": [],
+    "failures_truncated": true,
+    "negative_documents": {
+      "clean_count": 641,
+      "clean_rate": 0.4366485013623978,
+      "count": 1468
+    },
+    "per_family": {
+      "hard_negative": {
+        "documents": 1468,
+        "f1": 0.0,
+        "false_negatives": 0,
+        "false_positives": 3711,
+        "leak_free_rate": 1.0,
+        "precision": 0.0,
+        "recall": 1.0,
+        "support": 0,
+        "true_positives": 0
+      },
+      "phi": {
+        "documents": 966,
+        "f1": 0.07376296101850636,
+        "false_negatives": 1883,
+        "false_positives": 5174,
+        "leak_free_rate": 0.39026915113871635,
+        "precision": 0.05151237396883593,
+        "recall": 0.12985212569316082,
+        "support": 2164,
+        "true_positives": 281
+      }
+    },
+    "per_label": {
+      "ACCOUNT": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "ADDRESS": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "AGE": {
+        "f1": 0.0,
+        "false_negatives": 5,
+        "false_positives": 245,
+        "precision": 0.0,
+        "recall": 0.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 5,
+        "true_positives": 0
+      },
+      "DATE": {
+        "f1": 0.11442193087008343,
+        "false_negatives": 616,
+        "false_positives": 127,
+        "precision": 0.2742857142857143,
+        "recall": 0.07228915662650602,
+        "recall_wilson_lower_95": 0.05495530631766892,
+        "sufficient_support": true,
+        "support": 664,
+        "true_positives": 48
+      },
+      "EMAIL": {
+        "f1": 0.0,
+        "false_negatives": 1,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 0.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 1,
+        "true_positives": 0
+      },
+      "FACILITY": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "ID": {
+        "f1": 0.0,
+        "false_negatives": 2,
+        "false_positives": 67,
+        "precision": 0.0,
+        "recall": 0.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 2,
+        "true_positives": 0
+      },
+      "IP": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "LOCATION": {
+        "f1": 0.08671586715867159,
+        "false_negatives": 225,
+        "false_positives": 1755,
+        "precision": 0.05083829096809086,
+        "recall": 0.2946708463949843,
+        "recall_wilson_lower_95": 0.2473241170842904,
+        "sufficient_support": true,
+        "support": 319,
+        "true_positives": 94
+      },
+      "MRN": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "NAME": {
+        "f1": 0.03019155143980718,
+        "false_negatives": 1005,
+        "false_positives": 6640,
+        "precision": 0.017606154756620803,
+        "recall": 0.10587188612099645,
+        "recall_wilson_lower_95": 0.08920799464121927,
+        "sufficient_support": true,
+        "support": 1124,
+        "true_positives": 119
+      },
+      "PHONE": {
+        "f1": 0.3333333333333333,
+        "false_negatives": 29,
+        "false_positives": 51,
+        "precision": 0.28169014084507044,
+        "recall": 0.40816326530612246,
+        "recall_wilson_lower_95": 0.2821523852038687,
+        "sufficient_support": true,
+        "support": 49,
+        "true_positives": 20
+      },
+      "SSN": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "URL": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      }
+    },
+    "per_label_character_exposure": {
+      "ACCOUNT": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "ADDRESS": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "AGE": {
+        "covered_characters": 6,
+        "exposed_characters": 6,
+        "recall": 0.5,
+        "support": 12
+      },
+      "DATE": {
+        "covered_characters": 574,
+        "exposed_characters": 2235,
+        "recall": 0.2043431826272695,
+        "support": 2809
+      },
+      "EMAIL": {
+        "covered_characters": 0,
+        "exposed_characters": 12,
+        "recall": 0.0,
+        "support": 12
+      },
+      "FACILITY": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "ID": {
+        "covered_characters": 4,
+        "exposed_characters": 12,
+        "recall": 0.25,
+        "support": 16
+      },
+      "IP": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "LOCATION": {
+        "covered_characters": 2060,
+        "exposed_characters": 736,
+        "recall": 0.7367668097281831,
+        "support": 2796
+      },
+      "MRN": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "NAME": {
+        "covered_characters": 4966,
+        "exposed_characters": 1480,
+        "recall": 0.7704002482159479,
+        "support": 6446
+      },
+      "PHONE": {
+        "covered_characters": 428,
+        "exposed_characters": 61,
+        "recall": 0.8752556237218814,
+        "support": 489
+      },
+      "SSN": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "URL": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      }
+    },
+    "phi_bearing_documents": {
+      "count": 966,
+      "leak_free_count": 377,
+      "leak_free_rate": 0.39026915113871635,
+      "wilson_lower_95": 0.35999996418489094
+    },
+    "phi_bearing_documents_excluding_ages_89_and_under": {
+      "count": 966,
+      "leak_free_count": 377,
+      "leak_free_rate": 0.39026915113871635,
+      "wilson_lower_95": 0.35999996418489094
+    },
+    "privacy": {
+      "any_label_precision": {
+        "overlapping_gold_phi": 1024,
+        "precision": 0.11171721579751255,
+        "predicted_spans": 9166
+      },
+      "checks": {
+        "any_label_precision_at_least_90_percent": false,
+        "direct_any_label_recall_at_least_99_percent": false,
+        "indirect_any_label_recall_at_least_97_percent": false,
+        "name_recall_cluster_lower_95_at_least_98_percent": false,
+        "typed_span_f1_at_least_95_percent": false
+      },
+      "definition": "A gold span is masked when every one of its characters lies inside some predicted span, whatever the predicted label. A predicted span counts toward any-label precision when it overlaps at least one gold PHI character. Lower bounds resample whole documents.",
+      "direct": {
+        "labels": [
+          "NAME",
+          "SSN",
+          "MRN",
+          "ACCOUNT",
+          "ID",
+          "PHONE",
+          "EMAIL",
+          "ADDRESS",
+          "URL",
+          "IP"
+        ],
+        "masked": 851,
+        "recall": 0.7236394557823129,
+        "recall_cluster_lower_95": 0.6898895497026338,
+        "support": 1176
+      },
+      "indirect": {
+        "labels": [
+          "DATE",
+          "AGE",
+          "LOCATION",
+          "FACILITY"
+        ],
+        "masked": 284,
+        "recall": 0.2874493927125506,
+        "recall_cluster_lower_95": 0.2552763819095477,
+        "support": 988
+      },
+      "name_recall_cluster_lower_95": 0.6845943482224248,
+      "passed": false,
+      "per_label": {
+        "ACCOUNT": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "ADDRESS": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "AGE": {
+          "exact_misses": {
+            "boundary_differs": 3,
+            "not_detected": 2,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 3,
+          "recall": 0.6,
+          "support": 5
+        },
+        "AGE_89_AND_UNDER": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "DATE": {
+          "exact_misses": {
+            "boundary_differs": 36,
+            "not_detected": 570,
+            "partly_covered": 3,
+            "wrong_type": 7
+          },
+          "masked": 91,
+          "recall": 0.13704819277108435,
+          "support": 664
+        },
+        "EMAIL": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 1,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": 0.0,
+          "support": 1
+        },
+        "FACILITY": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "ID": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 1,
+            "partly_covered": 1,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": 0.0,
+          "support": 2
+        },
+        "IP": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "LOCATION": {
+          "exact_misses": {
+            "boundary_differs": 89,
+            "not_detected": 99,
+            "partly_covered": 30,
+            "wrong_type": 7
+          },
+          "masked": 190,
+          "recall": 0.5956112852664577,
+          "support": 319
+        },
+        "MRN": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "NAME": {
+          "exact_misses": {
+            "boundary_differs": 684,
+            "not_detected": 291,
+            "partly_covered": 24,
+            "wrong_type": 6
+          },
+          "masked": 809,
+          "recall": 0.7197508896797153,
+          "support": 1124
+        },
+        "PHONE": {
+          "exact_misses": {
+            "boundary_differs": 14,
+            "not_detected": 6,
+            "partly_covered": 1,
+            "wrong_type": 8
+          },
+          "masked": 42,
+          "recall": 0.8571428571428571,
+          "support": 49
+        },
+        "SSN": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "URL": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        }
+      },
+      "scope": "GOALS.md targets apply to hand-annotated real notes. On a synthetic bank these checks are development evidence only.",
+      "targets": {
+        "any_label_precision": 0.9,
+        "direct_any_label_recall": 0.99,
+        "indirect_any_label_recall": 0.97,
+        "name_recall_cluster_lower_95": 0.98,
+        "typed_span_f1": 0.95
+      }
+    },
+    "recall_wilson_lower_95": 0.116342875314608,
+    "schema_version": 1,
+    "scope": "External benchmark physionet_deid; coarse label groups; not a clinical accuracy claim.",
+    "typed_character": {
+      "f1": 0.16870040977558826,
+      "false_negatives": 5149,
+      "false_positives": 68086,
+      "precision": 0.09840168438894553,
+      "recall": 0.5906995230524642,
+      "support": 12580,
+      "true_positives": 7431
+    },
+    "typed_span": {
+      "f1": 0.049602824360105914,
+      "false_negatives": 1883,
+      "false_positives": 8885,
+      "precision": 0.030656775038184595,
+      "recall": 0.12985212569316082,
+      "support": 2164,
+      "true_positives": 281
+    }
+  },
+  "corpus_manifest_sha256": "37fa29c824bc93ddcb2086fd01178d250ad175d7f2a44998902f42ae51117c7a",
+  "label_agnostic": {
+    "character_recall": 0.6393481717011129,
+    "character_recall_wilson_lower_95": 0.6309156740280428,
+    "exact_span": {
+      "f1": 0.05446853516657853,
+      "fn": 1855,
+      "fp": 8873,
+      "precision": 0.03365279895447615,
+      "recall": 0.14279112754158965,
+      "tp": 309
+    },
+    "explicit_age_characters_redacted": 555,
+    "gold_characters": 12580,
+    "hard_negatives_clean": {
+      "count": 641,
+      "documents": 1468,
+      "rate": 0.4366485013623978
+    },
+    "non_pii_characters": 2027150,
+    "non_pii_redacted_characters": 67571,
+    "non_pii_redaction": 0.03333300446439583,
+    "non_pii_redaction_age_adjusted": 0.033059221073921514,
+    "phi_documents_leak_free": {
+      "count": 378,
+      "documents": 966,
+      "rate": 0.391304347826087
+    }
+  },
+  "prediction_receipt": {
+    "benchmark": "physionet_deid",
+    "completed_at": "2026-10-17T20:03:32.485109+00:00",
+    "configuration": {
+      "batch_size": 32,
+      "device": "cpu",
+      "language_profile": "en-US",
+      "meddeid_version": "0.4.2",
+      "metadata": null,
+      "repo": "stighellemans/meddeid-english-synth",
+      "revision": "633af0cb7896756c3ee13df0c1b36352b291414e"
+    },
+    "corpus_sha256": "c2da1e53a38f6ada62726740c77dc30f0b5e479410796b690a364781f7db08fe",
+    "documents": 2434,
+    "elapsed_seconds": 334.587,
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "predicted_spans": 9265,
+    "predictions_sha256": "6a02fad32e771bb58d8279e5570470205bb851917f709bc4bd74406f5a37d47b",
+    "python": "3.13.14",
+    "runner_sha256": "504db94807c2ab8926fb94e723216dd31ea5c65e280247e2ab8558cf0e872cd3",
+    "system": "meddeid"
+  },
+  "published_reference": null,
+  "scorer_sha256": "4e651237676e12423e0abf186dfe2ad551325300165e7a6e10d801de649002f7",
+  "system": "meddeid",
+  "unmapped_prediction_labels": {
+    "Profession": 16
+  }
+}

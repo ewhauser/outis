@@ -20,10 +20,10 @@ ROOT = HERE.parent
 CORPORA = HERE / "corpora"
 PREDICTIONS = HERE / "predictions"
 RESULTS = HERE / "results"
-# Benchmarks under a data use agreement. Their converted corpora and raw
+# Benchmarks under a data use agreement or credentialed licence. Their converted corpora and raw
 # predictions (which contain note text) live outside every git repository;
 # only aggregate scores are written to RESULTS.
-RESTRICTED_BENCHMARKS = frozenset({"n2c2_2014_train", "n2c2_2014_test"})
+RESTRICTED_BENCHMARKS = frozenset({"n2c2_2014_train", "n2c2_2014_test", "physionet_deid"})
 
 
 def restricted_root() -> Path:

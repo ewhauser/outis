@@ -1,0 +1,639 @@
+{
+  "benchmark": "physionet_deid",
+  "coarse_typed": {
+    "backend": "model",
+    "character": {
+      "f1": 0.40519970364383373,
+      "false_negatives": 3556,
+      "false_positives": 22937,
+      "precision": 0.2823441068802603,
+      "recall": 0.717329093799682,
+      "support": 12580,
+      "true_positives": 9024
+    },
+    "document_leak_free": {
+      "count": 1940,
+      "rate": 0.7970419063270336,
+      "wilson_lower_95": 0.7806012364337338
+    },
+    "documents": 2434,
+    "duplicate_predictions_removed": 12,
+    "elapsed_seconds": 0.1854847919967142,
+    "failures": [],
+    "failures_truncated": true,
+    "negative_documents": {
+      "clean_count": 466,
+      "clean_rate": 0.31743869209809267,
+      "count": 1468
+    },
+    "per_family": {
+      "hard_negative": {
+        "documents": 1468,
+        "f1": 0.0,
+        "false_negatives": 0,
+        "false_positives": 2696,
+        "leak_free_rate": 1.0,
+        "precision": 0.0,
+        "recall": 1.0,
+        "support": 0,
+        "true_positives": 0
+      },
+      "phi": {
+        "documents": 966,
+        "f1": 0.3452240067624683,
+        "false_negatives": 1143,
+        "false_positives": 2730,
+        "leak_free_rate": 0.4886128364389234,
+        "precision": 0.2721940815782458,
+        "recall": 0.47181146025878,
+        "support": 2164,
+        "true_positives": 1021
+      }
+    },
+    "per_label": {
+      "ACCOUNT": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "ADDRESS": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "AGE": {
+        "f1": 0.012474012474012475,
+        "false_negatives": 2,
+        "false_positives": 473,
+        "precision": 0.0063025210084033615,
+        "recall": 0.6,
+        "recall_wilson_lower_95": 0.23072428127601285,
+        "sufficient_support": false,
+        "support": 5,
+        "true_positives": 3
+      },
+      "DATE": {
+        "f1": 0.4853205512282804,
+        "false_negatives": 259,
+        "false_positives": 600,
+        "precision": 0.40298507462686567,
+        "recall": 0.6099397590361446,
+        "recall_wilson_lower_95": 0.5723088758900948,
+        "sufficient_support": true,
+        "support": 664,
+        "true_positives": 405
+      },
+      "EMAIL": {
+        "f1": 0.0,
+        "false_negatives": 1,
+        "false_positives": 2,
+        "precision": 0.0,
+        "recall": 0.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 1,
+        "true_positives": 0
+      },
+      "FACILITY": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "ID": {
+        "f1": 0.0,
+        "false_negatives": 2,
+        "false_positives": 336,
+        "precision": 0.0,
+        "recall": 0.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 2,
+        "true_positives": 0
+      },
+      "IP": {
+        "f1": 0.0,
+        "false_negatives": 0,
+        "false_positives": 3,
+        "precision": 0.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "LOCATION": {
+        "f1": 0.14154972544234287,
+        "false_negatives": 203,
+        "false_positives": 1204,
+        "precision": 0.08787878787878788,
+        "recall": 0.36363636363636365,
+        "recall_wilson_lower_95": 0.31276039221595875,
+        "sufficient_support": true,
+        "support": 319,
+        "true_positives": 116
+      },
+      "MRN": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "NAME": {
+        "f1": 0.21732211866333256,
+        "false_negatives": 646,
+        "false_positives": 2797,
+        "precision": 0.14595419847328245,
+        "recall": 0.42526690391459077,
+        "recall_wilson_lower_95": 0.3966675244797692,
+        "sufficient_support": true,
+        "support": 1124,
+        "true_positives": 478
+      },
+      "PHONE": {
+        "f1": 0.48717948717948717,
+        "false_negatives": 30,
+        "false_positives": 10,
+        "precision": 0.6551724137931034,
+        "recall": 0.3877551020408163,
+        "recall_wilson_lower_95": 0.26429011711735667,
+        "sufficient_support": true,
+        "support": 49,
+        "true_positives": 19
+      },
+      "SSN": {
+        "f1": 1.0,
+        "false_negatives": 0,
+        "false_positives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      },
+      "URL": {
+        "f1": 0.0,
+        "false_negatives": 0,
+        "false_positives": 1,
+        "precision": 0.0,
+        "recall": 1.0,
+        "recall_wilson_lower_95": 0.0,
+        "sufficient_support": false,
+        "support": 0,
+        "true_positives": 0
+      }
+    },
+    "per_label_character_exposure": {
+      "ACCOUNT": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "ADDRESS": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "AGE": {
+        "covered_characters": 6,
+        "exposed_characters": 6,
+        "recall": 0.5,
+        "support": 12
+      },
+      "DATE": {
+        "covered_characters": 1989,
+        "exposed_characters": 820,
+        "recall": 0.7080811676753292,
+        "support": 2809
+      },
+      "EMAIL": {
+        "covered_characters": 0,
+        "exposed_characters": 12,
+        "recall": 0.0,
+        "support": 12
+      },
+      "FACILITY": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "ID": {
+        "covered_characters": 3,
+        "exposed_characters": 13,
+        "recall": 0.1875,
+        "support": 16
+      },
+      "IP": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "LOCATION": {
+        "covered_characters": 1802,
+        "exposed_characters": 994,
+        "recall": 0.6444921316165951,
+        "support": 2796
+      },
+      "MRN": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "NAME": {
+        "covered_characters": 4885,
+        "exposed_characters": 1561,
+        "recall": 0.7578343158547937,
+        "support": 6446
+      },
+      "PHONE": {
+        "covered_characters": 339,
+        "exposed_characters": 150,
+        "recall": 0.6932515337423313,
+        "support": 489
+      },
+      "SSN": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      },
+      "URL": {
+        "covered_characters": 0,
+        "exposed_characters": 0,
+        "recall": null,
+        "support": 0
+      }
+    },
+    "phi_bearing_documents": {
+      "count": 966,
+      "leak_free_count": 472,
+      "leak_free_rate": 0.4886128364389234,
+      "wilson_lower_95": 0.45719817227618254
+    },
+    "phi_bearing_documents_excluding_ages_89_and_under": {
+      "count": 966,
+      "leak_free_count": 472,
+      "leak_free_rate": 0.4886128364389234,
+      "wilson_lower_95": 0.45719817227618254
+    },
+    "privacy": {
+      "any_label_precision": {
+        "overlapping_gold_phi": 1350,
+        "precision": 0.20939972080037228,
+        "predicted_spans": 6447
+      },
+      "checks": {
+        "any_label_precision_at_least_90_percent": false,
+        "direct_any_label_recall_at_least_99_percent": false,
+        "indirect_any_label_recall_at_least_97_percent": false,
+        "name_recall_cluster_lower_95_at_least_98_percent": false,
+        "typed_span_f1_at_least_95_percent": false
+      },
+      "definition": "A gold span is masked when every one of its characters lies inside some predicted span, whatever the predicted label. A predicted span counts toward any-label precision when it overlaps at least one gold PHI character. Lower bounds resample whole documents.",
+      "direct": {
+        "labels": [
+          "NAME",
+          "SSN",
+          "MRN",
+          "ACCOUNT",
+          "ID",
+          "PHONE",
+          "EMAIL",
+          "ADDRESS",
+          "URL",
+          "IP"
+        ],
+        "masked": 820,
+        "recall": 0.6972789115646258,
+        "recall_cluster_lower_95": 0.6675774134790529,
+        "support": 1176
+      },
+      "indirect": {
+        "labels": [
+          "DATE",
+          "AGE",
+          "LOCATION",
+          "FACILITY"
+        ],
+        "masked": 613,
+        "recall": 0.6204453441295547,
+        "recall_cluster_lower_95": 0.5809893307468477,
+        "support": 988
+      },
+      "name_recall_cluster_lower_95": 0.665098777046096,
+      "passed": false,
+      "per_label": {
+        "ACCOUNT": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "ADDRESS": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "AGE": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 2,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 3,
+          "recall": 0.6,
+          "support": 5
+        },
+        "AGE_89_AND_UNDER": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "DATE": {
+          "exact_misses": {
+            "boundary_differs": 22,
+            "not_detected": 229,
+            "partly_covered": 5,
+            "wrong_type": 3
+          },
+          "masked": 430,
+          "recall": 0.6475903614457831,
+          "support": 664
+        },
+        "EMAIL": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 1,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": 0.0,
+          "support": 1
+        },
+        "FACILITY": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "ID": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 1,
+            "partly_covered": 1,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": 0.0,
+          "support": 2
+        },
+        "IP": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "LOCATION": {
+          "exact_misses": {
+            "boundary_differs": 61,
+            "not_detected": 127,
+            "partly_covered": 12,
+            "wrong_type": 3
+          },
+          "masked": 180,
+          "recall": 0.5642633228840125,
+          "support": 319
+        },
+        "MRN": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "NAME": {
+          "exact_misses": {
+            "boundary_differs": 306,
+            "not_detected": 316,
+            "partly_covered": 17,
+            "wrong_type": 7
+          },
+          "masked": 791,
+          "recall": 0.7037366548042705,
+          "support": 1124
+        },
+        "PHONE": {
+          "exact_misses": {
+            "boundary_differs": 1,
+            "not_detected": 18,
+            "partly_covered": 2,
+            "wrong_type": 9
+          },
+          "masked": 29,
+          "recall": 0.5918367346938775,
+          "support": 49
+        },
+        "SSN": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        },
+        "URL": {
+          "exact_misses": {
+            "boundary_differs": 0,
+            "not_detected": 0,
+            "partly_covered": 0,
+            "wrong_type": 0
+          },
+          "masked": 0,
+          "recall": null,
+          "support": 0
+        }
+      },
+      "scope": "GOALS.md targets apply to hand-annotated real notes. On a synthetic bank these checks are development evidence only.",
+      "targets": {
+        "any_label_precision": 0.9,
+        "direct_any_label_recall": 0.99,
+        "indirect_any_label_recall": 0.97,
+        "name_recall_cluster_lower_95": 0.98,
+        "typed_span_f1": 0.95
+      }
+    },
+    "recall_wilson_lower_95": 0.4508471418427039,
+    "schema_version": 1,
+    "scope": "External benchmark physionet_deid; coarse label groups; not a clinical accuracy claim.",
+    "typed_character": {
+      "f1": 0.3930615084262729,
+      "false_negatives": 3822,
+      "false_positives": 23225,
+      "precision": 0.27383297376731386,
+      "recall": 0.6961844197138315,
+      "support": 12580,
+      "true_positives": 8758
+    },
+    "typed_span": {
+      "f1": 0.23713854372314477,
+      "false_negatives": 1143,
+      "false_positives": 5426,
+      "precision": 0.15836823328680005,
+      "recall": 0.47181146025878,
+      "support": 2164,
+      "true_positives": 1021
+    }
+  },
+  "corpus_manifest_sha256": "37fa29c824bc93ddcb2086fd01178d250ad175d7f2a44998902f42ae51117c7a",
+  "label_agnostic": {
+    "character_recall": 0.717329093799682,
+    "character_recall_wilson_lower_95": 0.7093948887103029,
+    "exact_span": {
+      "f1": 0.24233271375464682,
+      "fn": 1121,
+      "fp": 5401,
+      "precision": 0.16185599006828058,
+      "recall": 0.4819778188539741,
+      "tp": 1043
+    },
+    "explicit_age_characters_redacted": 258,
+    "gold_characters": 12580,
+    "hard_negatives_clean": {
+      "count": 466,
+      "documents": 1468,
+      "rate": 0.31743869209809267
+    },
+    "non_pii_characters": 2027150,
+    "non_pii_redacted_characters": 22937,
+    "non_pii_redaction": 0.011314900229386084,
+    "non_pii_redaction_age_adjusted": 0.011187627950570999,
+    "phi_documents_leak_free": {
+      "count": 472,
+      "documents": 966,
+      "rate": 0.4886128364389234
+    }
+  },
+  "prediction_receipt": {
+    "benchmark": "physionet_deid",
+    "completed_at": "2026-10-17T20:38:11.549966+00:00",
+    "configuration": {
+      "arm": "facility",
+      "device": "cpu",
+      "flat_ner": true,
+      "labels": [
+        "account_number",
+        "age",
+        "biometric_identifier",
+        "certificate_license_number",
+        "city",
+        "coordinate",
+        "county",
+        "customer_id",
+        "date",
+        "date_of_birth",
+        "date_time",
+        "email",
+        "employee_id",
+        "fax_number",
+        "first_name",
+        "health_plan_beneficiary_number",
+        "hospital or medical facility",
+        "ipv4",
+        "ipv6",
+        "last_name",
+        "license_plate",
+        "medical_record_number",
+        "phone_number",
+        "postcode",
+        "ssn",
+        "state",
+        "street_address",
+        "unique_id",
+        "url",
+        "vehicle_identifier"
+      ],
+      "overlap": 200,
+      "repo": "nvidia/gliner-PII",
+      "revision": "bd23e8ef4425fd04e34c5204ab49ffaa706eae79",
+      "threshold": 0.3,
+      "window": 1200
+    },
+    "corpus_sha256": "c2da1e53a38f6ada62726740c77dc30f0b5e479410796b690a364781f7db08fe",
+    "documents": 2434,
+    "elapsed_seconds": 979.131,
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "predicted_spans": 6668,
+    "predictions_sha256": "533f9285529f0412e075e635607e1e5990c6b7107edca754893a1985be017786",
+    "python": "3.13.14",
+    "runner_sha256": "5d66e174d810ae4d6dd79547f86bc31091beb0a41819c9768dc7bf84378d6053",
+    "system": "gliner-facility"
+  },
+  "published_reference": null,
+  "scorer_sha256": "4e651237676e12423e0abf186dfe2ad551325300165e7a6e10d801de649002f7",
+  "system": "gliner-facility",
+  "unmapped_prediction_labels": {}
+}

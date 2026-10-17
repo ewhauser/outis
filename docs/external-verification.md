@@ -51,7 +51,7 @@ These rules hold for every benchmark and every system.
 | [SPY](https://huggingface.co/datasets/mks-logic/SPY) medical | 4,491 synthetic medical consultations, 7 PII types | CC BY 4.0 | Yes, with attribution | Planned |
 | [n2c2 2014](https://portal.dbmi.hms.harvard.edu/projects/n2c2-2014/) de-identification | Real clinical notes with surrogate PHI | Harvard DBMI data use agreement | Evaluation only, under the commercial agreement | Planned; access required |
 | [SHIELD](https://stanford.redivis.com/datasets/ee4n-6gv2f84et) | 1,381 Stanford notes, 9 PHI categories | Stanford DRUA | Unconfirmed | Blocked on licence review |
-| PhysioNet deidentified medical text | 2,434 MIMIC-II nursing notes | PhysioNet credentialed licence | No; research only | Excluded |
+| [PhysioNet Deidentified Medical Text](https://physionet.org/content/deidentifiedmedicaltext/1.0/) v1.0 | 2,434 MIMIC-II nursing notes with surrogate PHI | PhysioNet Credentialed Health Data License 1.5.0 | No; research evaluation only | Scored; restricted, uninspected |
 
 Do not use n2c2 2014 until the agreement is signed. Its terms forbid putting
 the data into a product, which rules 1 and 5 already respect. Check the
@@ -286,6 +286,34 @@ It is used for evaluation only.
 - Published n2c2 2014 results use specific matching rules (strict or relaxed
   spans, token or entity level, the full PHI set or a HIPAA subset). Match the
   metric exactly before comparing with any paper.
+
+## Restricted benchmark: PhysioNet Deidentified Medical Text
+
+PhysioNet's Deidentified Medical Text v1.0 is 2,434 real MIMIC-II nursing notes
+in which every gold PHI instance has been replaced by a realistic surrogate.
+It is distributed under the PhysioNet Credentialed Health Data License 1.5.0,
+which allows scientific research use only and forbids sharing access. It is
+used for research evaluation only, never in a product, training set or tuning
+decision.
+
+- Each person obtains it under their own credentialed access and signed data
+  use agreement. Keep the raw files outside every git repository.
+- Process it only locally. Do not send note text, predictions or failure
+  examples to an LLM or any online service unless that use complies with
+  PhysioNet's guidance, [Use of MIMIC Data with Large Language Models and Online
+  Services](https://physionet.org/news/post/llm-responsible-use/).
+  Models run with `HF_HUB_OFFLINE=1` from cached, pinned revisions.
+- `physionet_deid.py --raw <folder holding id.text and id.res>` writes
+  `$OUTIS_RESTRICTED_DIR/corpora/physionet_deid.jsonl`. Gold spans come from
+  aligning `id.text` (surrogates) with `id.res` (`[**category**]` tags);
+  conversion fails unless every record aligns. Only counts are printed.
+- Tag categories map to project types (`physionet_deid.CATEGORY_RULES`). Ward
+  names, states and countries are treated as out of policy, like n2c2's
+  DEPARTMENT, STATE and COUNTRY. One release tag has no category and is
+  neutral.
+- Scoring writes no failure examples; results files hold aggregate scores only.
+  Before publishing results that name the corpus, check the licence's
+  publication terms (clause 2) and cite the dataset.
 
 ## Reading results
 

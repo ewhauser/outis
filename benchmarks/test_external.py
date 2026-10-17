@@ -15,6 +15,7 @@ from score import age_characters, merge_names  # noqa: E402
 from score_aligned import bare_year_characters, convention_flags, gold_values, miss_shapes  # noqa: E402
 import common  # noqa: E402
 import n2c2_2014  # noqa: E402
+import physionet_deid  # noqa: E402
 
 
 class AsqPhiConversionTest(unittest.TestCase):
@@ -213,6 +214,31 @@ class N2c2ConversionTest(unittest.TestCase):
             path.write_bytes(bad)
             with self.assertRaises(ValueError):
                 n2c2_2014.convert_files([path])
+
+
+class PhysionetConversionTest(unittest.TestCase):
+    RES = ("START_OF_RECORD=1||||1||||\nSeen by [**Last Name (STitle) 123**] at [**Hospital1 18**] on "
+           "[**10-20**].\n||||END_OF_RECORD\nSTART_OF_RECORD=1||||2||||\nStable overnight.\n||||END_OF_RECORD\n")
+    TEXT = ("START_OF_RECORD=1||||1||||\nSeen by Quill at Ombrey General on 3-14.\n||||END_OF_RECORD\n"
+            "START_OF_RECORD=1||||2||||\nStable overnight.\n||||END_OF_RECORD\n")
+
+    def test_surrogates_align_to_tags_and_map_types(self):
+        rows, report = physionet_deid.convert(self.TEXT, self.RES)
+        got = [(rows[0]["text"][s["start"]:s["end"]], s["label"], s["source_label"]) for s in rows[0]["spans"]]
+        self.assertEqual(got, [("Quill", "NAME", "Last Name (STitle)"), ("Ombrey General", "FACILITY", "Hospital"),
+                               ("3-14", "DATE", "DATE")])
+        self.assertEqual(rows[1]["family"], "hard_negative")
+        self.assertEqual(report["unaligned_records"], 0)
+
+    def test_ward_names_are_out_of_policy_and_unknown_categories_fail(self):
+        self.assertEqual(physionet_deid.classify("Wardname 52"), ("FACILITY", False, "Wardname"))
+        self.assertEqual(physionet_deid.classify("Age over 90 1234"), ("AGE", True, "Age over"))
+        with self.assertRaises(ValueError):
+            physionet_deid.classify("Planet 7")
+
+    def test_mismatched_literals_are_unaligned(self):
+        _, report = physionet_deid.convert(self.TEXT.replace("Seen by", "Met"), self.RES)
+        self.assertEqual(report["unaligned_records"], 1)
 
 
 class MissShapeTest(unittest.TestCase):
