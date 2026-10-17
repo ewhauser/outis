@@ -5,6 +5,19 @@ All notable changes to this project are documented here. The project uses
 from the Conventional Commit messages merged since the previous release; see
 [RELEASING.md](RELEASING.md).
 
+## [0.5.0](https://github.com/ewhauser/outis/compare/v0.4.0...v0.5.0) (2026-10-17)
+
+
+### Features
+
+* score PhysioNet Deidentified Medical Text as a restricted benchmark ([#37](https://github.com/ewhauser/outis/issues/37)) ([548ba60](https://github.com/ewhauser/outis/commit/548ba6058f642ecd03860325a18966a1737ce392))
+
+
+### Documentation
+
+* report the real-notes PhysioNet results in the README and model card ([#39](https://github.com/ewhauser/outis/issues/39)) ([0ffdf2c](https://github.com/ewhauser/outis/commit/0ffdf2c049953494df5fe22ee2d60ae2fa3356a0))
+* state how Outis compares with the open models evaluated ([#40](https://github.com/ewhauser/outis/issues/40)) ([0d32c15](https://github.com/ewhauser/outis/commit/0d32c15c658c9f385bec2c2e7d82f3ec592fc4e4))
+
 ## [0.4.0](https://github.com/ewhauser/outis/compare/v0.3.0...v0.4.0) (2026-10-13)
 
 
