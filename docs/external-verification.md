@@ -9,9 +9,10 @@ evidence of how the detector transfers to someone else's text and annotation
 conventions, and each scored result should include that any-label coverage.
 They are never used to select, tune or train a model.
 
-Evaluation on real notes is not part of this repository. Benchmarks that
-contain real clinical text, such as n2c2 2014, are used only under their own
-data use agreements and never committed.
+Real notes are never part of this repository. Benchmarks that contain real
+clinical text, such as PhysioNet Deidentified Medical Text and n2c2 2014, are
+used only under their own data use agreements; only their aggregate scores are
+committed.
 
 The harness lives in
 [`benchmarks/`](../benchmarks/README.md).

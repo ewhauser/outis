@@ -22,8 +22,11 @@ which adds the decoder, policies and synthetic replacement. Detection is
 model-only; there is no rule layer.
 
 > [!WARNING]
-> Research software. It has never been evaluated on real clinical records, and
-> no full sealed qualification has been run for it. It is not a substitute for
+> Research software. On the one set of real clinical notes it has been tested
+> on (PhysioNet nursing notes) it masked 77% of PHI characters, far below its
+> synthetic scores; that benchmark's quirks make the figure a comparison between
+> tools rather than a measure of accuracy on real PHI. No full sealed
+> qualification has been run for it. It is not a substitute for
 > a HIPAA Safe Harbor review or an Expert Determination.
 
 ## Model details
@@ -86,11 +89,43 @@ the [annotation policy](docs/annotation-policy-v2.md).
 
 ## Evaluation
 
-All numbers come from synthetic text; none estimates accuracy on real notes.
+One benchmark is real clinical text (PhysioNet); every other number comes from
+synthetic text.
 "Masked" means every character of an identifier is covered by some detected
 span, whatever type it was given.
 
-### Public benchmarks
+### Real clinical notes
+
+[PhysioNet Deidentified Medical Text](https://physionet.org/content/deidentifiedmedicaltext/1.0/):
+2,434 real MIMIC-II nursing notes with every identifier replaced by a realistic
+fictional value. Credentialed, research-only data, run locally; only aggregate
+scores are kept.
+
+| Measure | Outis | [MedDeID](https://huggingface.co/stighellemans/meddeid-english-synth) | [GLiNER-PII](https://huggingface.co/nvidia/gliner-PII)\* |
+|---|---:|---:|---:|
+| PHI characters masked ↑ | **77.30%** | 66.54% | 75.33% |
+| Non-PHI text removed ↓ | **1.06%** | 3.91% | 1.35% |
+| Notes fully masked ↑ | **54.94%** | 39.81% | 51.50% |
+| Names masked ↑ | **75.44%** | 72.06% | 70.46% |
+
+\* `nvidia/gliner-PII` with one added zero-shot label for hospitals.
+
+> [!NOTE]
+> Use these numbers to compare tools on the same text, not as any tool's
+> accuracy on real PHI. The corpus has its own quirks: its identifiers are
+> substitute values rather than real ones, the notes are terse nursing notes
+> from one hospital in the 2000s, and its annotators marked things this
+> project's policy may treat differently, such as bare month-day dates and
+> initials. The policy-aligned scoring removes the differences we could
+> identify, not all of them, and they do not affect every tool equally.
+> Accuracy on another institution's real notes needs its own annotated sample,
+> and could be higher or lower.
+
+PhysioNet's rule-based `deid` tool reported 96.7% instance recall on these
+notes (tuned on them, run on the original text; about 94% held out). See
+[against published figures](docs/external-verification.md#against-published-figures).
+
+### Synthetic public benchmarks
 
 Every model is scored the same way, under this project's annotation policy
 ([details](docs/external-verification.md)). ↑ means higher is better, ↓ lower
@@ -153,8 +188,11 @@ overstates certainty.
   region in notes with no PHI (4% on the place-name test).
 - **Care sites.** Care-site names are the weakest indirect type on the
   held-out notes (96.75% masked).
-- **Synthetic-to-real gap.** Real institutional notes are unmeasured and may
-  be harder.
+- **Synthetic-to-real gap.** On one benchmark of real nursing notes 77% of PHI
+  characters were masked and 55% of notes with PHI were fully masked, against
+  99% or more on synthetic text. That benchmark's quirks make it a comparison
+  between tools rather than a measure of accuracy on real PHI. Other real note
+  types and institutions are unmeasured.
 - **Over-redaction.** Some PHI-free notes still receive a span (7.9% of
   PHI-free held-out notes).
 - **Surrogates are not anonymity.** Synthetic replacements can resemble real
