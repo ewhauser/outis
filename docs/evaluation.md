@@ -2,7 +2,9 @@
 
 This page describes how the detector is measured and how a new model is
 compared with the current one. All results so far come from synthetic or
-public benchmark text; none comes from real clinical records.
+public benchmark text, except one external benchmark of real nursing notes
+(PhysioNet Deidentified Medical Text; see
+[external verification](external-verification.md#against-published-figures)).
 
 ## The measure that matters: identifiers masked
 
@@ -80,8 +82,9 @@ training data, including future contributions.
 
 ## What this does not establish
 
-Synthetic banks are development evidence only. Nothing here is a measurement
-on real clinical notes, and no output of this project should be described as
+Synthetic banks are development evidence only. Nothing on this page is a
+measurement on real clinical notes (the one real-note benchmark is reported in
+[external verification](external-verification.md)), and no output of this project should be described as
 HIPAA compliant or de-identified under HIPAA on the strength of these numbers.
 A deployment needs its own evaluation on a hand-annotated sample of its real
 notes and an appropriate privacy determination.
