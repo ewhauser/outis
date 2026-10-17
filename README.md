@@ -23,7 +23,9 @@ server.
 > [!IMPORTANT]
 > This is research software. It has **not** met all of its [evaluation targets](docs/evaluation.md). On the one set of real
 > clinical notes it has been tested on, it masked 77% of PHI characters, far
-> below its scores on synthetic text (see [Results](#results)). It does not by
+> below its scores on synthetic text. That benchmark has quirks of its own, so
+> the figure is a comparison between tools, not a measure of accuracy on real
+> PHI (see [Results](#results)). It does not by
 > itself provide HIPAA Safe Harbor or Expert Determination de-identification.
 > See [Limitations](#limitations).
 
@@ -203,6 +205,17 @@ way, under this project's annotation policy
 
 \* `nvidia/gliner-PII` with one added zero-shot label for hospitals.
 
+> [!NOTE]
+> Use these numbers to compare tools on the same text, not as any tool's
+> accuracy on real PHI. The corpus has its own quirks: its identifiers are
+> substitute values rather than real ones, the notes are terse nursing notes
+> from one hospital in the 2000s, and its annotators marked things this
+> project's policy may treat differently, such as bare month-day dates and
+> initials. The policy-aligned scoring removes the differences we could
+> identify, not all of them, and they do not affect every tool equally.
+> Accuracy on another institution's real notes needs its own annotated sample,
+> and could be higher or lower.
+
 Outis leads the machine-learning models, but none of them is close to their
 synthetic scores. PhysioNet's own rule-based `deid` tool reported 96.7% recall
 of PHI instances on these notes (about 94% on a held-out set), and individual
@@ -271,10 +284,12 @@ How these numbers are computed is described in
 
 ## Limitations
 
-- **Much lower accuracy on real notes.** On real nursing notes Outis masked
-  77% of PHI characters and fully masked only 55% of notes that contain PHI,
-  against 99% or more on synthetic text. This has been measured on one real
-  corpus only, so other note types and institutions are unmeasured.
+- **Much lower scores on real notes.** On one benchmark of real nursing notes
+  Outis masked 77% of PHI characters and fully masked 55% of notes that
+  contain PHI, against 99% or more on synthetic text. That benchmark's quirks
+  make it a comparison between tools rather than a measure of accuracy on real
+  PHI, but the drop is large. Accuracy on other note types and institutions is
+  unmeasured.
 - **Synthetic training data.** Training and internal test text comes from this
   project's own generators. Real institutional formats, rare identifying
   narratives and unseen identity styles are not well covered.

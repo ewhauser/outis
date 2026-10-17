@@ -24,7 +24,9 @@ model-only; there is no rule layer.
 > [!WARNING]
 > Research software. On the one set of real clinical notes it has been tested
 > on (PhysioNet nursing notes) it masked 77% of PHI characters, far below its
-> synthetic scores, and no full sealed qualification has been run for it. It is not a substitute for
+> synthetic scores; that benchmark's quirks make the figure a comparison between
+> tools rather than a measure of accuracy on real PHI. No full sealed
+> qualification has been run for it. It is not a substitute for
 > a HIPAA Safe Harbor review or an Expert Determination.
 
 ## Model details
@@ -108,6 +110,17 @@ scores are kept.
 
 \* `nvidia/gliner-PII` with one added zero-shot label for hospitals.
 
+> [!NOTE]
+> Use these numbers to compare tools on the same text, not as any tool's
+> accuracy on real PHI. The corpus has its own quirks: its identifiers are
+> substitute values rather than real ones, the notes are terse nursing notes
+> from one hospital in the 2000s, and its annotators marked things this
+> project's policy may treat differently, such as bare month-day dates and
+> initials. The policy-aligned scoring removes the differences we could
+> identify, not all of them, and they do not affect every tool equally.
+> Accuracy on another institution's real notes needs its own annotated sample,
+> and could be higher or lower.
+
 PhysioNet's rule-based `deid` tool reported 96.7% instance recall on these
 notes (tuned on them, run on the original text; about 94% held out). See
 [against published figures](docs/external-verification.md#against-published-figures).
@@ -175,9 +188,11 @@ overstates certainty.
   region in notes with no PHI (4% on the place-name test).
 - **Care sites.** Care-site names are the weakest indirect type on the
   held-out notes (96.75% masked).
-- **Synthetic-to-real gap.** On real nursing notes 77% of PHI characters were
-  masked and 55% of notes with PHI were fully masked, against 99% or more on
-  synthetic text. Other real note types and institutions are unmeasured.
+- **Synthetic-to-real gap.** On one benchmark of real nursing notes 77% of PHI
+  characters were masked and 55% of notes with PHI were fully masked, against
+  99% or more on synthetic text. That benchmark's quirks make it a comparison
+  between tools rather than a measure of accuracy on real PHI. Other real note
+  types and institutions are unmeasured.
 - **Over-redaction.** Some PHI-free notes still receive a span (7.9% of
   PHI-free held-out notes).
 - **Surrogates are not anonymity.** Synthetic replacements can resemble real
